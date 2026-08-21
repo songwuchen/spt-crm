@@ -11,8 +11,10 @@ import { sourceLabels } from '@/api/types'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import { useDataDict } from '@/hooks/useDataDict'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useAuthStore } from '@/stores/useAuthStore'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
@@ -81,6 +83,35 @@ export default function LeadDetail() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [reactIntent, setReactIntent] = useState(searchParams.get('react') === '1')
+  const keepReact = searchParams.get('react') === '1'
+  const siblingNav = useSiblingRecordNav('leads', id, {
+    pathForId: (rid) => `/leads/${rid}${keepReact ? '?react=1' : ''}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const res = await leadApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        status: q.status as string | undefined,
+        source: q.source as string | undefined,
+        customer_type: q.customer_type as string | undefined,
+        category: q.category as string | undefined,
+        country_type: q.country_type as string | undefined,
+        department_id: q.department_id as string | undefined,
+        industry: q.industry as string | undefined,
+        company_name: q.company_name as string | undefined,
+        start_date: q.start_date as string | undefined,
+        end_date: q.end_date as string | undefined,
+        date_field: q.date_field as string | undefined,
+        reactivation_active: q.reactivation_active as boolean | undefined,
+        reactivation_status: q.reactivation_status as string | undefined,
+      })
+      return {
+        ids: (res.data.items || []).map((x) => x.id),
+        total: res.data.total,
+      }
+    },
+  })
   const [lead, setLead] = useState<Lead | null>(null)
   const [activeTab, setActiveTab] = useState('detail')
   const [followUpSignal, setFollowUpSignal] = useState(0)
@@ -424,6 +455,15 @@ export default function LeadDetail() {
             </div>
           </div>
           <Space>
+            {siblingNav.hasNav && (
+              <RecordPrevNextNav
+                index={siblingNav.index}
+                total={siblingNav.total}
+                disabled={siblingNav.busy}
+                onPrev={siblingNav.goPrev}
+                onNext={siblingNav.goNext}
+              />
+            )}
             {/* 流程激活看 WF 终态，与线索是否已转化无关（已转化单也可重开审批） */}
             {canActivateFlow && wfInstance?.can_activate && wfInstance.id && (
               <Button

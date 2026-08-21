@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -15,6 +15,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import { isMasked, MASK_VALUE } from '@/utils/mask'
 import { usePermission } from '@/hooks/usePermission'
@@ -124,11 +125,26 @@ export default function OpportunityList() {
     fetchData(1, keyword, stageCode, status)
   }
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('opportunities', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo,
+      pageSize,
+      listQuery: {
+        keyword: keyword || undefined,
+        stage_code: stageCode,
+        status,
+      },
+    })
+    navigate(`/opportunities/${rid}`)
+  }, [data, total, pageNo, pageSize, keyword, stageCode, status, navigate])
+
   const baseColumns: ColumnsType<OpportunityProject> = [
     { title: t('opportunity.name'), key: 'name', width: 260,
       render: (_, r) => (
         <div>
-          <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
+          <a onClick={() => openDetail(r.id)} className="text-sm font-bold text-slate-900 hover:text-primary">
             {r.name}
           </a>
           <div className="text-[13px] text-slate-400 font-mono">{r.project_code}</div>
@@ -202,7 +218,7 @@ export default function OpportunityList() {
     title: '', key: 'actions', width: 150, fixed: 'right',
     render: (_, r) => (
       <Space size={0}>
-        <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+        <a onClick={() => openDetail(r.id)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
         <a onClick={() => navigate(`/opportunities/${r.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
         <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
           Modal.confirm({

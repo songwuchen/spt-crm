@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button, Input, Space, Tag, Select, Modal, Form, Tooltip, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, MailOutlined } from '@ant-design/icons'
@@ -17,6 +17,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
@@ -181,6 +182,22 @@ export default function CustomerList() {
     fetchData(1, keyword, industry, regionCode, regionName)
   }
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('customers', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo,
+      pageSize,
+      listQuery: {
+        keyword: keyword || undefined,
+        industry,
+        region_code: regionCode || undefined,
+        region: regionName || undefined,
+      },
+    })
+    navigate(`/customers/${rid}`)
+  }, [data, total, pageNo, pageSize, keyword, industry, regionCode, regionName, navigate])
+
   const dash = <span className="text-slate-300">-</span>
   const ynTag = (v: boolean | null | undefined) => {
     if (v == null) return dash
@@ -208,7 +225,7 @@ export default function CustomerList() {
         <div className="flex items-center gap-3">
           <Monogram name={record.name} />
           <div className="min-w-0">
-            <a onClick={() => navigate(`/customers/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary block truncate">
+            <a onClick={() => openDetail(record.id)} className="text-sm font-bold text-slate-900 hover:text-primary block truncate">
               {record.name}
             </a>
             {record.short_name && <div className="text-[13px] text-slate-400 truncate">{record.short_name}</div>}
@@ -354,7 +371,7 @@ export default function CustomerList() {
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/customers/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => openDetail(record.id)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
           <a onClick={() => navigate(`/customers/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             dangerConfirm({

@@ -14,6 +14,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import { useCustomerSelect } from '@/hooks/useSelectOptions'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import { fmtMoney } from '@/utils/mask'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
@@ -352,11 +353,25 @@ export default function ContractList() {
     })
   }, [])
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('contracts', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo,
+      pageSize: 20,
+      listQuery: {
+        keyword: keyword || undefined,
+        status: filterStatus,
+      },
+    })
+    navigate(`/contracts/${rid}`)
+  }, [data, total, pageNo, keyword, filterStatus, navigate])
+
   const columns: ColumnsType<ContractItem> = useMemo(() => {
     const cols: ColumnsType<ContractItem> = [
     { title: '合同编号', dataIndex: 'contract_no', width: 160,
       render: (v: string, r: ContractItem) => (
-        <a className="font-mono font-bold text-primary" onClick={() => navigate(`/contracts/${r.id}`)}>{v}</a>
+        <a className="font-mono font-bold text-primary" onClick={() => openDetail(r.id)}>{v}</a>
       ),
     },
     { title: '图纸编号', dataIndex: 'drawing_no', width: 140, ellipsis: true, render: (v: string) => v || '-' },
@@ -400,7 +415,7 @@ export default function ContractList() {
         fixed: 'right',
         render: (_: unknown, r: ContractItem) => (
           <Space size={0}>
-            <a className="text-primary text-sm px-2" onClick={() => navigate(`/contracts/${r.id}`)}>详情</a>
+            <a className="text-primary text-sm px-2" onClick={() => openDetail(r.id)}>详情</a>
             {isContractDraftDeletable(r.status, r.current_version_status) && (
               <a className="text-rose-500 text-sm px-2" onClick={() => handleDelete(r)}>删除</a>
             )}
@@ -409,7 +424,7 @@ export default function ContractList() {
       })
     }
     return cols
-  }, [canDelete, handleDelete, navigate])
+  }, [canDelete, handleDelete, openDetail])
 
   const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 

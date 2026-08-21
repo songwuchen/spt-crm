@@ -9,9 +9,11 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import ActivityTimeline from '@/components/ActivityTimeline'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import type { ServiceTicketItem, ActivityItem, Order } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import SubscribeButton from '@/components/SubscribeButton'
@@ -37,6 +39,24 @@ export default function ServiceTicketDetail() {
   const navigate = useNavigate()
   const { hasPermission } = usePermission()
   const canDelete = hasPermission('service:delete')
+  const siblingNav = useSiblingRecordNav('service_tickets', id, {
+    pathForId: (rid) => `/service-tickets/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const r = await serviceTicketApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        status: q.status as string | undefined,
+        priority: q.priority as string | undefined,
+        type: q.type as string | undefined,
+      })
+      return {
+        ids: (r.data?.items || []).map((x) => x.id),
+        total: r.data?.total || 0,
+      }
+    },
+  })
   const [ticket, setTicket] = useState<ServiceTicketItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [activities, setActivities] = useState<ActivityItem[]>([])
@@ -179,6 +199,15 @@ export default function ServiceTicketDetail() {
           </p>
         </div>
         <Space>
+          {siblingNav.hasNav && (
+            <RecordPrevNextNav
+              index={siblingNav.index}
+              total={siblingNav.total}
+              disabled={siblingNav.busy}
+              onPrev={siblingNav.goPrev}
+              onNext={siblingNav.goNext}
+            />
+          )}
           {nextStatuses.map((s) => (
             <Button key={s} type={s === 'resolved' || s === 'closed' ? 'primary' : 'default'}
               onClick={() => handleStatusChange(s)}>

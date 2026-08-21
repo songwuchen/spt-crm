@@ -16,6 +16,7 @@ import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolic
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
 import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels, intentLevelColors, intentLevelLabels, matchLevelLabels, poolSourceLabels, customerReviewStatusConfig } from '@/constants/labels'
@@ -24,6 +25,7 @@ import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { formatRegion } from '@/utils/address'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
@@ -112,6 +114,36 @@ export default function CustomerDetail() {
   usePageTitle('客户详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const siblingNav = useSiblingRecordNav('customers', id, {
+    pathForId: (rid) => `/customers/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      if (q.from_pool) {
+        const res = await customerApi.listPool({
+          pageNo,
+          pageSize: snap.pageSize,
+          keyword: q.keyword as string | undefined,
+          pool_id: q.pool_id as string | undefined,
+        })
+        return {
+          ids: (res.data?.items || []).map((x) => x.id),
+          total: res.data?.total || 0,
+        }
+      }
+      const res = await customerApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        industry: q.industry as string | undefined,
+        region_code: q.region_code as string | undefined,
+        region: q.region as string | undefined,
+      })
+      return {
+        ids: (res.data.items || []).map((x) => x.id),
+        total: res.data.total,
+      }
+    },
+  })
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [contactModal, setContactModal] = useState(false)
@@ -381,6 +413,15 @@ export default function CustomerDetail() {
             </div>
           </div>
           <Space>
+            {siblingNav.hasNav && (
+              <RecordPrevNextNav
+                index={siblingNav.index}
+                total={siblingNav.total}
+                disabled={siblingNav.busy}
+                onPrev={siblingNav.goPrev}
+                onNext={siblingNav.goNext}
+              />
+            )}
             <AiAnalysisButton bizType="customer" bizId={id!} />
             {canEditCustomer && (
               <Button icon={<EditOutlined />} onClick={() => navigate(`/customers/${id}/edit`)}>编辑</Button>

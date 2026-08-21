@@ -26,6 +26,7 @@ import {
   SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { attachmentApi } from '@/api/attachment'
@@ -648,8 +649,14 @@ export default function FormDataListPage({
     [allColFields, defaultColIdSet, listColLabels],
   )
 
-  const buildQueryParams = useCallback(() => {
-    const params: Record<string, unknown> = { template_id: id, pageNo, pageSize: 20 }
+  const LIST_PAGE_SIZE = 20
+
+  const buildQueryParams = useCallback((pageOverride?: number) => {
+    const params: Record<string, unknown> = {
+      template_id: id,
+      pageNo: pageOverride ?? pageNo,
+      pageSize: LIST_PAGE_SIZE,
+    }
     if (keyword) params.keyword = keyword
     if (statusFilter) params.status = statusFilter
     if (fieldFilters?.rules?.length) params.filters = JSON.stringify(fieldFilters)
@@ -838,6 +845,49 @@ export default function FormDataListPage({
     setWfDetail(null)
     setSerialPreviews({})
     setModalFullscreen(false)
+  }
+
+  const [navBusy, setNavBusy] = useState(false)
+
+  const viewNavIndex = useMemo(() => {
+    if (!viewRec) return -1
+    return items.findIndex((r) => r.id === viewRec.id)
+  }, [items, viewRec])
+
+  const viewNavGlobalIndex = viewNavIndex >= 0
+    ? (pageNo - 1) * LIST_PAGE_SIZE + viewNavIndex
+    : -1
+
+  const goViewRelative = async (delta: -1 | 1) => {
+    if (!viewRec || navBusy || !id) return
+    const idx = items.findIndex((r) => r.id === viewRec.id)
+    if (idx >= 0) {
+      const nextIdx = idx + delta
+      if (nextIdx >= 0 && nextIdx < items.length) {
+        setNavBusy(true)
+        try {
+          await openView(items[nextIdx].id, true)
+        } finally {
+          setNavBusy(false)
+        }
+        return
+      }
+    }
+    const targetPage = pageNo + delta
+    const maxPage = Math.max(1, Math.ceil(total / LIST_PAGE_SIZE) || 1)
+    if (targetPage < 1 || targetPage > maxPage) return
+    setNavBusy(true)
+    try {
+      const res = await lowcodeApi.listInstances(buildQueryParams(targetPage))
+      const nextItems = res.data.items || []
+      setPageNo(targetPage)
+      setItems(nextItems)
+      setTotal(res.data.total)
+      const pick = delta > 0 ? nextItems[0] : nextItems[nextItems.length - 1]
+      if (pick) await openView(pick.id, true)
+    } finally {
+      setNavBusy(false)
+    }
   }
 
   // 编辑弹窗：选部门 → 回填部门编号
@@ -1287,7 +1337,7 @@ export default function FormDataListPage({
           pagination={{
             current: pageNo,
             total,
-            pageSize: 20,
+            pageSize: LIST_PAGE_SIZE,
             onChange: setPageNo,
             showSizeChanger: false,
             showTotal: (t) => `共 ${t} 条`,
@@ -1373,6 +1423,14 @@ export default function FormDataListPage({
                   </Button>
                 </Popconfirm>
               )}
+              <div className="flex-1" />
+              <RecordPrevNextNav
+                index={viewNavGlobalIndex}
+                total={total}
+                disabled={navBusy}
+                onPrev={() => { void goViewRelative(-1) }}
+                onNext={() => { void goViewRelative(1) }}
+              />
             </div>
             <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
               <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>

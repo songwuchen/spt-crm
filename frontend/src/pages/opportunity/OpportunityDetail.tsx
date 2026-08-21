@@ -21,12 +21,14 @@ import ActivityTimeline from '@/components/ActivityTimeline'
 import MilestoneGantt from '@/components/MilestoneGantt'
 import PaymentChart from '@/components/PaymentChart'
 import PaymentGantt from '@/components/PaymentGantt'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus, isContractDraftDeletable } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
@@ -60,6 +62,23 @@ export default function OpportunityDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { hasPermission } = usePermission()
+  const siblingNav = useSiblingRecordNav('opportunities', id, {
+    pathForId: (rid) => `/opportunities/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const res = await projectApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        stage_code: q.stage_code as string | undefined,
+        status: q.status as string | undefined,
+      })
+      return {
+        ids: (res.data.items || []).map((x) => x.id),
+        total: res.data.total,
+      }
+    },
+  })
   const [project, setProject] = useState<OpportunityProject | null>(null)
   const [history, setHistory] = useState<ProjectStageHistory[]>([])
   const [quotes, setQuotes] = useState<QuoteItem[]>([])
@@ -584,6 +603,15 @@ export default function OpportunityDetail() {
             </div>
           </div>
           <Space>
+            {siblingNav.hasNav && (
+              <RecordPrevNextNav
+                index={siblingNav.index}
+                total={siblingNav.total}
+                disabled={siblingNav.busy}
+                onPrev={siblingNav.goPrev}
+                onNext={siblingNav.goNext}
+              />
+            )}
             <AiAnalysisButton bizType="project" bizId={id!} />
             {canTransfer && (
               <Button icon={<UserSwitchOutlined />} onClick={openTransfer}>转移负责人</Button>

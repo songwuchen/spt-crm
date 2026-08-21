@@ -13,7 +13,9 @@ import {
 import TechAgreementReviewViewBody, {
   loadTechAgreementWf,
 } from '@/pages/techAgreementReview/TechAgreementReviewViewBody'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
@@ -32,6 +34,22 @@ export default function TechAgreementReviewDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const siblingNav = useSiblingRecordNav('tech_agreement_review', id, {
+    pathForId: (rid) => `/tech-agreement-reviews/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const res = await techAgreementReviewApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        status: q.status as string | undefined,
+      })
+      return {
+        ids: (res.data.items || []).map((x) => x.id),
+        total: res.data.total,
+      }
+    },
+  })
   const [row, setRow] = useState<TechAgreementReview | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -108,6 +126,15 @@ export default function TechAgreementReviewDetail() {
     <div className="max-w-[1100px] mx-auto pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <Space wrap>
+          {siblingNav.hasNav && (
+            <RecordPrevNextNav
+              index={siblingNav.index}
+              total={siblingNav.total}
+              disabled={siblingNav.busy}
+              onPrev={siblingNav.goPrev}
+              onNext={siblingNav.goNext}
+            />
+          )}
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/tech-agreement-reviews')}>返回</Button>
           <span className="font-mono font-semibold">{row.review_code}</span>
           <Tag color={STATUS_COLOR[row.status] || 'default'}>{STATUS_LABEL[row.status] || row.status}</Tag>

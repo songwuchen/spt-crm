@@ -34,6 +34,8 @@ import type { FieldDefinition } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import { customerApi } from '@/api/customer'
 import dayjs from 'dayjs'
@@ -62,6 +64,22 @@ export default function ContractDetail() {
   const navigate = useNavigate()
   const { hasPermission } = usePermission()
   const canDeleteContract = hasPermission('contract:delete')
+  const siblingNav = useSiblingRecordNav('contracts', cid, {
+    pathForId: (rid) => `/contracts/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const r = await contractApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        status: q.status as string | undefined,
+      }) as { data?: { items?: ContractItem[]; total?: number } }
+      return {
+        ids: (r.data?.items || []).map((x) => x.id),
+        total: r.data?.total || 0,
+      }
+    },
+  })
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [versions, setVersions] = useState<ContractVersion[]>([])
   const [currentVersion, setCurrentVersion] = useState<ContractVersion | null>(null)
@@ -626,6 +644,15 @@ export default function ContractDetail() {
           </p>
         </div>
         <Space>
+          {siblingNav.hasNav && (
+            <RecordPrevNextNav
+              index={siblingNav.index}
+              total={siblingNav.total}
+              disabled={siblingNav.busy}
+              onPrev={siblingNav.goPrev}
+              onNext={siblingNav.goNext}
+            />
+          )}
           <AiAnalysisButton bizType="contract" bizId={cid!} />
           {canEdit && (
             <Button icon={<EditOutlined />} onClick={openEditModal}>编辑登记信息</Button>

@@ -13,6 +13,8 @@ import type { ColumnsType } from 'antd/es/table'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import ListToolbar from '@/components/list/ListToolbar'
 import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import { useListView } from '@/hooks/useListView'
 import { techAgreementReviewApi, type TechAgreementReview } from '@/api/techAgreementReview'
 import { customerApi } from '@/api/customer'
@@ -128,6 +130,16 @@ export default function TechAgreementReviewList() {
   const customerSelect = useCustomerSelect()
 
   const openView = async (id: string, startEdit = false) => {
+    rememberSiblingNav('tech_agreement_review', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo: page,
+      pageSize,
+      listQuery: {
+        keyword: kwRef.current || undefined,
+        status,
+      },
+    })
     setViewLoading(true)
     setViewRec(null)
     setWfDetail(null)
@@ -343,8 +355,42 @@ export default function TechAgreementReviewList() {
       })
       setData(res.data.items)
       setTotal(res.data.total)
+      return res.data.items as TechAgreementReview[]
     } finally {
       setLoading(false)
+    }
+  }
+
+  const [navBusy, setNavBusy] = useState(false)
+  const viewNavIndex = viewRec ? data.findIndex((r) => r.id === viewRec.row.id) : -1
+  const viewNavGlobalIndex = viewNavIndex >= 0 ? (page - 1) * pageSize + viewNavIndex : -1
+
+  const goViewRelative = async (delta: -1 | 1) => {
+    if (!viewRec || navBusy) return
+    const idx = data.findIndex((r) => r.id === viewRec.row.id)
+    if (idx >= 0) {
+      const nextIdx = idx + delta
+      if (nextIdx >= 0 && nextIdx < data.length) {
+        setNavBusy(true)
+        try {
+          await openView(data[nextIdx].id)
+        } finally {
+          setNavBusy(false)
+        }
+        return
+      }
+    }
+    const targetPage = page + delta
+    const maxPage = Math.max(1, Math.ceil(total / pageSize) || 1)
+    if (targetPage < 1 || targetPage > maxPage) return
+    setNavBusy(true)
+    try {
+      setPage(targetPage)
+      const nextItems = (await fetchData(targetPage)) || []
+      const pick = delta > 0 ? nextItems[0] : nextItems[nextItems.length - 1]
+      if (pick) await openView(pick.id)
+    } finally {
+      setNavBusy(false)
     }
   }
 
@@ -462,6 +508,14 @@ export default function TechAgreementReviewList() {
                   <Button type="text" danger icon={<DeleteOutlined />}>删除</Button>
                 </Popconfirm>
               )}
+              <div className="flex-1" />
+              <RecordPrevNextNav
+                index={viewNavGlobalIndex}
+                total={total}
+                disabled={navBusy || viewLoading}
+                onPrev={() => { void goViewRelative(-1) }}
+                onNext={() => { void goViewRelative(1) }}
+              />
             </div>
             <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
               <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>

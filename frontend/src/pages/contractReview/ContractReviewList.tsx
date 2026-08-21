@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react'
 import { Button, Input, Space, Select, Tag, Modal, message } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -13,6 +13,7 @@ import {
   type ReviewListColumnDef,
 } from '@/constants/contractReview'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
@@ -78,13 +79,17 @@ function readColValue(row: ContractReview, col: ReviewListColumnDef): unknown {
   return (row as unknown as Record<string, unknown>)[col.key]
 }
 
-function renderCell(col: ReviewListColumnDef, row: ContractReview, navigate: (p: string) => void): ReactNode {
+function renderCell(
+  col: ReviewListColumnDef,
+  row: ContractReview,
+  openDetail: (id: string) => void,
+): ReactNode {
   const raw = readColValue(row, col)
   const kind = col.kind || 'text'
 
   if (col.key === 'review_code') {
     return (
-      <a className="text-primary font-bold font-mono" onClick={() => navigate(`/contract-reviews/${row.id}`)}>
+      <a className="text-primary font-bold font-mono" onClick={() => openDetail(row.id)}>
         {dash(raw)}
       </a>
     )
@@ -130,6 +135,21 @@ export default function ContractReviewList() {
   const kwRef = useRef(keyword)
   kwRef.current = keyword
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('contract_review', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo: page,
+      pageSize,
+      listQuery: {
+        keyword: kwRef.current || undefined,
+        status,
+        review_type: reviewType,
+      },
+    })
+    navigate(`/contract-reviews/${rid}`)
+  }, [data, total, page, pageSize, status, reviewType, navigate])
+
   const baseColumns: ColumnsType<ContractReview> = useMemo(() => {
     const cols: ColumnsType<ContractReview> = CONTRACT_REVIEW_LIST_COLUMNS.map((col) => ({
       key: col.key,
@@ -140,7 +160,7 @@ export default function ContractReviewList() {
       fixed: col.fixed,
       // 供 useListView：长文/次要列默认隐藏，可在列配置调出
       ...({ __optIn: !!col.defaultHidden } as object),
-      render: (_: unknown, row: ContractReview) => renderCell(col, row, navigate),
+      render: (_: unknown, row: ContractReview) => renderCell(col, row, openDetail),
     }))
     cols.push({
       title: '操作',
@@ -149,7 +169,7 @@ export default function ContractReviewList() {
       fixed: 'right',
       render: (_, r) => (
         <Space size={0}>
-          <a className="text-primary text-sm px-2" onClick={() => navigate(`/contract-reviews/${r.id}`)}>详情</a>
+          <a className="text-primary text-sm px-2" onClick={() => openDetail(r.id)}>详情</a>
           {canDelete && r.status === 'draft' && (
             <a
               className="text-rose-500 text-sm px-2"
@@ -173,7 +193,7 @@ export default function ContractReviewList() {
       ),
     })
     return cols
-  }, [navigate, canDelete])
+  }, [openDetail, canDelete])
 
   // pageKey v2：列定义对齐简道云后重置本地列配置缓存
   const view = useListView<ContractReview>('contract_review', baseColumns, {

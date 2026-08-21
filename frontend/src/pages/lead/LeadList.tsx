@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button, Space, Select, Modal, DatePicker, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -13,6 +13,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import ImportModal from '@/components/ImportModal'
@@ -221,12 +222,46 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
 
   const doSearch = () => { updateParams({ page: undefined }); fetchData(1) }
 
+  const openDetail = useCallback((rid: string) => {
+    const reactivationParams: Record<string, unknown> = {}
+    if (reactivationFilter === '__active__') {
+      reactivationParams.reactivation_active = true
+    } else if (reactivationFilter) {
+      reactivationParams.reactivation_status = reactivationFilter
+    }
+    rememberSiblingNav('leads', {
+      ids: data.map((d) => d.id),
+      total,
+      pageNo,
+      pageSize,
+      listQuery: {
+        keyword: keyword || undefined,
+        status, source,
+        customer_type: customerType,
+        category,
+        country_type: countryType,
+        department_id: departmentId,
+        industry,
+        company_name: companyName || undefined,
+        start_date: startDate,
+        end_date: endDate,
+        date_field: dateField === 'created_at' ? undefined : dateField,
+        ...reactivationParams,
+      },
+    })
+    navigate(`/leads/${rid}${isReactivationView ? '?react=1' : ''}`)
+  }, [
+    data, total, pageNo, pageSize, keyword, status, source, customerType, category,
+    countryType, departmentId, industry, companyName, startDate, endDate, dateField,
+    reactivationFilter, isReactivationView, navigate,
+  ])
+
   // 列顺序对齐简道云「申报信息」数据管理（跳过导入专用列）
   const allColumns: ColumnsType<Lead> = [
     {
       title: '项目编号', dataIndex: 'lead_code', key: 'lead_code', width: 168, fixed: 'left',
       render: (v: string, r) => v
-        ? <a onClick={() => navigate(`/leads/${r.id}${isReactivationView ? '?react=1' : ''}`)} className="font-mono text-sm text-slate-700 hover:text-primary">{v}</a>
+        ? <a onClick={() => openDetail(r.id)} className="font-mono text-sm text-slate-700 hover:text-primary">{v}</a>
         : emptyCell(),
     },
     ...(isReactivationView ? [{
@@ -256,7 +291,7 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
     {
       title: '项目名称', dataIndex: 'title', key: 'title', width: 220,
       render: (v: string, r) => (
-        <a onClick={() => navigate(`/leads/${r.id}`)} className="text-sm font-semibold text-slate-900 hover:text-primary line-clamp-2">
+        <a onClick={() => openDetail(r.id)} className="text-sm font-semibold text-slate-900 hover:text-primary line-clamp-2">
           {v || '-'}
         </a>
       ),
@@ -461,7 +496,7 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/leads/${record.id}${isReactivationView ? '?react=1' : ''}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">
+          <a onClick={() => openDetail(record.id)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">
             {isReactivationView ? '办理' : t('common.detail')}
           </a>
           {canEditLead && (

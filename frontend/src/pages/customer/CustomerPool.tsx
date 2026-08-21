@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button, Table, Input, Tag, Modal, Select, Space, Form, Switch, InputNumber, Tooltip, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, UploadOutlined, DownloadOutlined, UserSwitchOutlined, SettingOutlined } from '@ant-design/icons'
@@ -9,6 +9,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
 import { usePermission } from '@/hooks/usePermission'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import { downloadFile } from '@/utils/download'
 import ImportModal from '@/components/ImportModal'
 import type { Customer, CustomerPool as PoolDef } from '@/api/types'
@@ -159,6 +160,21 @@ export default function CustomerPool() {
     setPage(1)  // fetch 由 [page, poolId] effect 统一触发
   }
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('customers', {
+      ids: items.map((d) => d.id),
+      total,
+      pageNo: page,
+      pageSize: 20,
+      listQuery: {
+        keyword: keyword || undefined,
+        pool_id: poolId,
+        from_pool: true,
+      },
+    })
+    navigate(`/customers/${rid}`)
+  }, [items, total, page, keyword, poolId, navigate])
+
   const poolFilterOptions = [
     { label: '全部公海', value: '' },
     { label: `默认公海 (${defaultCount})`, value: '__default__' },
@@ -168,7 +184,7 @@ export default function CustomerPool() {
   const columns: ColumnsType<Customer> = [
     { title: '客户名称', dataIndex: 'name', width: 200,
       render: (v, r) => (
-        <a className="font-semibold text-primary" onClick={() => navigate(`/customers/${r.id}`)}>{v}</a>
+        <a className="font-semibold text-primary" onClick={() => openDetail(r.id)}>{v}</a>
       ) },
     { title: '级别', dataIndex: 'level', width: 60,
       render: (v) => v ? <Tag color={customerLevelColors[v] || 'default'}>{v}</Tag> : '-' },

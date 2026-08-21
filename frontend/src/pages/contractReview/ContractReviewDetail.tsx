@@ -17,6 +17,8 @@ import ContractSectionTitle from '@/components/ContractSectionTitle'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import RecordPrevNextNav from '@/components/RecordPrevNextNav'
+import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { buildContractReviewFieldLabels } from '@/utils/dataLogLabels'
@@ -65,6 +67,24 @@ export default function ContractReviewDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
+
+  const siblingNav = useSiblingRecordNav('contract_review', id, {
+    pathForId: (rid) => `/contract-reviews/${rid}`,
+    fetchPage: async (pageNo, snap) => {
+      const q = snap.listQuery || {}
+      const res = await contractReviewApi.list({
+        pageNo,
+        pageSize: snap.pageSize,
+        keyword: q.keyword as string | undefined,
+        status: q.status as string | undefined,
+        review_type: q.review_type as string | undefined,
+      })
+      return {
+        ids: (res.data.items || []).map((x) => x.id),
+        total: res.data.total,
+      }
+    },
+  })
 
   const loadWf = async (bizId: string) => {
     try {
@@ -155,7 +175,16 @@ export default function ContractReviewDetail() {
             {row.review_code} · {row.review_type || '-'} · 业务员 {row.owner_name || '-'}
           </div>
         </div>
-        <Space>
+        <Space wrap>
+          {siblingNav.hasNav && (
+            <RecordPrevNextNav
+              index={siblingNav.index}
+              total={siblingNav.total}
+              disabled={siblingNav.busy}
+              onPrev={siblingNav.goPrev}
+              onNext={siblingNav.goNext}
+            />
+          )}
           <Button onClick={() => navigate('/contract-reviews')}>返回</Button>
           {canSubmit && (
             <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>

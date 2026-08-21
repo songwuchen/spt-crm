@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
@@ -13,6 +13,7 @@ import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useListView } from '@/hooks/useListView'
+import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
@@ -122,9 +123,25 @@ export default function ServiceTicketList() {
     } catch { /* ignore */ }
   }
 
+  const openDetail = useCallback((rid: string) => {
+    rememberSiblingNav('service_tickets', {
+      ids: tickets.map((d) => d.id),
+      total,
+      pageNo,
+      pageSize: 20,
+      listQuery: {
+        keyword: searchText || undefined,
+        status: filterStatus,
+        priority: filterPriority,
+        type: filterType,
+      },
+    })
+    navigate(`/service-tickets/${rid}`)
+  }, [tickets, total, pageNo, searchText, filterStatus, filterPriority, filterType, navigate])
+
   const ticketColumns: import('antd/es/table').ColumnsType<ServiceTicketItem> = [
     { title: t('service.ticketNo'), dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
-      <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => navigate(`/service-tickets/${r.id}`)}>{v}</a>
+      <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => openDetail(r.id)}>{v}</a>
     )},
     { title: '客户名称', dataIndex: 'customer_name', ellipsis: true, render: (v: string) => v || '-' },
     { title: '订单名称', dataIndex: 'order_name', ellipsis: true, render: (v: string) => v || '-' },
