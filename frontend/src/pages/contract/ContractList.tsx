@@ -484,25 +484,12 @@ export default function ContractList() {
               onChange={(id) => { if (id) void fillFromProject(id) }}
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
           </Form.Item>
-          <Form.Item
-            name="customer_id"
-            label="关联客户"
-            rules={[{ required: true, message: '请选择关联客户' }]}
-          >
-            <Select
-              showSearch filterOption={false}
-              placeholder="搜索客户管理中的客户"
-              options={customerSelect.options}
-              loading={customerSelect.loading}
-              onSearch={customerSelect.onSearch}
-              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
-              onChange={(id) => { void fillFromCustomer(id) }}
-            />
-          </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
           <ContractRegistrationFields
             form={createForm}
             mode="create"
+            customerSelect={customerSelect}
+            onCustomerChange={fillFromCustomer}
             onRefreshDrawingNo={refreshDrawingNoAllocate}
             refreshingDrawingNo={refreshingDrawingNo}
             slots={{

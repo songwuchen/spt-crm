@@ -19,7 +19,7 @@ import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import { contractApi } from '@/api/contract'
-import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import { formDateRule } from '@/utils/formDate'
 
@@ -27,10 +27,12 @@ const DATE_KEYS = new Set([
   'delivery_date', 'order_date', 'card_date', 'end_date', 'note_date', 'accept_date',
 ])
 const NATIVE_KEYS = new Set([
-  'contract_no', 'drawing_no', 'peer_contract_no', 'acquire_method',
+  'customer_id', 'contract_no', 'drawing_no', 'peer_contract_no', 'acquire_method',
   'delivery_date', 'change_type', 'amount_total', 'order_date', 'card_date', 'end_date',
   'assignee_id', 'assignee_name', 'department_id', 'department_name',
 ])
+
+type CustomerSelectApi = ReturnType<typeof useCustomerSelect>
 
 type Props = {
   form: FormInstance
@@ -40,6 +42,10 @@ type Props = {
   /** 新建：图纸编号旁「重新取号」 */
   onRefreshDrawingNo?: () => void
   refreshingDrawingNo?: boolean
+  /** 与父级共用客户下拉（编辑回显 setInitialOption） */
+  customerSelect?: CustomerSelectApi
+  /** 选定客户后回填编号/部门/业务员 */
+  onCustomerChange?: (customerId?: string) => void | Promise<void>
 }
 
 function readDepValue(
@@ -246,6 +252,35 @@ function BaseFormLookupSelect({
   )
 }
 
+function CustomerSelectField({
+  value,
+  onChange,
+  customerSelect,
+  onPicked,
+}: {
+  value?: string
+  onChange?: (v?: string) => void
+  customerSelect: CustomerSelectApi
+  onPicked?: (customerId?: string) => void | Promise<void>
+}) {
+  return (
+    <Select
+      showSearch
+      filterOption={false}
+      placeholder="搜索客户管理中的客户"
+      options={customerSelect.options}
+      loading={customerSelect.loading}
+      onSearch={customerSelect.onSearch}
+      onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
+      value={value}
+      onChange={(id) => {
+        onChange?.(id)
+        void onPicked?.(id)
+      }}
+    />
+  )
+}
+
 function FieldControl({
   field,
   form,
@@ -254,6 +289,8 @@ function FieldControl({
   onChange,
   onRefreshDrawingNo,
   refreshingDrawingNo,
+  customerSelect,
+  onCustomerChange,
   ...rest
 }: {
   field: RegFieldDef
@@ -263,6 +300,8 @@ function FieldControl({
   onChange?: (...args: any[]) => void
   onRefreshDrawingNo?: () => void
   refreshingDrawingNo?: boolean
+  customerSelect?: CustomerSelectApi
+  onCustomerChange?: (customerId?: string) => void | Promise<void>
   [k: string]: unknown
 }) {
   const widget = field.widget || 'text'
@@ -328,6 +367,17 @@ function FieldControl({
         nameKey="department_name"
         value={value as string | undefined}
         onChange={onChange as ((v: string | undefined) => void) | undefined}
+      />
+    )
+  }
+  if (widget === 'customer' || field.key === 'customer_id') {
+    if (!customerSelect) return null
+    return (
+      <CustomerSelectField
+        value={value as string | undefined}
+        onChange={onChange as ((v?: string) => void) | undefined}
+        customerSelect={customerSelect}
+        onPicked={onCustomerChange}
       />
     )
   }
@@ -439,6 +489,8 @@ function FieldGrid({
   form,
   onRefreshDrawingNo,
   refreshingDrawingNo,
+  customerSelect,
+  onCustomerChange,
 }: {
   fields: RegFieldDef[]
   mode: 'create' | 'edit'
@@ -446,6 +498,8 @@ function FieldGrid({
   form: FormInstance
   onRefreshDrawingNo?: () => void
   refreshingDrawingNo?: boolean
+  customerSelect?: CustomerSelectApi
+  onCustomerChange?: (customerId?: string) => void | Promise<void>
 }) {
   const policy = useFieldPolicy()
   const catalogById = new Map(
@@ -500,7 +554,7 @@ function FieldGrid({
               if (needRequired) {
                 rules.push({
                   required: true,
-                  message: `请填写${f.label}`,
+                  message: f.key === 'customer_id' ? '请选择关联客户' : `请填写${f.label}`,
                   type: f.widget === 'checkbox' ? 'array' : undefined,
                   ...(f.widget === 'checkbox' ? { min: 1 } : {}),
                 })
@@ -525,6 +579,8 @@ function FieldGrid({
                       mode={mode}
                       onRefreshDrawingNo={onRefreshDrawingNo}
                       refreshingDrawingNo={refreshingDrawingNo}
+                      customerSelect={customerSelect}
+                      onCustomerChange={onCustomerChange}
                     />
                   </PolicyItem>
                 )
@@ -559,10 +615,15 @@ export default function ContractRegistrationFields({
   slots,
   onRefreshDrawingNo,
   refreshingDrawingNo,
+  customerSelect: customerSelectProp,
+  onCustomerChange,
 }: Props) {
+  const internalCustomerSelect = useCustomerSelect()
+  const customerSelect = customerSelectProp ?? internalCustomerSelect
   const refreshProps = mode === 'create'
     ? { onRefreshDrawingNo, refreshingDrawingNo }
     : {}
+  const gridProps = { customerSelect, onCustomerChange, ...refreshProps }
   return (
     <div className="space-y-5">
       {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}
@@ -576,12 +637,12 @@ export default function ContractRegistrationFields({
         return (
           <div key={sec.key}>
             <ContractSectionTitle title={sec.title} />
-            <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} {...refreshProps} />
+            <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} {...gridProps} />
             {sec.afterSlot && slots?.[sec.afterSlot] ? (
               <div className="my-4">{slots[sec.afterSlot]}</div>
             ) : null}
             {sec.fieldsAfterSlot?.length ? (
-              <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} {...refreshProps} />
+              <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} {...gridProps} />
             ) : null}
           </div>
         )

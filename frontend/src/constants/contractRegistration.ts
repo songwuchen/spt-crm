@@ -20,6 +20,7 @@ export type RegWidget =
   | 'checkbox'    // checkboxgroup / combocheck → 多选
   | 'person'      // 组织架构选人
   | 'department'  // 组织架构选部门
+  | 'customer'    // 客户管理选择器
 
 export type RegAfterSlot =
   | 'line_items'
@@ -103,6 +104,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
     key: 'header',
     title: '基本信息',
     fields: [
+      { key: 'customer_id', label: '关联客户', source: 'native', widget: 'customer', required: true },
       { key: 'card_date', label: '下卡日期', source: 'native', widget: 'date', required: true },
       { key: 'customer_code', label: '客户编号', source: 'reg', widget: 'text' },
       { key: 'department_id', label: '部门', source: 'native', widget: 'department', required: true },

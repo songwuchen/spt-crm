@@ -374,6 +374,24 @@ export default function ContractDetail() {
   const userSelect = useUserSelect()
   const customerSelect = useCustomerSelect()
 
+  const fillFromCustomer = async (customerId?: string) => {
+    if (!customerId) return
+    try {
+      const c = (await customerApi.get(customerId)).data
+      if (!c) return
+      const reg = { ...(editForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+      if (c.customer_code) reg.customer_code = c.customer_code
+      const patch: Record<string, unknown> = { registration_json: reg }
+      if (c.department_id) patch.department_id = c.department_id
+      if (c.department_name) patch.department_name = c.department_name
+      if (c.owner_id) {
+        patch.assignee_id = c.owner_id
+        if (c.owner_name) patch.assignee_name = c.owner_name
+      }
+      editForm.setFieldsValue(patch)
+    } catch { /* ignore */ }
+  }
+
   // Signing workflow
   const [approvalFlow, setApprovalFlow] = useState<import('@/api/types').ApprovalFlowItem | null>(null)
   const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
@@ -718,40 +736,11 @@ export default function ContractDetail() {
       >
         <FieldPolicyProvider entityType="contract" form={editForm}>
         <Form form={editForm} layout="vertical" className="py-2">
-          <Form.Item
-            name="customer_id"
-            label="关联客户"
-            rules={[{ required: true, message: '请选择关联客户' }]}
-          >
-            <Select
-              showSearch filterOption={false}
-              placeholder="搜索客户管理中的客户"
-              options={customerSelect.options}
-              loading={customerSelect.loading}
-              onSearch={customerSelect.onSearch}
-              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
-              onChange={async (id?: string) => {
-                if (!id) return
-                try {
-                  const c = (await customerApi.get(id)).data
-                  if (!c) return
-                  const reg = { ...(editForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
-                  if (c.customer_code) reg.customer_code = c.customer_code
-                  const patch: Record<string, unknown> = { registration_json: reg }
-                  if (c.department_id) patch.department_id = c.department_id
-                  if (c.department_name) patch.department_name = c.department_name
-                  if (c.owner_id) {
-                    patch.assignee_id = c.owner_id
-                    if (c.owner_name) patch.assignee_name = c.owner_name
-                  }
-                  editForm.setFieldsValue(patch)
-                } catch { /* ignore */ }
-              }}
-            />
-          </Form.Item>
           <ContractRegistrationFields
             form={editForm}
             mode="edit"
+            customerSelect={customerSelect}
+            onCustomerChange={fillFromCustomer}
             slots={{
               line_items: (
                 <div>
