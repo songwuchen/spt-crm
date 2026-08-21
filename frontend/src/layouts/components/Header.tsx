@@ -8,6 +8,7 @@ import NotificationBell from '@/components/NotificationBell'
 import client from '@/api/client'
 import { t, useLocale, localeLabels, type LocaleCode } from '@/locales'
 import { useThemeStore } from '@/stores/useThemeStore'
+import { isImeComposing } from '@/utils/ime'
 
 import Icon from '@/components/Icon'
 interface SearchResult {
@@ -86,6 +87,7 @@ export default function Header() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isImeComposing(e)) return
     if (!showResults || results.length === 0) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()

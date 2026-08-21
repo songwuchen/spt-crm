@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react'
 import { Input, Button, Switch, Tag, Tooltip } from 'antd'
 import { SendOutlined, StopOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons'
 import { streamAssistant, type AssistantSource, type AssistantMessage } from '@/api/aiStream'
+import { isImeComposing } from '@/utils/ime'
 
 interface ChatTurn {
   role: 'user' | 'assistant'
@@ -128,7 +129,10 @@ export default function AiChatPanel({
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
             autoSize={{ minRows: 1, maxRows: 4 }}
-            onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); send() } }}
+            onPressEnter={(e) => {
+              if (isImeComposing(e)) return
+              if (!e.shiftKey) { e.preventDefault(); send() }
+            }}
             disabled={streaming}
           />
           {streaming ? (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Input, Space, Select, Modal, DatePicker, message } from 'antd'
+import { Button, Space, Select, Modal, DatePicker, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
@@ -16,6 +16,7 @@ import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import ImportModal from '@/components/ImportModal'
+import ImeSafeInput from '@/components/ImeSafeInput'
 import dayjs from 'dayjs'
 import { t } from '@/locales'
 import { formatRegion } from '@/utils/address'
@@ -557,7 +558,7 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-stretch sm:items-center flex-col sm:flex-row">
-          <Input
+          <ImeSafeInput
             placeholder={t('lead.searchPlaceholder')}
             prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword}
@@ -567,7 +568,7 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
             style={{ width: 220, background: '#f1f5f9', borderColor: 'transparent' }}
             className="rounded-lg"
           />
-          <Input
+          <ImeSafeInput
             placeholder="公司名称"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}

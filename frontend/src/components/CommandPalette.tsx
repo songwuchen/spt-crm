@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { isImeComposing } from '@/utils/ime'
 
 import Icon from '@/components/Icon'
 interface Command {
@@ -55,6 +56,7 @@ export default function CommandPalette() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (isImeComposing(e)) return
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setOpen((prev) => !prev)
@@ -80,6 +82,7 @@ export default function CommandPalette() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isImeComposing(e)) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1))
