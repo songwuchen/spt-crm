@@ -6,7 +6,12 @@ export const departmentApi = {
     client.get<unknown, ApiResponse<Department[]>>('/api/admin/v1/tenant/departments/tree'),
   create: (data: { name: string; parent_id?: string; sort_order?: number; leader_id?: string | null }) =>
     client.post<unknown, ApiResponse<Department>>('/api/admin/v1/tenant/departments', data),
-  update: (id: string, data: Partial<Department> & { leader_id?: string | null }) =>
+  update: (id: string, data: {
+    name?: string
+    parent_id?: string
+    sort_order?: number
+    leader_id?: string | null
+  }) =>
     client.put<unknown, ApiResponse<Department>>(`/api/admin/v1/tenant/departments/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/departments/${id}`),
