@@ -1097,7 +1097,7 @@ class WorkflowEngine:
     # ---------- 审批动作 ----------
 
     async def act(self, task_id: str, actor: dict, action: str, opinion: str | None = None,
-                  transfer_to: str | None = None, return_to: str | None = None,
+                  transfer_to: str | list[str] | None = None, return_to: str | None = None,
                   field_updates: dict | None = None, *,
                   allow_lead_intel: bool = False) -> None:
         task = (await self.db.execute(
@@ -1193,16 +1193,10 @@ class WorkflowEngine:
             return
 
         if action == "transfer":
-            if not transfer_to:
+            targets = self._normalize_transfer_targets(transfer_to)
+            if not targets:
                 raise BusinessException(code=VALIDATION_ERROR, message="转交需指定接收人")
-            # 钉钉待办挂在「原」审批人名下，必须先按原审批人完结，再给接收人重新下发，
-            # 否则原审批人的钉钉里会一直留着一条已经不属于他的待办。
-            self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
-            task.assignee_id = transfer_to
-            task.dingtalk_todo_id = None
-            task.version += 1
-            self._log(inst.id, task.node_instance_id, task.id, actor, "transfer", opinion)
-            self._queue("tasks_created", [task.id], inst)
+            await self._transfer_task(inst, task, actor, targets, opinion)
             await self.db.commit()
             await self.flush_notifications(inst)
             return
@@ -1594,6 +1588,100 @@ class WorkflowEngine:
                 )
             # 写回统一为 user_id，便于下一节点解析
             updates[key] = resolved[0] if len(resolved) == 1 and not isinstance(raw, list) else resolved
+
+    @staticmethod
+    def _normalize_transfer_targets(transfer_to: str | list[str] | None) -> list[str]:
+        """转交接收人：兼容单人 string / 多人 list，去重保序。"""
+        if transfer_to is None or transfer_to == "":
+            return []
+        if isinstance(transfer_to, str):
+            s = transfer_to.strip()
+            return [s] if s else []
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in transfer_to:
+            s = str(item).strip() if item is not None else ""
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+        return out
+
+    async def _transfer_task(
+        self,
+        inst: WfProcessInstance,
+        task: WfTaskInstance,
+        actor: dict,
+        targets: list[str],
+        opinion: str | None,
+    ) -> None:
+        """转交：支持多人。当前待办改派给首位，其余在同节点新建 pending 待办。"""
+        from app.domains.auth.models import User
+
+        # 去掉当前处理人自己（无意义）
+        targets = [uid for uid in targets if uid != task.assignee_id]
+        if not targets:
+            raise BusinessException(code=VALIDATION_ERROR, message="不能转交给自己，请选择其他接收人")
+
+        active = (await self.db.execute(
+            select(User.id).where(
+                User.tenant_id == self.tenant_id,
+                User.id.in_(targets),
+                User.is_active.is_(True),
+            )
+        )).scalars().all()
+        active_set = set(active)
+        missing = [uid for uid in targets if uid not in active_set]
+        if missing:
+            raise BusinessException(code=VALIDATION_ERROR, message="转交接收人无效或已停用")
+        targets = [uid for uid in targets if uid in active_set]
+
+        siblings = (await self.db.execute(
+            select(WfTaskInstance).where(WfTaskInstance.node_instance_id == task.node_instance_id)
+        )).scalars().all()
+        busy = {
+            s.assignee_id
+            for s in siblings
+            if s.id != task.id and s.status in ("pending", "waiting")
+        }
+        targets = [uid for uid in targets if uid not in busy]
+        if not targets:
+            raise BusinessException(
+                code=VALIDATION_ERROR,
+                message="所选人员在本节点已有待办，请另选接收人",
+            )
+
+        # 钉钉待办挂在「原」审批人名下，必须先按原审批人完结，再给接收人重新下发
+        self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
+
+        first, *rest = targets
+        task.assignee_id = first
+        task.dingtalk_todo_id = None
+        task.version += 1
+        fresh_ids = [task.id]
+
+        max_order = max((s.task_order or 0) for s in siblings) if siblings else 0
+        for i, uid in enumerate(rest):
+            tid = generate_uuid()
+            self.db.add(WfTaskInstance(
+                id=tid,
+                tenant_id=self.tenant_id,
+                process_instance_id=inst.id,
+                node_instance_id=task.node_instance_id,
+                assignee_id=uid,
+                status="pending",
+                task_order=max_order + 1 + i,
+            ))
+            fresh_ids.append(tid)
+
+        note = opinion
+        if len(targets) > 1:
+            suffix = f"转交给 {len(targets)} 人"
+            note = f"{opinion}（{suffix}）" if opinion else suffix
+        self._log(
+            inst.id, task.node_instance_id, task.id, actor, "transfer", note,
+        )
+        self._queue("tasks_created", fresh_ids, inst)
+        await self.db.flush()
 
     async def _on_task_approved(self, inst, version, task, ctx) -> None:
         ni = await self.db.get(WfNodeInstance, task.node_instance_id)

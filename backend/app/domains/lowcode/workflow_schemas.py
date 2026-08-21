@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WfDefinitionCreate(BaseModel):
@@ -63,10 +63,29 @@ class WfVersionOut(BaseModel):
 class WfActRequest(BaseModel):
     action: str                     # approve / reject / transfer / comment / return
     opinion: str | None = None
-    transfer_to: str | None = None  # transfer 时的接收人
+    # transfer：单人或多人（兼容历史 string；多人时为 user_id 列表）
+    transfer_to: str | list[str] | None = None
     to_node_id: str | None = None   # return 时退回的目标审批节点
     # 本节点可填业务字段（对齐简道云 optAuth）；仅 accept 当前节点 field_perms 白名单
     field_updates: dict[str, Any] | None = None
+
+    @field_validator("transfer_to", mode="before")
+    @classmethod
+    def _coerce_transfer_to(cls, v: Any) -> str | list[str] | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            return v
+        if isinstance(v, (list, tuple)):
+            out: list[str] = []
+            seen: set[str] = set()
+            for item in v:
+                s = str(item).strip() if item is not None else ""
+                if s and s not in seen:
+                    seen.add(s)
+                    out.append(s)
+            return out or None
+        return str(v)
 
 
 class WfCommentRequest(BaseModel):

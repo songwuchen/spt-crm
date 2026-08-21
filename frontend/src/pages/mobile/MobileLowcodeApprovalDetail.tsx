@@ -118,8 +118,13 @@ export default function MobileLowcodeApprovalDetail() {
 
   const act = async (action: string) => {
     if (!effectiveTaskId) return
-    if (action === 'transfer' && !transferTo) {
-      message.error('请选择转交接收人'); return
+    if (action === 'transfer') {
+      const ids = Array.isArray(transferTo)
+        ? transferTo.filter(Boolean)
+        : (transferTo ? [transferTo] : [])
+      if (!ids.length) {
+        message.error('请选择转交接收人'); return
+      }
     }
     if (action === 'return' && !returnTo) {
       message.error('请选择退回的目标节点'); return
@@ -164,7 +169,9 @@ export default function MobileLowcodeApprovalDetail() {
         action,
         opinion: opinion.trim() || undefined,
         transfer_to: action === 'transfer'
-          ? (Array.isArray(transferTo) ? transferTo[0] : transferTo) as string
+          ? (Array.isArray(transferTo)
+            ? (transferTo as string[]).filter(Boolean)
+            : (transferTo ? [String(transferTo)] : undefined))
           : undefined,
         to_node_id: action === 'return' ? returnTo : undefined,
         field_updates: action === 'approve' ? updates : undefined,
@@ -515,8 +522,8 @@ export default function MobileLowcodeApprovalDetail() {
             <div className="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-3">
               {moreMode === 'transfer' && (
                 <div>
-                  <div className="text-sm font-bold text-slate-600 mb-1">转交接收人</div>
-                  <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
+                  <div className="text-sm font-bold text-slate-600 mb-1">转交接收人（可多选）</div>
+                  <PersonField multi value={transferTo} onChange={setTransferTo} placeholder="选择转交人员（可多选）" />
                   <button
                     type="button"
                     onClick={() => act('transfer')}

@@ -284,7 +284,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 
   const act = async (action: string) => {
     if (!effectiveTaskId) return
-    if (action === 'transfer' && !transferTo) return message.error('请选择转交接收人')
+    if (action === 'transfer') {
+      const ids = Array.isArray(transferTo)
+        ? transferTo.filter(Boolean)
+        : (transferTo ? [transferTo] : [])
+      if (!ids.length) return message.error('请选择转交接收人')
+    }
     if (action === 'return' && !returnTo) return message.error('请选择退回的目标节点')
     const ct = detail?.current_task
     if (action === 'approve' && ct && !isReviseTask) {
@@ -322,7 +327,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         && isDrawingApproveAndPrintNode(ct?.node_name)
       await workflowApi.act(effectiveTaskId, {
         action, opinion: opinion.trim() || undefined,
-        transfer_to: action === 'transfer' ? (Array.isArray(transferTo) ? transferTo[0] : transferTo) as string : undefined,
+        transfer_to: action === 'transfer'
+          ? (Array.isArray(transferTo)
+            ? (transferTo as string[]).filter(Boolean)
+            : (transferTo ? [String(transferTo)] : undefined))
+          : undefined,
         to_node_id: action === 'return' ? returnTo : undefined,
         field_updates: action === 'approve' ? updates : undefined,
       })
@@ -811,9 +820,14 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 {!isLeadIntel && !isReviseTask && moreMode && (
                   <div className="px-5 pb-3 space-y-2 border-t border-dashed border-slate-100 pt-3">
                     {moreMode === 'transfer' && (
-                      <Space wrap>
-                        <div style={{ width: 220 }}>
-                          <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
+                      <Space wrap align="start">
+                        <div style={{ width: 320 }}>
+                          <PersonField
+                            multi
+                            value={transferTo}
+                            onChange={setTransferTo}
+                            placeholder="选择转交人员（可多选）"
+                          />
                         </div>
                         <Button type="primary" ghost icon={<SwapOutlined />} loading={busy} onClick={() => act('transfer')}>
                           确认转交

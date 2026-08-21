@@ -71,7 +71,8 @@ export const workflowApi = {
   act: (taskId: string, data: {
     action: string
     opinion?: string
-    transfer_to?: string
+    /** 转交接收人：单人或多人 user_id */
+    transfer_to?: string | string[]
     to_node_id?: string
     field_updates?: Record<string, unknown>
   }) =>
