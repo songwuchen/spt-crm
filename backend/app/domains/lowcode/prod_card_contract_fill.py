@@ -105,6 +105,51 @@ def prod_card_fill_clear_keys(mode: str) -> list[str]:
     ]
 
 
+# 简道云 sn：固定「1.2.8」+ 5 位递增、不重置（生成器曾把 sn 放进 SKIP_TYPES）
+PROD_CARD_SERIAL_PREFIX = "1.2.8"
+PROD_CARD_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "text", "value": PROD_CARD_SERIAL_PREFIX},
+    {
+        "type": "counter",
+        "digits": 5,
+        "fixed": True,
+        "reset_period": "none",
+        "initial_value": 1,
+    },
+]
+
+
+def ensure_prod_card_serial_no_field(defs: list) -> None:
+    """确保生产卡有流程编号 auto_number；无则插到字段列表最前。"""
+    serial = None
+    for f in defs:
+        if isinstance(f, dict) and f.get("id") == "serial_no":
+            serial = f
+            break
+    if serial is None:
+        serial = {
+            "id": "serial_no",
+            "type": "auto_number",
+            "label": "流程编号",
+            "jdy_widget": "_widget_1617693684982",
+        }
+        defs.insert(0, serial)
+    serial["type"] = "auto_number"
+    serial["label"] = serial.get("label") or "流程编号"
+    serial["form_editable"] = False
+    serial["available_on_create"] = True
+    serial["fill_stage"] = "initiator"
+    serial["required"] = False
+    props = dict(serial.get("props") or {})
+    props["serial_rules"] = [dict(r) for r in PROD_CARD_SERIAL_NO_RULES]
+    serial["props"] = props
+    serial["description"] = (
+        f"系统流水号：{PROD_CARD_SERIAL_PREFIX} + 5 位递增序号（不自动重置）。"
+    )
+    if not serial.get("jdy_widget"):
+        serial["jdy_widget"] = "_widget_1617693684982"
+
+
 def apply_prod_card_contract_pick_fields(defs: list) -> None:
     """把图纸编号查询/合同号选择改为 contract 类型，并挂部门过滤 + 带出模式。
 
@@ -112,7 +157,9 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
     新建打开时必须能立刻看到合同下拉。
     提交人 / 所在部门默认当前用户与当前部门。
     「确认协议 / 设计指派填写」仅审批节点可见（对齐简道云，不在发起页展示）。
+    补齐流程编号（简道云 sn：1.2.8 + 五位不重置；生成器曾跳过 sn 类型）。
     """
+    ensure_prod_card_serial_no_field(defs)
     for f in defs:
         if not isinstance(f, dict):
             continue
@@ -235,3 +282,43 @@ def build_prod_card_fill_from_tar(*, review_code: str | None) -> dict[str, Any]:
 
 def prod_card_tar_fill_clear_keys() -> list[str]:
     return ["contract_tech_review_sn"]
+
+
+# 「生产卡通知单上的内容」：仅「是否为补充=否」时展示（补充单不填生产卡正文）
+_PROD_CARD_NOTICE_FIELDS: tuple[str, ...] = (
+    "prod_card_line_items",
+    "packaging_req",
+    "project_name",
+    "paint_req",
+    "tech_params",
+    "no_warranty_period",
+    "special_reminder",
+    "remark_prod_card",
+    "special_reminder_multi",
+)
+_PROD_CARD_NOTICE_RULE_IDS = frozenset(
+    f"crm_vis_prod_notice_{fid}" for fid in _PROD_CARD_NOTICE_FIELDS
+)
+_PROD_CARD_NOTICE_WHEN_NOT_SUPPLEMENT = {
+    "field": "is_supplement",
+    "operator": "in",
+    "value": ["否"],
+}
+
+
+def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """合并「是否为补充=否 → 显示生产卡通知单内容」显隐规则。"""
+    out: list[dict[str, Any]] = [
+        r for r in (rules or [])
+        if isinstance(r, dict) and r.get("id") not in _PROD_CARD_NOTICE_RULE_IDS
+    ]
+    for fid in _PROD_CARD_NOTICE_FIELDS:
+        out.append({
+            "id": f"crm_vis_prod_notice_{fid}",
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": dict(_PROD_CARD_NOTICE_WHEN_NOT_SUPPLEMENT),
+            "action": {"visible": True},
+            "enabled": True,
+        })
+    return out

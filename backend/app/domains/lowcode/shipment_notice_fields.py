@@ -19,6 +19,20 @@ SHIPMENT_FILL_CLEAR = [
     "ship_lines",
 ]
 
+# 单据编号：24.1- + yyyyMMdd + 四位日序（CRM 约定，见 builtin 说明）
+SHIPMENT_SERIAL_PREFIX = "24.1-"
+SHIPMENT_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "text", "value": SHIPMENT_SERIAL_PREFIX},
+    {"type": "date", "format": "yyyyMMdd"},
+    {
+        "type": "counter",
+        "digits": 4,
+        "fixed": True,
+        "reset_period": "daily",
+        "initial_value": 1,
+    },
+]
+
 # 合同明细列 → 发货明细列（对齐简道云 subLink）
 _LINE_COL_MAP = {
     "name": "goods_name",
@@ -123,10 +137,22 @@ def build_shipment_fill_from_contract(
 
 
 def apply_shipment_notice_fields(fields: list[dict]) -> None:
-    """业务日期只选到日；合同号选择走合同控件并带出关联字段。"""
+    """业务日期只选到日；合同号选择走合同控件并带出关联字段；加固单据编号流水规则。"""
     for fd in fields:
         if not isinstance(fd, dict):
             continue
+        if fd.get("id") == "serial_no":
+            fd["type"] = "auto_number"
+            fd["label"] = fd.get("label") or "单据编号"
+            fd["form_editable"] = False
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            props = dict(fd.get("props") or {})
+            props["serial_rules"] = [dict(r) for r in SHIPMENT_SERIAL_NO_RULES]
+            fd["props"] = props
+            fd["description"] = (
+                f"系统单据编号：{SHIPMENT_SERIAL_PREFIX} + yyyyMMdd + 四位日序。"
+            )
         if fd.get("id") in ("biz_datetime", "require_arrive_time"):
             fd["type"] = "date"
             props = dict(fd.get("props") or {})

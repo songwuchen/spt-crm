@@ -1,0 +1,334 @@
+{
+  "form": "prod_card_supplement",
+  "name": "生产卡/补充流程",
+  "required_fields": [
+    {
+      "widget": "_widget_1572834254155",
+      "label": "所在部门",
+      "type": "dept"
+    },
+    {
+      "widget": "_widget_1565937682664",
+      "label": "提交人",
+      "type": "user"
+    },
+    {
+      "widget": "_widget_1596176975836",
+      "label": "是否为补充",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1709188372015",
+      "label": "是否涉及外购",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1619136451350",
+      "label": "是否涉及金额变更",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1640140662583",
+      "label": "是否单位变更",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1678416611198",
+      "label": "产品类型",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1782434497372",
+      "label": "是否为交钥匙工程",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1672477087569",
+      "label": "责任方",
+      "type": "combocheck"
+    },
+    {
+      "widget": "_widget_1607585825935",
+      "label": "合同号选择1",
+      "type": "linkfield"
+    },
+    {
+      "widget": "_widget_1735869458267",
+      "label": "油漆要求（补充）",
+      "type": "text"
+    },
+    {
+      "widget": "_widget_1566352810370",
+      "label": "是否需要公司派人",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1565768965918",
+      "label": "是否需要转电气车间",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1596272850375",
+      "label": "是否有技术协议",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1703552203591",
+      "label": "技术协议是否企标模板",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1784681648404",
+      "label": "请确认是否同意按本协议约定、方案执行",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1669077442128",
+      "label": "设计单分派",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1668998052329",
+      "label": "转新乡、工艺包装",
+      "type": "usergroup"
+    },
+    {
+      "widget": "_widget_1624949175724",
+      "label": "设计指派",
+      "type": "usergroup"
+    },
+    {
+      "widget": "_widget_1676004789878",
+      "label": "科室",
+      "type": "deptgroup"
+    },
+    {
+      "widget": "_widget_1676004789877",
+      "label": "下单时间",
+      "type": "datetime"
+    },
+    {
+      "widget": "_widget_1676004789959",
+      "label": "下单类型",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1750388584987",
+      "label": "是否有对应安装图项目号",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1625726006035",
+      "label": "室主任0414",
+      "type": "subform"
+    },
+    {
+      "widget": "_widget_1697527156848",
+      "label": "是否有合同技术协议评审",
+      "type": "radiogroup"
+    },
+    {
+      "widget": "_widget_1697520968430",
+      "label": "选择合同技术协议评审",
+      "type": "linkfield"
+    }
+  ],
+  "fieldShowRules": [
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1596176975836",
+            "type": "text",
+            "method": "in",
+            "value": [
+              "是"
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1624691665003",
+        "_widget_1709188372015",
+        "_widget_1596176976664",
+        "_widget_1596176976964",
+        "_widget_1672477087569",
+        "_widget_1607585825935",
+        "_widget_1735869458267",
+        "_widget_1596176979687",
+        "_widget_1624691664963",
+        "_widget_1596176980525",
+        "_widget_1596176975468"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1596176975836",
+            "type": "text",
+            "method": "in",
+            "value": [
+              "否"
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1782434497372",
+        "_widget_1593677512097",
+        "_widget_1755571401552",
+        "_widget_1676004789959",
+        "_widget_1627349271293",
+        "_widget_1627368430244",
+        "_widget_1627368430262",
+        "_widget_1627368430281",
+        "_widget_1627368430530",
+        "_widget_1725871211715",
+        "_widget_1687743784125",
+        "_widget_1627368430555",
+        "_widget_1627368430593"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1750388584987",
+            "type": "text",
+            "method": "eq",
+            "value": [
+              "是"
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1764289051542",
+        "_widget_1750390052391"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "type": "text",
+            "method": "in",
+            "value": [
+              "总部单",
+              "共同"
+            ],
+            "hasEmpty": false,
+            "field": "_widget_1669077442128"
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1624949175724"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1669077442128",
+            "type": "text",
+            "method": "in",
+            "value": [
+              "新乡单",
+              "郑州单",
+              "共同",
+              "包装单"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1668998052329"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1636621742846",
+            "type": "text",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1678416611198"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1697527156848",
+            "type": "text",
+            "method": "eq",
+            "value": [
+              "是"
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1697520968430"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1596272850375",
+            "type": "text",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1703552203591"
+      ]
+    },
+    {
+      "filter": {
+        "cond": [
+          {
+            "field": "_widget_1636621742846",
+            "type": "text",
+            "method": "eq",
+            "value": [
+              "是"
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "fields": [
+        "_widget_1714702734207"
+      ]
+    }
+  ],
+  "subformFieldShowRules": [],
+  "required_count": 26,
+  "show_rule_count": 9
+}

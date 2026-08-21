@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-"""收款登记字段修正：合计公式 + 单位名称选客户 + 来款日期仅选日。"""
+"""收款登记字段修正：合计公式 + 单位名称选客户 + 来款日期仅选日 + 收款号流水。"""
 from __future__ import annotations
+
+from typing import Any
 
 
 _OFFICE_FILL_IDS = frozenset({
@@ -13,10 +15,24 @@ _OFFICE_FILL_IDS = frozenset({
     "remark_2",
 })
 
+# 收款号：固定前缀 SKDJ- + 5 位递增（不自动重置），对齐开票 KPSQ- 风格
+PAYMENT_SERIAL_PREFIX = "SKDJ-"
+PAYMENT_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "text", "value": PAYMENT_SERIAL_PREFIX},
+    {
+        "type": "counter",
+        "digits": 5,
+        "fixed": True,
+        "reset_period": "none",
+        "initial_value": 1,
+    },
+]
+
 
 def apply_payment_registration_fields(defs: list) -> None:
     """对齐简道云：
 
+    - 收款号：系统流水号（auto_number）
     - 单位名称：从客户信息选择
     - 来款日期：只选到日（不选手选时分）
     - 来款合计 / 分配金额合计：明细汇总公式（只读）
@@ -26,7 +42,20 @@ def apply_payment_registration_fields(defs: list) -> None:
         if not isinstance(f, dict):
             continue
         fid = f.get("id")
-        if fid == "payment_date":
+        if fid == "payment_no":
+            f["type"] = "auto_number"
+            f["label"] = f.get("label") or "收款号"
+            f["form_editable"] = False
+            f["available_on_create"] = True
+            f["fill_stage"] = "initiator"
+            f["required"] = False
+            props = dict(f.get("props") or {})
+            props["serial_rules"] = [dict(r) for r in PAYMENT_SERIAL_NO_RULES]
+            f["props"] = props
+            f["description"] = (
+                f"系统收款号：{PAYMENT_SERIAL_PREFIX} + 5 位递增序号（不自动重置）。"
+            )
+        elif fid == "payment_date":
             f["type"] = "date"
             props = dict(f.get("props") or {})
             props["show_time"] = False

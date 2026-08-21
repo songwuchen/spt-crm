@@ -325,14 +325,14 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   prod_card_supplement: {
     contentMaxWidth: 1100,
     listColumns: [
-      'card_date', 'department', 'submitter', 'product_type',
+      'serial_no', 'card_date', 'department', 'submitter', 'product_type',
       'is_supplement', 'involve_outsource', 'is_shipped', 'contract_no_select',
     ],
     sections: [
       {
         title: '基本信息',
         fieldIds: [
-          'card_date', 'department', 'submitter', 'is_supplement',
+          'serial_no', 'card_date', 'department', 'submitter', 'is_supplement',
           'involve_outsource', 'is_finance_only', 'is_shipped', 'involve_amount_change',
           'is_unit_change', 'is_robot', 'f_240503', 'increase_cost',
           'need_research_drawing', 'product_type', 'is_turnkey', 'responsible_party',
@@ -382,7 +382,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       },
     ],
     spans: {
-      card_date: 6, department: 6, submitter: 6, is_supplement: 6,
+      serial_no: 6, card_date: 6, department: 6, submitter: 6, is_supplement: 6,
       involve_outsource: 6, is_finance_only: 6, is_shipped: 6, involve_amount_change: 6,
       is_unit_change: 6, is_robot: 6, f_240503: 6, increase_cost: 6,
       need_research_drawing: 6, product_type: 6, is_turnkey: 6, responsible_party: 6,

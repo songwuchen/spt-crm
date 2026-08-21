@@ -181,7 +181,10 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "name": "生产卡/补充流程",
         "category": "合同",
         "icon": "ContainerOutlined",
-        "description": "对齐简道云数据中心「生产卡/补充流程」。字段见 docs/product/_jdy_prod_card_forms.md。",
+        "description": (
+            "对齐简道云数据中心「生产卡/补充流程」。"
+            "流程编号 1.2.8+五位不重置。字段见 docs/product/_jdy_prod_card_forms.md。"
+        ),
         "field_definitions": [],
         "sync_fields": True,
     },
@@ -199,7 +202,10 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "name": "收款登记",
         "category": "合同",
         "icon": "AccountBookOutlined",
-        "description": "对齐简道云数据中心「收款登记」。字段见 docs/product/_jdy_payment_registration_forms.md。",
+        "description": (
+            "对齐简道云数据中心「收款登记」。"
+            "收款号 SKDJ-+五位不重置。字段见 docs/product/_jdy_payment_registration_forms.md。"
+        ),
         "field_definitions": [],
         "sync_fields": True,
     },
@@ -635,6 +641,11 @@ def _apply_drawing_jdy_fields() -> None:
                 apply_cs_drawing_request_rules,
             )
             rules = apply_cs_drawing_request_rules(rules)
+        if t["key"] == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import (
+                apply_prod_card_supplement_rules,
+            )
+            rules = apply_prod_card_supplement_rules(rules)
         if t["key"] in ("scheme_management", "install_drawing_notice"):
             from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
             remap_scheme_material_rule_triggers(rules)

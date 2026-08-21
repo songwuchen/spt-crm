@@ -89,20 +89,22 @@ def test_apply_prod_card_contract_pick_fields():
         {"id": "yes_customer_name", "type": "text", "label": "（是）单位名称"},
     ]
     apply_prod_card_contract_pick_fields(defs)
-    assert defs[0]["default_value"] == "否"
-    assert defs[1]["type"] == "contract"
-    assert "选择合同" in defs[1]["label"]
-    assert defs[1]["props"]["contract_fill"] == "drawing_no_query"
-    assert defs[1]["props"]["filter_by_department_field"] == "department"
-    assert defs[2]["type"] == "contract"
-    assert defs[2]["props"]["contract_fill"] == "contract_no_select"
-    assert defs[3]["type"] == "tech_agreement_review"
-    assert defs[3]["props"]["tar_fill"] == "prod_card_sn"
-    assert defs[3]["props"]["filter_by_submitter_field"] == "submitter"
-    assert defs[4]["props"]["readonly"] is True
-    assert defs[5]["props"]["default_current_user"] is True
-    assert defs[6]["props"]["default_current_dept"] is True
-    assert not (defs[7].get("props") or {}).get("readonly")
+    by_id = {f["id"]: f for f in defs}
+    assert by_id["serial_no"]["type"] == "auto_number"
+    assert by_id["is_supplement"]["default_value"] == "否"
+    assert by_id["drawing_no_query"]["type"] == "contract"
+    assert "选择合同" in by_id["drawing_no_query"]["label"]
+    assert by_id["drawing_no_query"]["props"]["contract_fill"] == "drawing_no_query"
+    assert by_id["drawing_no_query"]["props"]["filter_by_department_field"] == "department"
+    assert by_id["contract_no_select"]["type"] == "contract"
+    assert by_id["contract_no_select"]["props"]["contract_fill"] == "contract_no_select"
+    assert by_id["select_contract_tech_review"]["type"] == "tech_agreement_review"
+    assert by_id["select_contract_tech_review"]["props"]["tar_fill"] == "prod_card_sn"
+    assert by_id["select_contract_tech_review"]["props"]["filter_by_submitter_field"] == "submitter"
+    assert by_id["contract_tech_review_sn"]["props"]["readonly"] is True
+    assert by_id["submitter"]["props"]["default_current_user"] is True
+    assert by_id["department"]["props"]["default_current_dept"] is True
+    assert not (by_id["yes_customer_name"].get("props") or {}).get("readonly")
 
 
 def test_prod_card_approver_only_fields_hidden_on_create():
@@ -164,3 +166,56 @@ def test_build_prod_card_fill_from_tar():
     assert build_prod_card_fill_from_tar(review_code=" HTJSXY00001 ") == {
         "contract_tech_review_sn": "HTJSXY00001",
     }
+
+
+def test_apply_prod_card_supplement_rules_notice_when_not_supplement():
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_supplement_rules
+
+    rules = apply_prod_card_supplement_rules([
+        {
+            "id": "keep_me",
+            "type": "visibility",
+            "target_field_id": "is_turnkey",
+            "condition": {"field": "is_supplement", "operator": "in", "value": ["否"]},
+            "action": {"visible": True},
+        },
+        {
+            "id": "crm_vis_prod_notice_packaging_req",
+            "type": "visibility",
+            "target_field_id": "packaging_req",
+            "condition": {"field": "is_supplement", "operator": "in", "value": ["是"]},
+            "action": {"visible": True},
+        },
+    ])
+    by_id = {r["id"]: r for r in rules}
+    assert "keep_me" in by_id
+    notice = by_id["crm_vis_prod_notice_packaging_req"]
+    assert notice["condition"] == {
+        "field": "is_supplement", "operator": "in", "value": ["否"],
+    }
+    assert notice["action"] == {"visible": True}
+    assert sum(1 for r in rules if str(r.get("id") or "").startswith("crm_vis_prod_notice_")) == 9
+
+
+def test_ensure_prod_card_serial_no_field():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        PROD_CARD_SERIAL_NO_RULES,
+        apply_prod_card_contract_pick_fields,
+        ensure_prod_card_serial_no_field,
+    )
+
+    defs: list = [{"id": "card_date", "type": "datetime", "label": "下卡日期"}]
+    ensure_prod_card_serial_no_field(defs)
+    assert defs[0]["id"] == "serial_no"
+    assert defs[0]["type"] == "auto_number"
+    assert defs[0]["props"]["serial_rules"] == PROD_CARD_SERIAL_NO_RULES
+
+    # 再次 ensure 不重复插入
+    ensure_prod_card_serial_no_field(defs)
+    assert sum(1 for f in defs if f.get("id") == "serial_no") == 1
+
+    apply_prod_card_contract_pick_fields([{"id": "is_supplement", "type": "radio"}])
+    defs2: list = [{"id": "is_supplement", "type": "radio"}]
+    apply_prod_card_contract_pick_fields(defs2)
+    assert defs2[0]["id"] == "serial_no"
+    assert defs2[1]["default_value"] == "否"

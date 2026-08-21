@@ -683,8 +683,12 @@ async def sync_builtin_form_fields(
                         col["fill_stage"] = "approver"
                         col["required"] = True
     if key == "prod_card_supplement":
-        from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
+        from app.domains.lowcode.prod_card_contract_fill import (
+            apply_prod_card_contract_pick_fields,
+            apply_prod_card_supplement_rules,
+        )
         apply_prod_card_contract_pick_fields(want)
+        want_rules = apply_prod_card_supplement_rules(want_rules)
     if key == "payment_registration":
         from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
         apply_payment_registration_fields(want)

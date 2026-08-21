@@ -87,10 +87,15 @@ def test_shipment_notice_contract_fill_includes_ship_lines():
 
 
 def test_shipment_notice_contract_field_has_fill_mode():
-    defs = [{"id": "contract_no", "type": "text", "props": {}}]
+    defs = [
+        {"id": "serial_no", "type": "text", "label": "单据编号"},
+        {"id": "contract_no", "type": "text", "props": {}},
+    ]
     apply_shipment_notice_fields(defs)
-    assert defs[0]["type"] == "contract"
-    assert defs[0]["props"]["contract_fill"] == "shipment_notice"
+    assert defs[0]["type"] == "auto_number"
+    assert defs[0]["props"]["serial_rules"][0]["value"] == "24.1-"
+    assert defs[1]["type"] == "contract"
+    assert defs[1]["props"]["contract_fill"] == "shipment_notice"
 
 
 def test_shipment_notice_builtin_has_core_fields():
