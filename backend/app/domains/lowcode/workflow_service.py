@@ -699,9 +699,15 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import (
             apply_prod_card_design_assign_field_perms,
+            apply_prod_card_sales_before_region,
+            apply_prod_card_sales_confirm_field_perms,
         )
+        apply_prod_card_sales_confirm_field_perms(nodes)
         apply_prod_card_design_assign_field_perms(nodes)
+        apply_prod_card_sales_before_region(nodes, routes)
+        apply_prod_card_notify_production_cc(nodes)
         apply_prod_card_finance_branch_parallel(nodes, routes)
+        apply_prod_card_xiaomeng_yangshuang_cc(nodes, routes)
     return nodes, routes
 
 
@@ -1541,6 +1547,64 @@ def apply_xunhan_contract_review_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+# 通知生产：简道云启用抄送（吕英萍、雷贤、吴超）
+_PROD_NOTIFY_CC_USERNAMES: list[str] = [
+    "02364437547295",  # 吕英萍
+    "02362247571234189",  # 雷贤
+    "1739424832704465",  # 吴超
+]
+_PROD_NOTIFY_CC_RULE: dict = {
+    "type": "specified_user",
+    "value": list(_PROD_NOTIFY_CC_USERNAMES),
+}
+
+
+def _cc_rule_matches(cur: dict | None, want: dict) -> bool:
+    if not isinstance(cur, dict):
+        return False
+    if cur.get("type") != want.get("type"):
+        return False
+    cv = cur.get("value")
+    wv = want.get("value")
+    if isinstance(wv, list):
+        if not isinstance(cv, list):
+            return False
+        return sorted(str(x) for x in cv) == sorted(str(x) for x in wv)
+    return cv == wv
+
+
+def _flow_prod_card_notify_cc_needs_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if str(n.get("name") or "") != "通知生产":
+            continue
+        if n.get("type") != "approval":
+            continue
+        if not _cc_rule_matches(n.get("cc_rule"), _PROD_NOTIFY_CC_RULE):
+            return True
+    return False
+
+
+def apply_prod_card_notify_production_cc(nodes: list[dict] | None) -> bool:
+    """生产卡「通知生产」启用抄送：吕英萍、雷贤、吴超（对齐简道云）。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        if str(n.get("name") or "") != "通知生产":
+            continue
+        if n.get("type") != "approval":
+            continue
+        if _cc_rule_matches(n.get("cc_rule"), _PROD_NOTIFY_CC_RULE):
+            continue
+        n["cc_rule"] = dict(_PROD_NOTIFY_CC_RULE)
+        changed = True
+    return changed
+
+
 _PROD_MATERIAL_ROLE = {
     "type": "specified_role",
     "value": "prod_material_code",
@@ -1648,6 +1712,141 @@ def _flow_prod_card_finance_not_parallel(
         elif r.get("exclusive_group"):
             return True
     return False
+
+
+# 小萌工厂：杨霜审批 → 抄送小萌工厂（宋华强/任成双/段晓彤）∥ 结束（不加转电气车间）
+_PROD_XIAOMENG_APPROVER: dict = {
+    "type": "specified_user",
+    "value": "02352513566524",  # 杨霜
+}
+_PROD_XIAOMENG_CC_RULE: dict = {
+    "type": "specified_user",
+    "value": [
+        "246945356423206519",  # 宋华强
+        "286311260320230135",  # 任成双
+        "422237032327334118",  # 段晓彤
+    ],
+}
+_PROD_XIAOMENG_CC_NODE_ID = "n_cc_xiaomeng_factory"
+_PROD_XIAOMENG_CC_NODE_NAME = "抄送小萌工厂"
+
+
+def _prod_card_xiaomeng_node(nodes: list | None) -> dict | None:
+    for n in nodes or []:
+        if isinstance(n, dict) and n.get("name") == "小萌工厂" and n.get("type") == "approval":
+            return n
+    return None
+
+
+def _flow_prod_card_xiaomeng_needs_fix(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    xm = _prod_card_xiaomeng_node(nodes)
+    if not xm:
+        return False
+    if not _approver_rule_matches(xm.get("approver_rule") or {}, _PROD_XIAOMENG_APPROVER):
+        return True
+    if xm.get("cc_rule"):
+        return True
+    by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict) and n.get("id")}
+    cc = by_id.get(_PROD_XIAOMENG_CC_NODE_ID)
+    if not cc or cc.get("type") != "cc" or cc.get("name") != _PROD_XIAOMENG_CC_NODE_NAME:
+        return True
+    if not _approver_rule_matches(cc.get("approver_rule") or {}, _PROD_XIAOMENG_CC_RULE):
+        return True
+    xm_id = str(xm.get("id") or "")
+    pairs = {
+        (str(r.get("source") or ""), str(r.get("target") or ""))
+        for r in (routes or [])
+        if isinstance(r, dict)
+    }
+    if (xm_id, "end") not in pairs:
+        return True
+    if (xm_id, _PROD_XIAOMENG_CC_NODE_ID) not in pairs:
+        return True
+    return False
+
+
+def apply_prod_card_xiaomeng_yangshuang_cc(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """生产卡「小萌工厂」：杨霜审批；审完并行抄送三人与结束（无转电气车间）。"""
+    if not isinstance(nodes, list) or not isinstance(routes, list):
+        return False
+    xm = _prod_card_xiaomeng_node(nodes)
+    if not xm:
+        return False
+    changed = False
+    xm_id = str(xm.get("id") or "")
+    if not xm_id:
+        return False
+
+    if not _approver_rule_matches(xm.get("approver_rule") or {}, _PROD_XIAOMENG_APPROVER):
+        xm["approver_rule"] = dict(_PROD_XIAOMENG_APPROVER)
+        changed = True
+    if xm.get("multi_mode"):
+        xm.pop("multi_mode", None)
+        changed = True
+    if xm.get("cc_rule"):
+        xm.pop("cc_rule", None)
+        changed = True
+
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    want_cc = _cc_node(
+        _PROD_XIAOMENG_CC_NODE_ID, _PROD_XIAOMENG_CC_NODE_NAME, dict(_PROD_XIAOMENG_CC_RULE),
+    )
+    cur_cc = by_id.get(_PROD_XIAOMENG_CC_NODE_ID)
+    if not cur_cc:
+        nodes.append(want_cc)
+        changed = True
+    else:
+        if cur_cc.get("type") != "cc" or cur_cc.get("name") != _PROD_XIAOMENG_CC_NODE_NAME:
+            cur_cc["type"] = "cc"
+            cur_cc["name"] = _PROD_XIAOMENG_CC_NODE_NAME
+            changed = True
+        if not _approver_rule_matches(cur_cc.get("approver_rule") or {}, _PROD_XIAOMENG_CC_RULE):
+            cur_cc["approver_rule"] = dict(_PROD_XIAOMENG_CC_RULE)
+            changed = True
+
+    def _ensure_out(rid: str, target: str, *, use_always_flag: bool) -> None:
+        nonlocal changed
+        for r in routes:
+            if not isinstance(r, dict):
+                continue
+            if str(r.get("source") or "") != xm_id or str(r.get("target") or "") != target:
+                continue
+            if r.get("exclusive_group"):
+                r.pop("exclusive_group", None)
+                changed = True
+            if use_always_flag:
+                if not r.get("always"):
+                    r["always"] = True
+                    changed = True
+                if r.get("condition") and not _route_is_always_parallel(r):
+                    r.pop("condition", None)
+                    changed = True
+            else:
+                # 结束：保留/写成恒真并行（与生成器 __always 一致）
+                if not _route_is_always_parallel(r):
+                    r.pop("always", None)
+                    r["condition"] = {"field": "__always", "operator": "is_empty"}
+                    changed = True
+                if r.get("exclusive_group"):
+                    r.pop("exclusive_group", None)
+                    changed = True
+            return
+        if use_always_flag:
+            routes.append({"id": rid, "source": xm_id, "target": target, "always": True})
+        else:
+            routes.append({
+                "id": rid, "source": xm_id, "target": target,
+                "condition": {"field": "__always", "operator": "is_empty"},
+            })
+        changed = True
+
+    _ensure_out("r_xiaomeng_end", "end", use_always_flag=False)
+    _ensure_out(f"r_xiaomeng_{_PROD_XIAOMENG_CC_NODE_ID}", _PROD_XIAOMENG_CC_NODE_ID, use_always_flag=True)
+    return changed
 
 
 _CS_RETURN_CS_USERS = {
@@ -4100,6 +4299,34 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"生产卡物料编码/法务改为角色({form_code})",
         )
         return
+    # 生产卡：业务员确认可填协议确认；区域经理挂在业务员确认之后；通知生产抄送
+    if form_code == "prod_card_supplement":
+        import copy
+        from app.domains.lowcode.prod_card_contract_fill import (
+            apply_prod_card_design_assign_field_perms,
+            apply_prod_card_sales_before_region,
+            apply_prod_card_sales_confirm_field_perms,
+        )
+        patched = copy.deepcopy(version.node_definitions or [])
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        tags: list[str] = []
+        if apply_prod_card_sales_confirm_field_perms(patched):
+            tags.append("业务员确认可填协议确认")
+        if apply_prod_card_design_assign_field_perms(patched):
+            tags.append("研管办安排设计指派字段")
+        if apply_prod_card_sales_before_region(patched, patched_routes):
+            tags.append("先业务员确认再区域经理")
+        if apply_prod_card_notify_production_cc(patched):
+            tags.append("通知生产抄送吕英萍雷贤吴超")
+        if apply_prod_card_xiaomeng_yangshuang_cc(patched, patched_routes):
+            tags.append("小萌工厂杨霜审批+抄送∥结束")
+        if tags:
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched, patched_routes,
+                DRAWING_FORM_FLOW_DESC, "+".join(tags),
+            )
+            return
     # 客服领图：研管办→郑志颖；部门指派节点填写项对齐图纸领用
     if (
         topology_ok
@@ -4283,6 +4510,7 @@ async def _upgrade_drawing_form_flow_if_needed(
     if topology_ok:
         import copy
         patched_routes = copy.deepcopy(version.route_definitions or [])
+        publish_nodes = version.node_definitions
         tags: list[str] = []
         if form_code == "quote_management" and apply_quote_purchase_inquiry_parallel(
             version.node_definitions, patched_routes,
@@ -4296,6 +4524,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             version.node_definitions, patched_routes,
         ):
             tags.append("通知发起人须转采购≠是")
+        if form_code == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import (
+                apply_prod_card_sales_before_region,
+            )
+            if apply_prod_card_sales_before_region(
+                version.node_definitions, patched_routes,
+            ):
+                tags.append("先业务员确认再区域经理")
+            patched_nodes = copy.deepcopy(version.node_definitions or [])
+            if apply_prod_card_notify_production_cc(patched_nodes):
+                tags.append("通知生产抄送吕英萍雷贤吴超")
+                publish_nodes = patched_nodes
+            if apply_prod_card_xiaomeng_yangshuang_cc(patched_nodes, patched_routes):
+                tags.append("小萌工厂杨霜审批+抄送∥结束")
+                publish_nodes = patched_nodes
         if form_code == "prod_card_supplement" and apply_prod_card_finance_branch_parallel(
             version.node_definitions, patched_routes,
         ):
@@ -4327,7 +4570,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         if tags:
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
-                version.node_definitions, patched_routes,
+                publish_nodes, patched_routes,
                 DRAWING_FORM_FLOW_DESC, "+".join(tags),
             )
             if form_code == "quote_management":
@@ -6650,7 +6893,7 @@ async def _build_flow_steps(
         if l.actor_id:
             uid_set.add(l.actor_id)
 
-    cc_node_ids = [n.id for n in nodes_sorted if getattr(n, "node_type", None) == "cc"]
+    cc_node_ids = [n.id for n in nodes_sorted]
     cc_by_node: dict[str, list[str]] = {}
     if cc_node_ids:
         cc_rows = (await db.execute(
@@ -6768,6 +7011,31 @@ async def _build_flow_steps(
             ))
             continue
 
+        # 审批节点启用抄送：单独一条「系统·抄送」卡片（对齐简道云）；有名单后不再用空日志卡
+        approval_cc_uids = cc_by_node.get(n.id) or []
+        has_approval_cc_card = False
+        if approval_cc_uids and n.node_type == "approval":
+            uniq_cc: list[str] = []
+            for uid in approval_cc_uids:
+                if uid not in uniq_cc:
+                    uniq_cc.append(uid)
+            out.append(_step(
+                step_key=f"{n.id}:approval_cc",
+                n=n,
+                status="completed",
+                handler_name="系统",
+                action="cc",
+                opinion=None,
+                assignees=[
+                    {"id": uid, "name": name_map.get(uid, uid), "status": "completed"}
+                    for uid in uniq_cc
+                ],
+                started_at=n.started_at,
+                completed_at=n.started_at,
+                is_current=False,
+            ))
+            has_approval_cc_card = True
+
         # 历史兼容：节点仍 running 但已驳回/撤回/流程结束
         force_status = None
         if n.status == "running":
@@ -6798,6 +7066,9 @@ async def _build_flow_steps(
         prev_at = n.started_at
         for lg in actionable:
             act = lg.action
+            # 审批节点抄送已有名单卡时，跳过空的 action=cc 日志，避免双卡
+            if act == "cc" and has_approval_cc_card:
+                continue
             st = "rejected" if act in ("reject", "auto_reject") else "completed"
             if force_status == "rejected" and act in ("reject", "auto_reject"):
                 st = "rejected"
@@ -6807,6 +7078,9 @@ async def _build_flow_steps(
                 actor = actor or "系统"
                 if not op:
                     op = f"节点「{n.node_name}」无审批人，自动通过"
+            # 仅有日志、无 wf_process_cc 时：仍展示抄送卡（无名单）
+            if act == "cc":
+                actor = actor or "系统"
             done_at = lg.created_at
             step = _step(
                 step_key=f"{n.id}:log:{getattr(lg, 'id', id(lg))}",
@@ -6815,8 +7089,8 @@ async def _build_flow_steps(
                 handler_name=actor,
                 action=act,
                 opinion=op,
-                assignees=assignees,
-                started_at=prev_at or done_at,
+                assignees=assignees if act != "cc" else [],
+                started_at=prev_at,
                 completed_at=done_at,
                 is_current=False,
             )

@@ -40,10 +40,11 @@ async def test_build_flow_steps_maps_stale_running_reject_to_rejected():
     from app.domains.lowcode.workflow_service import _build_flow_steps
 
     db = AsyncMock()
-    # User name lookup
-    result = MagicMock()
-    result.all.return_value = [("u1", "李焱焱", "li")]
-    db.execute.return_value = result
+    cc_result = MagicMock()
+    cc_result.all.return_value = []
+    user_result = MagicMock()
+    user_result.all.return_value = [("u1", "李焱焱", "li")]
+    db.execute = AsyncMock(side_effect=[cc_result, user_result])
 
     steps = await _build_flow_steps(
         db,
@@ -96,12 +97,14 @@ async def test_build_flow_steps_transfer_splits_like_jdy():
     from app.domains.lowcode.workflow_service import _build_flow_steps
 
     db = AsyncMock()
-    result = MagicMock()
-    result.all.return_value = [
+    cc_result = MagicMock()
+    cc_result.all.return_value = []
+    user_result = MagicMock()
+    user_result.all.return_value = [
         ("u-from", "王东明", "wang"),
         ("u-to", "刘松潮", "liu"),
     ]
-    db.execute.return_value = result
+    db.execute = AsyncMock(side_effect=[cc_result, user_result])
 
     task = SimpleNamespace(
         id="t1",
@@ -133,6 +136,41 @@ async def test_build_flow_steps_transfer_splits_like_jdy():
     assert "供货范围" in (xfer["opinion"] or "")
     # 当前待办排在转交记录之前（最新在前）
     assert steps.index(cur) < steps.index(xfer)
+
+
+@pytest.mark.asyncio
+async def test_build_flow_steps_approval_cc_not_duplicated_with_cc_log():
+    """审批节点启用抄送：有 wf_process_cc 时只出一张抄送卡，忽略空 cc 日志。"""
+    from app.domains.lowcode.workflow_service import _build_flow_steps
+
+    db = AsyncMock()
+    cc_result = MagicMock()
+    cc_result.all.return_value = [
+        ("ni-1", "u-lv"), ("ni-1", "u-lei"), ("ni-1", "u-wu"),
+    ]
+    user_result = MagicMock()
+    user_result.all.return_value = [
+        ("u-lv", "吕英萍", "lv"),
+        ("u-lei", "雷贤", "lei"),
+        ("u-wu", "吴超", "wu"),
+        ("u-du", "杜意敏", "du"),
+    ]
+    db.execute = AsyncMock(side_effect=[cc_result, user_result])
+
+    task = SimpleNamespace(
+        id="t1", node_instance_id="ni-1", assignee_id="u-du", status="pending",
+    )
+    steps = await _build_flow_steps(
+        db,
+        nodes=[_ni(node_name="通知生产")],
+        tasks=[task],
+        logs=[_log(action="cc", actor_id="system", actor_name="系统", opinion="节点「通知生产」抄送")],
+        process_status="running",
+    )
+    cc_steps = [s for s in steps if s.get("action") == "cc"]
+    assert len(cc_steps) == 1
+    assert [a["name"] for a in cc_steps[0]["assignees"]] == ["吕英萍", "雷贤", "吴超"]
+    assert any(s.get("is_current") for s in steps)
 
 
 @pytest.mark.asyncio

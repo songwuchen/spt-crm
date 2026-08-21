@@ -135,15 +135,90 @@ def test_apply_prod_card_design_assign_field_perms():
             "field_perms": [
                 {"field": "design_dispatch", "access": "required"},
                 {"field": "design_assignees", "access": "required"},
+                {"field": "confirm_agreement", "access": "required"},
             ],
         }
     ]
     assert apply_prod_card_design_assign_field_perms(nodes) is True
     fields = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
-    assert fields["confirm_agreement"] == "required"
+    assert "confirm_agreement" not in fields
     assert fields["install_project_no"] == "editable"
     assert fields["f_0414"] == "required"
     assert fields["design_assignees"] == "required"
+
+
+def test_apply_prod_card_sales_confirm_field_perms():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_sales_confirm_field_perms,
+    )
+    nodes = [
+        {
+            "id": "n_sales_confirm",
+            "name": "业务员确认",
+            "type": "approval",
+            "approver_rule": {
+                "type": "form_field_person",
+                "value": ["yes_sales_person", "no_sales_person"],
+            },
+        }
+    ]
+    assert apply_prod_card_sales_confirm_field_perms(nodes) is True
+    fields = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
+    assert fields["confirm_agreement"] == "required"
+    assert apply_prod_card_sales_confirm_field_perms(nodes) is False
+
+
+def test_apply_prod_card_sales_before_region():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_sales_before_region,
+    )
+    nodes = [
+        {"id": "start", "type": "start", "name": "生产卡发起"},
+        {"id": "n_sales_confirm", "type": "approval", "name": "业务员确认"},
+        {"id": "n47", "type": "approval", "name": "区域经理/组长"},
+        {"id": "n1", "type": "approval", "name": "部门审批"},
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    routes = [
+        {
+            "id": "r_region",
+            "source": "start",
+            "target": "n47",
+            "condition": {
+                "field": "region_manager",
+                "operator": "is_not_empty",
+                "value": None,
+            },
+            "exclusive_group": "ex_start",
+        },
+        {
+            "id": "r_else",
+            "source": "start",
+            "target": "n_sales_confirm",
+            "exclusive_group": "ex_start",
+        },
+        {"id": "r_sales_dept", "source": "n_sales_confirm", "target": "n1"},
+        {
+            "id": "r_region_dept",
+            "source": "n47",
+            "target": "n1",
+            "condition": {"field": "__always", "operator": "is_empty"},
+        },
+    ]
+    assert apply_prod_card_sales_before_region(nodes, routes) is True
+    outs = [(r["source"], r["target"]) for r in routes if r["source"] in ("start", "n_sales_confirm")]
+    assert ("start", "n47") not in outs
+    assert ("n_sales_confirm", "n47") in outs
+    assert ("n_sales_confirm", "n1") in outs
+    assert ("start", "n_sales_confirm") in outs
+    sales_region = next(r for r in routes if r["source"] == "n_sales_confirm" and r["target"] == "n47")
+    sales_dept = next(r for r in routes if r["source"] == "n_sales_confirm" and r["target"] == "n1")
+    assert sales_region["exclusive_group"] == "ex_n_sales_confirm"
+    assert sales_dept["exclusive_group"] == "ex_n_sales_confirm"
+    # 区域边排在 else 前
+    sales_idxs = [i for i, r in enumerate(routes) if r["source"] == "n_sales_confirm"]
+    assert routes[sales_idxs[0]]["target"] == "n47"
+    assert apply_prod_card_sales_before_region(nodes, routes) is False
 
 
 def test_build_fill_contract_no_select_falls_back_reg_customer():

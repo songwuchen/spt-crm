@@ -704,7 +704,11 @@ class WorkflowEngine:
     ) -> bool:
         """无在途待办时要不要发明 end。
 
-        仅抄送、或指定人主链被跳过，都不能收尾；采购回路 skip_reactivate 才发明结束。
+        - 仍有并行支路/待办：不收尾（等收敛）
+        - 从抄送节点推进：不收尾（避免同批抢跑；抄送相位本来就在主链后）
+        - 后继全是旁路抄送且已无在途：收尾（生产卡「销售订单→结束」与「安排设计→抄送」
+          并行时，先到结束会被挡住；设计支路后走完只剩抄送，必须在此补收尾）
+        - 主链目标被 skip_reactivate：可收尾；主链仍会激活则不发明 end
         """
         if has_live_work:
             return False
@@ -712,10 +716,61 @@ class WorkflowEngine:
             return False
         phases = [self._advance_phase(nodes.get(t)) for t in ordered]
         if ordered and all(p == ADVANCE_PHASE_SIDECAR for p in phases):
-            return False
+            return True
         if any(p == ADVANCE_PHASE_CORE for p in phases) and not skipped_reactivate:
             return False
         return True
+
+    def _mark_await_end(self, inst: WfProcessInstance) -> None:
+        """结束被并行支路挡住：记一笔，收敛后由 _try_finish_await_end 补收尾。"""
+        raw = inst.pending_joins
+        items: list = list(raw) if isinstance(raw, list) else ([] if raw is None else [raw])
+        if any(isinstance(x, dict) and x.get("await_end") for x in items):
+            return
+        items.append({"await_end": True})
+        inst.pending_joins = items
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
+    def _clear_await_end(self, inst: WfProcessInstance) -> None:
+        raw = inst.pending_joins
+        if not isinstance(raw, list):
+            return
+        nxt = [x for x in raw if not (isinstance(x, dict) and x.get("await_end"))]
+        if len(nxt) == len(raw):
+            return
+        inst.pending_joins = nxt or None
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
+    def _has_await_end(self, inst: WfProcessInstance) -> bool:
+        raw = inst.pending_joins
+        if not isinstance(raw, list):
+            return False
+        return any(isinstance(x, dict) and x.get("await_end") for x in raw)
+
+    async def _try_finish_await_end(
+        self, inst: WfProcessInstance, version: WfProcessDefinitionVersion, ctx: ApprovalContext,
+    ) -> None:
+        """并行支路都收敛且曾有人到达结束：补激活 end。"""
+        if self.db is None or inst.status != "running":
+            return
+        if not self._has_await_end(inst):
+            return
+        if await self._has_live_work(inst):
+            return
+        end = next(
+            (n for n in (version.node_definitions or []) if n.get("type") == "end"),
+            None,
+        )
+        if not end:
+            return
+        self._clear_await_end(inst)
+        await self._activate_node(inst, version, end, ctx)
 
     def _specified_rule_has_value(self, rule: dict | None) -> bool:
         if not isinstance(rule, dict) or rule.get("type") != "specified_user":
@@ -767,6 +822,7 @@ class WorkflowEngine:
             )
             if end:
                 await self._activate_node(inst, version, end, ctx)
+        await self._try_finish_await_end(inst, version, ctx)
         await self._flush_deferred_complete(inst)
 
     async def _activate_node(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
@@ -776,7 +832,9 @@ class WorkflowEngine:
             # 主链与旁路抄送可能并行：抄送先「到达」end 时，审批节点/待办仍在，
             # 不能提前 completed（否则会出现表头已通过、图纸领取仍处理中）。
             if await self._has_live_work(inst):
+                self._mark_await_end(inst)
                 return
+            self._clear_await_end(inst)
             await self._complete_instance(inst, "completed")
             return
         if ntype == "cc":
@@ -971,9 +1029,39 @@ class WorkflowEngine:
         await self.db.flush()
         # 待办已落库,登记通知(站内 + 钉钉待办),提交后统一下发
         self._queue("tasks_created", fresh, inst)
+        # 简道云「启用抄送」：进审批节点时同步知会抄送人（对齐通知生产等）
+        await self._attach_approval_node_cc(inst, version, node, ni, ctx)
         if inst.biz_type == "lead_reactivation" and inst.biz_id:
             from app.domains.lead.reactivation import sync_reactivation_status_from_wf
             await sync_reactivation_status_from_wf(self.db, self.tenant_id, inst.biz_id)
+
+    async def _attach_approval_node_cc(self, inst, version, node, ni, ctx) -> None:
+        """审批节点上的 cc_rule：进节点即抄送（简道云启用抄送）。
+
+        只写 wf_process_cc + 通知，不另记 action=cc 日志，避免流程动态出现两条「抄送」。
+        """
+        rule = node.get("cc_rule") or (node.get("config") or {}).get("cc_rule")
+        if not isinstance(rule, dict) or not rule:
+            return
+        try:
+            users = await self._approver_resolver.resolve(
+                {**rule, "node_id": node.get("id")}, ctx,
+            )
+        except NoApproverError:
+            users = []
+        if not users:
+            return
+        seen: set[str] = set()
+        for uid in users:
+            if not uid or uid in seen:
+                continue
+            seen.add(uid)
+            self.db.add(WfProcessCc(
+                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                node_instance_id=ni.id, user_id=uid, is_read=False,
+            ))
+        await self.db.flush()
+        self._queue("cc_notified", list(seen), node.get("name") or "审批抄送", inst)
 
     async def _after_lead_reactivation_node_done(self, inst, ni, task) -> None:
         """业务员/内勤节点完成后写入激活单。"""
@@ -1386,6 +1474,7 @@ class WorkflowEngine:
         from app.domains.organization.models import Department
         from app.domains.lowcode.pickable_scope import (
             role_codes_from_field, scope_code_from_field, filter_by_fields_from_field,
+            dept_ids_from_field, include_children_from_field,
         )
         from app.domains.lowcode.models import FormInstance
         from app.domains.lowcode.service import get_published_version
@@ -1424,18 +1513,31 @@ class WorkflowEngine:
 
             # —— 部门字段：按部门可选范围校验 ——
             if ftype in dept_types:
-                if not scode:
-                    continue
-                await pss.ensure_preset_scopes(self.db, self.tenant_id)
-                scope = await pss.get_scope_by_code(self.db, self.tenant_id, scode)
-                if not scope:
-                    raise BusinessException(
-                        code=VALIDATION_ERROR,
-                        message=f"「{label}」可选范围「{scode}」不存在，请到「系统管理 → 可选范围」配置",
+                if scode:
+                    await pss.ensure_preset_scopes(self.db, self.tenant_id)
+                    scope = await pss.get_scope_by_code(self.db, self.tenant_id, scode)
+                    if not scope:
+                        raise BusinessException(
+                            code=VALIDATION_ERROR,
+                            message=f"「{label}」可选范围「{scode}」不存在，请到「系统管理 → 可选范围」配置",
+                        )
+                    allowed_depts = await pss.resolve_department_ids(
+                        self.db, self.tenant_id, scope,
                     )
-                allowed_depts = await pss.resolve_department_ids(
-                    self.db, self.tenant_id, scope,
-                )
+                else:
+                    range_depts = dept_ids_from_field(fd)
+                    if not range_depts:
+                        continue
+                    allowed_depts = await pss.resolve_department_ids(
+                        self.db, self.tenant_id,
+                        {
+                            "kind": "department",
+                            "rules": {
+                                "dept_ids": range_depts,
+                                "include_children": include_children_from_field(fd),
+                            },
+                        },
+                    )
                 if allowed_depts is None:
                     continue
                 bad = [c for c in candidates if c not in allowed_depts]
@@ -1489,41 +1591,52 @@ class WorkflowEngine:
                     continue
             else:
                 codes = role_codes_from_field(fd)
-                if not codes:
+                range_depts = dept_ids_from_field(fd)
+                if not codes and not range_depts:
                     continue
-                role_ids = (
-                    await self.db.execute(
-                        select(Role.id).where(Role.tenant_id == self.tenant_id, Role.code.in_(codes))
-                    )
-                ).scalars().all()
-                if not role_ids and any(c == "room_leader" for c in codes):
-                    from app.common.rbac_sync import ensure_business_roles
-                    created = await ensure_business_roles(self.db, self.tenant_id, ["room_leader"])
-                    if created:
-                        await self.db.flush()
+                allowed = set()
+                if codes:
                     role_ids = (
                         await self.db.execute(
                             select(Role.id).where(Role.tenant_id == self.tenant_id, Role.code.in_(codes))
                         )
                     ).scalars().all()
-                if not role_ids:
-                    raise BusinessException(
-                        code=VALIDATION_ERROR,
-                        message=f"「{label}」可选角色未配置，请到「系统管理 → 可选范围 / 角色」维护",
-                    )
-                allowed = set(
-                    (
-                        await self.db.execute(
-                            select(UserRole.user_id).where(
-                                UserRole.tenant_id == self.tenant_id,
-                                UserRole.role_id.in_(role_ids),
+                    if not role_ids and any(c in ("room_leader", "transfer_packaging") for c in codes):
+                        from app.common.rbac_sync import ensure_business_roles, ensure_transfer_packaging_role_members
+                        if "room_leader" in codes:
+                            created = await ensure_business_roles(self.db, self.tenant_id, ["room_leader"])
+                            if created:
+                                await self.db.flush()
+                        if "transfer_packaging" in codes:
+                            await ensure_transfer_packaging_role_members(self.db, self.tenant_id)
+                            await self.db.flush()
+                        role_ids = (
+                            await self.db.execute(
+                                select(Role.id).where(Role.tenant_id == self.tenant_id, Role.code.in_(codes))
                             )
+                        ).scalars().all()
+                    if codes and not role_ids and not range_depts:
+                        raise BusinessException(
+                            code=VALIDATION_ERROR,
+                            message=f"「{label}」可选角色未配置，请到「系统管理 → 角色」维护",
                         )
-                    ).scalars().all()
-                )
+                    if role_ids:
+                        allowed |= set(
+                            (
+                                await self.db.execute(
+                                    select(UserRole.user_id).where(
+                                        UserRole.tenant_id == self.tenant_id,
+                                        UserRole.role_id.in_(role_ids),
+                                    )
+                                )
+                            ).scalars().all()
+                        )
+                if range_depts:
+                    allowed |= await pss._user_ids_in_depts(
+                        self.db, self.tenant_id, range_depts, include_children_from_field(fd),
+                    )
                 if extra_depts:
-                    from app.domains.organization.pickable_scope_service import _user_ids_in_depts
-                    allowed &= await _user_ids_in_depts(self.db, self.tenant_id, extra_depts, True)
+                    allowed &= await pss._user_ids_in_depts(self.db, self.tenant_id, extra_depts, True)
 
             rows = (
                 await self.db.execute(

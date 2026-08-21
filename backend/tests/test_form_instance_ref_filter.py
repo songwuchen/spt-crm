@@ -94,25 +94,32 @@ async def test_contract_filter_matches_drawing_no(db):
     )
     db.add_all([contract, tpl, ver, inst])
     await db.commit()
+    try:
+        ids = await _lookup_ref_ids_by_name(
+            db, DEMO_TENANT, kind="contract", value=token, exact=False,
+        )
+        assert contract.id in ids
 
-    ids = await _lookup_ref_ids_by_name(
-        db, DEMO_TENANT, kind="contract", value=token, exact=False,
-    )
-    assert contract.id in ids
+        rows, total = await list_instances(
+            db, DEMO_TENANT, tpl.id, 1, 20,
+            filters={"match": "all", "rules": [
+                {"field": "contract_no", "op": "contains", "value": token},
+            ]},
+        )
+        assert total >= 1
+        assert any(r.id == inst.id for r in rows)
 
-    rows, total = await list_instances(
-        db, DEMO_TENANT, tpl.id, 1, 20,
-        filters={"match": "all", "rules": [
-            {"field": "contract_no", "op": "contains", "value": token},
-        ]},
-    )
-    assert total >= 1
-    assert any(r.id == inst.id for r in rows)
-
-    _miss, miss_n = await list_instances(
-        db, DEMO_TENANT, tpl.id, 1, 20,
-        filters={"match": "all", "rules": [
-            {"field": "contract_no", "op": "contains", "value": "NO_SUCH_DRAWING_XYZ"},
-        ]},
-    )
-    assert miss_n == 0
+        _miss, miss_n = await list_instances(
+            db, DEMO_TENANT, tpl.id, 1, 20,
+            filters={"match": "all", "rules": [
+                {"field": "contract_no", "op": "contains", "value": "NO_SUCH_DRAWING_XYZ"},
+            ]},
+        )
+        assert miss_n == 0
+    finally:
+        # 测完硬删，避免污染本地「自定义表单」列表
+        await db.delete(inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.delete(contract)
+        await db.commit()

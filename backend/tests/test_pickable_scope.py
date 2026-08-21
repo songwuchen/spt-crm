@@ -14,6 +14,15 @@ def test_jdy_room_leader_role_mapped():
     assert JDY_ROLE_TO_CRM_CODE["63815e3a7fb607000acc9195"] == "room_leader"
 
 
+def test_jdy_transfer_packaging_role_mapped():
+    rid = "6942502ab4606b6b5375dc4f"
+    assert JDY_ROLE_TO_CRM_CODE[rid] == "transfer_packaging"
+    assert JDY_ROLE_TO_SCOPE_CODE.get(rid) is None
+    assert pickable_scope_from_jdy_limit({"roles": [rid]}) == {
+        "role_codes": ["transfer_packaging"],
+    }
+
+
 def test_jdy_dept_dispatch_ygb_role_mapped():
     from app.domains.lowcode.pickable_scope import (
         JDY_ROLE_TO_SPECIFIED_USER,
@@ -73,6 +82,20 @@ def test_role_codes_from_field():
     }) == []
 
 
+def test_dept_ids_from_field():
+    from app.domains.lowcode.pickable_scope import dept_ids_from_field, include_children_from_field
+    assert dept_ids_from_field(None) == []
+    assert dept_ids_from_field({
+        "props": {"pickable_scope": {"dept_ids": ["d1", "d2"], "include_children": False}},
+    }) == ["d1", "d2"]
+    assert include_children_from_field({
+        "props": {"pickable_scope": {"dept_ids": ["d1"], "include_children": False}},
+    }) is False
+    assert dept_ids_from_field({
+        "props": {"pickable_scope": {"scope_code": "scheme_offices", "dept_ids": ["d1"]}},
+    }) == []
+
+
 def test_scope_code_from_field():
     assert scope_code_from_field(None) is None
     assert scope_code_from_field({
@@ -81,6 +104,27 @@ def test_scope_code_from_field():
     assert filter_by_fields_from_field({
         "props": {"pickable_scope": {"filter_by_fields": ["offices"]}},
     }) == ["offices"]
+
+
+def test_apply_transfer_packaging_role_scope():
+    from app.domains.lowcode.pickable_scope import (
+        apply_transfer_packaging_role_scope,
+        apply_scheme_design_person_scope_rules,
+    )
+
+    defs = [
+        {
+            "id": "transfer_packaging_users",
+            "props": {"pickable_scope": {"scope_code": "fa-zxxgy"}},
+        },
+        {"id": "designer", "props": {}},
+    ]
+    apply_transfer_packaging_role_scope(defs)
+    assert defs[0]["props"]["pickable_scope"] == {"role_codes": ["transfer_packaging"]}
+
+    defs2 = [{"id": "transfer_packaging_users", "props": {}}]
+    apply_scheme_design_person_scope_rules(defs2)
+    assert defs2[0]["props"]["pickable_scope"] == {"role_codes": ["transfer_packaging"]}
 
 
 def test_apply_scheme_design_person_scope_rules():

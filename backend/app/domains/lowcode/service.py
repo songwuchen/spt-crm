@@ -958,6 +958,10 @@ def _merge_field_props(
     避免 ensure/sync 用无范围的 builtin 字段把「转新乡、工艺包装」等已配范围冲掉，
     导致审批选人又变成全员。设计人 builtin 无范围时会清掉租户旧 scope。
     """
+    from app.domains.lowcode.pickable_scope import (
+        TRANSFER_PACKAGING_PICKABLE_SCOPE,
+        normalize_pickable_scope,
+    )
     w = dict(want_props or {}) if isinstance(want_props, dict) else {}
     c = dict(cur_props or {}) if isinstance(cur_props, dict) else {}
     if not w and not c:
@@ -969,7 +973,19 @@ def _merge_field_props(
         return out or None
     want_scope = w.get("pickable_scope") if isinstance(w.get("pickable_scope"), dict) else None
     cur_scope = c.get("pickable_scope") if isinstance(c.get("pickable_scope"), dict) else None
-    if cur_scope and not (want_scope and want_scope.get("scope_code")):
+    if want_scope:
+        want_scope = normalize_pickable_scope(want_scope)
+    if cur_scope:
+        cur_scope = normalize_pickable_scope(cur_scope)
+    if field_id == "transfer_packaging_users":
+        if want_scope and want_scope.get("role_codes"):
+            out["pickable_scope"] = want_scope
+        elif cur_scope and cur_scope.get("role_codes"):
+            out["pickable_scope"] = cur_scope
+        else:
+            out["pickable_scope"] = dict(TRANSFER_PACKAGING_PICKABLE_SCOPE)
+        return out or None
+    if cur_scope and not (want_scope and (want_scope.get("scope_code") or want_scope.get("role_codes"))):
         out["pickable_scope"] = cur_scope
     elif want_scope:
         out["pickable_scope"] = want_scope

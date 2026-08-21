@@ -80,7 +80,7 @@ def test_end_last_in_same_batch():
 
 
 def test_should_invent_end_rules():
-    """仅抄送 / 主链被空过 不得发明 end；skip_reactivate 才可以。"""
+    """无在途时：纯旁路抄送应收尾（并行收敛）；有主链未 skip 则不发明 end。"""
     eng = WorkflowEngine(db=None, tenant_id="t")
     nodes = {
         "n7": {"id": "n7", "type": "approval", "name": "总工"},
@@ -89,9 +89,10 @@ def test_should_invent_end_rules():
         "end": {"id": "end", "type": "end", "name": "结束"},
     }
     from_n7 = nodes["n7"]
+    # 并行支路收敛：只剩抄送且无在途 → 收尾
     assert eng._should_invent_end(
         from_n7, ["cc1"], nodes, has_live_work=False, skipped_reactivate=False,
-    ) is False
+    ) is True
     assert eng._should_invent_end(
         from_n7, ["n5", "cc1"], nodes, has_live_work=False, skipped_reactivate=False,
     ) is False
@@ -104,6 +105,20 @@ def test_should_invent_end_rules():
     assert eng._should_invent_end(
         from_n7, ["cc1"], nodes, has_live_work=True, skipped_reactivate=False,
     ) is False
+
+
+def test_await_end_mark_clear():
+    """结束被挡住时记 await_end，收敛后可识别。"""
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    inst = SimpleNamespace(pending_joins=None)
+    eng._mark_await_end(inst)
+    eng._mark_await_end(inst)  # 幂等
+    assert eng._has_await_end(inst)
+    assert isinstance(inst.pending_joins, list)
+    assert sum(1 for x in inst.pending_joins if isinstance(x, dict) and x.get("await_end")) == 1
+    eng._clear_await_end(inst)
+    assert not eng._has_await_end(inst)
+    assert inst.pending_joins is None
 
 
 def test_as_list_unwraps_jdy_person_dict():

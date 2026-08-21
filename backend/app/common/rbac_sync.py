@@ -253,6 +253,7 @@ async def sync_all_tenants_additive(db, perms_by_code=None) -> dict:
 # 业务流程依赖、需在租户内保证存在的角色（不做全量标准同步）
 BUSINESS_ROLE_CODES = (
     "room_leader",
+    "transfer_packaging",
     "mkt_support",
     "cs_office",
     "cs_arrange",
@@ -288,6 +289,11 @@ async def ensure_business_roles(
         rd = _ROLE_BY_CODE[code]
         if code in existing:
             role = existing[code]
+            # 目录改名时同步展示名（如 legal：合同法务 → 法务办理）
+            if rd.get("name") and role.name != rd["name"]:
+                role.name = rd["name"]
+            if rd.get("desc") is not None and role.description != rd.get("desc"):
+                role.description = rd.get("desc")
             want_sbr = dict(rd.get("scope_by_resource") or {})
             if want_sbr:
                 cur = dict(role.scope_by_resource or {})
@@ -430,7 +436,99 @@ async def _ensure_role_members(
     }
 
 
-# 简道云「230902客服内勤」成员 username（钉钉号）
+# 简道云「设计指派27.3~4/1.2.8/6.8/27.16/19.3」(63815e3a7fb607000acc9195)
+ROOM_LEADER_MEMBER_USERNAMES: tuple[str, ...] = (
+    "02364335378133",  # 曹修国
+    "0236562418583",  # 樊磊
+    "02365310124408",  # 丰芊
+    "01142154504565",  # 刘松潮
+    "02365312411349",  # 李兴玉
+    "0237444753532",  # 吕芹
+    "02365310056917",  # 王东明
+    "02365625057413",  # 周彦立
+    "061353401635555517",  # 赵小康
+)
+ROOM_LEADER_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "曹修国", "樊磊", "丰芊", "刘松潮", "李兴玉", "吕芹", "王东明", "周彦立", "赵小康",
+)
+
+
+async def ensure_room_leader_role_members(db, tenant_id: str) -> dict:
+    """确保 room_leader=设计指派…，成员仅为简道云名单 9 人；并同步可选范围 room_leaders。"""
+    from app.domains.auth.models import User, UserRole
+    from app.domains.organization import pickable_scope_service as pss
+
+    result = await _ensure_role_members(
+        db,
+        tenant_id,
+        "room_leader",
+        ROOM_LEADER_MEMBER_USERNAMES,
+        ROOM_LEADER_MEMBER_REAL_NAMES,
+    )
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "room_leader")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return result
+
+    keep_users = (
+        await db.execute(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.username.in_(list(ROOM_LEADER_MEMBER_USERNAMES)),
+            )
+        )
+    ).scalars().all()
+    keep_ids = {u.id for u in keep_users}
+    by_real = (
+        await db.execute(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.real_name.in_(list(ROOM_LEADER_MEMBER_REAL_NAMES)),
+                User.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    for u in by_real:
+        keep_ids.add(u.id)
+
+    if keep_ids:
+        pruned = await db.execute(
+            sa_delete(UserRole).where(
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == role.id,
+                UserRole.user_id.notin_(list(keep_ids)),
+            )
+        )
+        result["pruned"] = int(pruned.rowcount or 0)
+    else:
+        result["pruned"] = 0
+    result["role_name"] = role.name
+
+    # 方案管理「设计指派」字段走可选范围 room_leaders：与角色成员对齐
+    await pss.ensure_preset_scopes(db, tenant_id)
+    scope = await pss.get_scope_by_code(db, tenant_id, "room_leaders")
+    if scope and keep_ids:
+        scope.rules = {
+            "role_codes": [],
+            "user_ids": sorted(keep_ids),
+            "dept_ids": [],
+            "include_children": True,
+        }
+        scope.name = "方案管理-设计指派"
+        scope.description = (
+            "对齐角色「设计指派27.3~4/1.2.8/6.8/27.16/19.3」；"
+            "成员：曹修国、樊磊、丰芊、刘松潮、李兴玉、吕芹、王东明、周彦立、赵小康。"
+        )
+        result["pickable_scope_synced"] = True
+        result["pickable_scope_user_count"] = len(keep_ids)
+        await db.flush()
+    return result
+
+
+# 简道云「客服内勤」成员
 CS_OFFICE_MEMBER_USERNAMES: tuple[str, ...] = (
     "0236446249514",  # 李红敏
     "181359282120075679",  # 付加婧
@@ -440,6 +538,28 @@ CS_OFFICE_MEMBER_USERNAMES: tuple[str, ...] = (
 CS_OFFICE_MEMBER_REAL_NAMES: tuple[str, ...] = (
     "李红敏", "付加婧", "张丹丹", "段尉利",
 )
+
+# 简道云「转新乡、工艺包装」(6942502ab4606b6b5375dc4f)
+TRANSFER_PACKAGING_MEMBER_USERNAMES: tuple[str, ...] = (
+    "0615176412841441",  # 杨光
+    "092068030535963749",  # 赵连华
+    "02482852165926309468",  # 李海春
+)
+TRANSFER_PACKAGING_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "杨光", "赵连华", "李海春", "王昌轲",
+)
+
+
+async def ensure_transfer_packaging_role_members(db, tenant_id: str) -> dict:
+    """确保 transfer_packaging 角色存在，并挂简道云「转新乡、工艺包装」成员。"""
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "transfer_packaging",
+        TRANSFER_PACKAGING_MEMBER_USERNAMES,
+        TRANSFER_PACKAGING_MEMBER_REAL_NAMES,
+        prefer_real_name="杨光",
+    )
 
 
 async def ensure_cs_office_role_members(db, tenant_id: str) -> dict:
@@ -591,25 +711,71 @@ async def ensure_gate_guard_role_members(db, tenant_id: str) -> dict:
     }
 
 
-# 生产卡物料编码：对齐产线/单机物料编码具名节点（简道云账号：海淼 / 段云云）
+# 生产卡物料编码角色「1.2.8生产卡/补充流程-物料编码」：韩青芳、司子潆、郭雪
+# （产线/单机物料编码节点仍是海淼、段云云具名，勿与此角色混淆）
 PROD_MATERIAL_CODE_MEMBER_USERNAMES: tuple[str, ...] = (
-    "021519380525896869",  # 海淼（产线-物料编码）
-    "02364636608946",  # 段云云（单机-物料编码）
+    "02366236281651",  # 韩青芳
+    "010624465121410798",  # 司子潆
+    "45424060301188765",  # 郭雪
 )
-PROD_MATERIAL_CODE_MEMBER_REAL_NAMES: tuple[str, ...] = ("海淼", "段云云")
+PROD_MATERIAL_CODE_MEMBER_REAL_NAMES: tuple[str, ...] = ("韩青芳", "司子潆", "郭雪")
 
 
 async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
-    return await _ensure_role_members(
+    """确保 prod_material_code 成员仅为韩青芳/司子潆/郭雪。"""
+    from app.domains.auth.models import User, UserRole
+
+    result = await _ensure_role_members(
         db,
         tenant_id,
         "prod_material_code",
         PROD_MATERIAL_CODE_MEMBER_USERNAMES,
         PROD_MATERIAL_CODE_MEMBER_REAL_NAMES,
     )
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "prod_material_code")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return result
+
+    keep_users = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.username.in_(list(PROD_MATERIAL_CODE_MEMBER_USERNAMES)),
+            )
+        )
+    ).scalars().all()
+    keep_ids = set(keep_users)
+    by_real = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.real_name.in_(list(PROD_MATERIAL_CODE_MEMBER_REAL_NAMES)),
+                User.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    keep_ids.update(by_real)
+
+    if keep_ids:
+        pruned = await db.execute(
+            sa_delete(UserRole).where(
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == role.id,
+                UserRole.user_id.notin_(list(keep_ids)),
+            )
+        )
+        result["pruned"] = int(pruned.rowcount or 0)
+    else:
+        result["pruned"] = 0
+    result["role_name"] = role.name
+    return result
 
 
-# 合同法务：迅焊合同评审 / 生产卡法务审核
+# 法务办理（简道云 role 法务办理 / 24.2.3合同评审-法务）：孔雪、张孟杰
 LEGAL_MEMBER_USERNAMES: tuple[str, ...] = (
     "4723152427763414",  # 孔雪
     "256932256424153873",  # 张孟杰
@@ -618,19 +784,66 @@ LEGAL_MEMBER_REAL_NAMES: tuple[str, ...] = ("孔雪", "张孟杰")
 
 
 async def ensure_legal_role_members(db, tenant_id: str) -> dict:
-    return await _ensure_role_members(
+    """确保 legal=法务办理，成员仅孔雪/张孟杰（对齐简道云导出）。"""
+    from app.domains.auth.models import User, UserRole
+
+    result = await _ensure_role_members(
         db,
         tenant_id,
         "legal",
         LEGAL_MEMBER_USERNAMES,
         LEGAL_MEMBER_REAL_NAMES,
     )
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "legal")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return result
+
+    keep_users = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.username.in_(list(LEGAL_MEMBER_USERNAMES)),
+            )
+        )
+    ).scalars().all()
+    keep_ids = set(keep_users)
+    # 姓名兜底（username 未对齐钉钉时）
+    by_real = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.real_name.in_(list(LEGAL_MEMBER_REAL_NAMES)),
+                User.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    keep_ids.update(by_real)
+
+    if keep_ids:
+        pruned = await db.execute(
+            sa_delete(UserRole).where(
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == role.id,
+                UserRole.user_id.notin_(list(keep_ids)),
+            )
+        )
+        result["pruned"] = int(pruned.rowcount or 0)
+    else:
+        result["pruned"] = 0
+    result["role_name"] = role.name
+    return result
 
 
 async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:
     """九流程审批角色：创建目录角色并挂成员。"""
     await ensure_business_roles(db, tenant_id)
     return {
+        "room_leader": await ensure_room_leader_role_members(db, tenant_id),
+        "transfer_packaging": await ensure_transfer_packaging_role_members(db, tenant_id),
         "cs_office": await ensure_cs_office_role_members(db, tenant_id),
         "cs_arrange": await ensure_cs_arrange_role_members(db, tenant_id),
         "cs_delay_approve": await ensure_cs_delay_approve_role_members(db, tenant_id),

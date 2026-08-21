@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domains.lowcode.pickable_scope import apply_scheme_design_person_scope_rules
+from app.domains.lowcode.pickable_scope import (
+    TRANSFER_PACKAGING_PICKABLE_SCOPE,
+    apply_scheme_design_person_scope_rules,
+)
 
 # 与合同图纸领用「研究院安排」一致的指派字段可选范围
 _ASSIGN_SCOPES: dict[str, dict[str, Any]] = {
-    "transfer_packaging_users": {"scope_code": "fa-zxxgy"},
+    "transfer_packaging_users": dict(TRANSFER_PACKAGING_PICKABLE_SCOPE),
     "design_assignees": {"scope_code": "room_leaders"},
     "offices": {"scope_code": "scheme_offices"},
 }
@@ -103,7 +106,7 @@ def apply_cs_drawing_request_fields(field_defs: list[dict[str, Any]]) -> None:
             props = dict(fd.get("props") or {})
             if "pickable_scope" in props:
                 props.pop("pickable_scope")
-                fd["props"] = props or None
+                fd["props"] = props
 
     apply_scheme_design_person_scope_rules(field_defs)
 

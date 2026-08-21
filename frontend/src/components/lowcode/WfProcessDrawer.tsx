@@ -11,12 +11,14 @@ import {
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import { contractApi } from '@/api/contract'
+import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrationReadonly'
+import ContractReviewReadonly from '@/components/lowcode/ContractReviewReadonly'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
@@ -115,6 +117,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [contractVersion, setContractVersion] = useState<ContractVersion | null>(null)
   const [contractLoading, setContractLoading] = useState(false)
+  const [contractReview, setContractReview] = useState<ContractReview | null>(null)
+  const [contractReviewLoading, setContractReviewLoading] = useState(false)
 
   const loadContractBiz = async (d: WfInstanceDetail) => {
     if (d.biz_type !== 'contract_version') {
@@ -144,6 +148,22 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       }
     } finally {
       setContractLoading(false)
+    }
+  }
+
+  const loadContractReviewBiz = async (d: WfInstanceDetail) => {
+    if (d.biz_type !== 'contract_review') {
+      setContractReview(null)
+      return
+    }
+    const rid = d.biz_id
+    if (!rid) return
+    setContractReviewLoading(true)
+    try {
+      const res = await contractReviewApi.get(rid).catch(() => null)
+      setContractReview(res?.data || null)
+    } finally {
+      setContractReviewLoading(false)
     }
   }
 
@@ -178,12 +198,14 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       fieldMeta: ct?.field_meta,
     }))
     await loadContractBiz(d.data)
+    await loadContractReviewBiz(d.data)
   }
 
   useEffect(() => {
     if (!open || !instanceId) return
     setOpinion(''); setTransferTo(undefined); setReturnTo(undefined); setFieldUpdates({}); setFieldHighlight(false); setMoreMode(null)
     setSideTab('flow'); setMainTab('original'); setContract(null); setContractVersion(null)
+    setContractReview(null)
     setLoading(true)
     ;(async () => {
       try {
@@ -518,6 +540,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         ) : (
           <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
         )
+      ) : detail?.biz_type === 'contract_review' ? (
+        contractReviewLoading ? (
+          <div className="py-8 text-center"><Spin /></div>
+        ) : contractReview ? (
+          <ContractReviewReadonly row={contractReview} compactAttachments />
+        ) : bizEntries.length ? (
+          <BizDetailGrid entries={bizEntries} />
+        ) : (
+          <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+        )
       ) : bizEntries.length ? (
         <BizDetailGrid entries={bizEntries} />
       ) : (
@@ -540,32 +572,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
             bizType="tech_agreement_review"
             bizId={detail.biz_id}
             title="技术协议（附件）"
-            compact
-          />
-        </div>
-      )}
-      {detail?.biz_type === 'contract_review' && detail.biz_id && (
-        <div className="mt-4 space-y-3">
-          <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact />
-          <AttachmentPanel
-            bizType="contract_review_image"
-            bizId={detail.biz_id}
-            title="图片"
-            accept="image/*"
-            compact
-          />
-          <AttachmentPanel bizType="contract_review_cost" bizId={detail.biz_id} title="成本附件" compact />
-          <AttachmentPanel
-            bizType="contract_review_feedback"
-            bizId={detail.biz_id}
-            title="反馈附件"
-            compact
-          />
-          <AttachmentPanel
-            bizType="contract_review_feedback_image"
-            bizId={detail.biz_id}
-            title="反馈图片"
-            accept="image/*"
             compact
           />
         </div>

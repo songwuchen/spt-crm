@@ -230,6 +230,8 @@ export interface WfNode {
   type: WfNodeType
   name: string
   approver_rule?: WfApproverRule
+  /** 审批节点启用抄送（对齐简道云 ccUsers；进节点时知会） */
+  cc_rule?: WfApproverRule
   multi_mode?: WfMultiMode
   empty_strategy?: 'auto_approve' | 'terminate'
   timeout?: WfTimeout | null            // 审批节点超时(SLA)配置

@@ -1,6 +1,6 @@
 // 人员选择字段(person / person_multi)。值为用户 id(单)或 id 数组(多)。
 // 兼容系统默认流里存的 username：options 同时挂 id 与 username，并用 keyword 补齐回显。
-// props.pickable_scope：{ scope_code } 优先；兼容旧 { role_codes }。
+// props.pickable_scope：{ scope_code } 优先；也可 { role_codes } / { dept_ids }。
 // deptIds：再按部门（含下级）收窄，常与科室 offices / offices_multi 联动。
 import { useEffect, useMemo, useState } from 'react'
 import { Select, Spin } from 'antd'
@@ -14,6 +14,9 @@ type PickableUser = { id: string; name: string; username?: string; departments?:
 export type PickableScope = {
   scope_code?: string
   role_codes?: string[]
+  /** 固定部门范围（含下级，可用 include_children 关闭） */
+  dept_ids?: string[]
+  include_children?: boolean
   filter_by_fields?: string[]
 }
 
@@ -25,8 +28,10 @@ const TTL = 5 * 60 * 1000
 function scopeKey(scope?: PickableScope | null, deptIds?: string[] | null): string {
   const sc = String(scope?.scope_code || '')
   const codes = [...(scope?.role_codes || [])].map(String).filter(Boolean).sort()
+  const rangeDepts = [...(scope?.dept_ids || [])].map(String).filter(Boolean).sort()
+  const includeKids = scope?.include_children === false ? '0' : '1'
   const depts = [...(deptIds || [])].map(String).filter(Boolean).sort()
-  return `scope:${sc}|roles:${codes.join(',')}|depts:${depts.join(',')}`
+  return `scope:${sc}|roles:${codes.join(',')}|rangeDepts:${rangeDepts.join(',')}|kids:${includeKids}|depts:${depts.join(',')}`
 }
 
 function toOpts(rows: PickableUser[]): UserOpt[] {
@@ -84,6 +89,11 @@ async function loadBaseUsers(scope?: PickableScope | null, deptIds?: string[] | 
   } else {
     const codes = scope?.role_codes?.filter(Boolean)
     if (codes?.length) params.role_codes = codes.join(',')
+    const rangeDepts = (scope?.dept_ids || []).map(String).filter(Boolean)
+    if (rangeDepts.length) {
+      params.range_dept_ids = rangeDepts.join(',')
+      if (scope?.include_children === false) params.include_children = '0'
+    }
   }
   const depts = (deptIds || []).map(String).filter(Boolean)
   if (depts.length) params.dept_ids = depts.join(',')
@@ -341,13 +351,17 @@ export default function PersonField({
     return <div style={{ paddingTop: 4 }}>{raws.map(nameOf).join('，')}</div>
   }
 
-  const hasScope = !!(pickableScope?.scope_code || pickableScope?.role_codes?.length)
+  const hasScope = !!(
+    pickableScope?.scope_code
+    || pickableScope?.role_codes?.length
+    || pickableScope?.dept_ids?.length
+  )
   const hasDept = !!(deptIds && deptIds.length)
   let emptyHint = '无用户'
   if (hasScope && hasDept) {
-    emptyHint = '该科室下暂无符合范围的人员，请先选科室或到「可选范围」维护成员'
+    emptyHint = '该科室下暂无符合范围的人员，请先选科室或检查部门/角色范围'
   } else if (hasScope) {
-    emptyHint = '无可选人员（请到「系统管理 → 可选范围」勾选成员）'
+    emptyHint = '无可选人员（请检查字段可选范围：系统范围 / 角色 / 部门）'
   }
 
   // 编辑态也归一成 id 字符串，避免 Select 收到 {id,name} 显示 [object Object]

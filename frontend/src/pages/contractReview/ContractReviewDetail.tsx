@@ -1,21 +1,15 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Descriptions, Space, Spin, Tag, message, Modal, Table } from 'antd'
+import { useEffect, useState } from 'react'
+import { Button, Space, Spin, Tag, message, Modal } from 'antd'
 import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfInstanceDetail } from '@/types/lowcode'
 import {
-  CONTRACT_REVIEW_SECTIONS,
   CONTRACT_REVIEW_STATUS,
   findFirstMissingReviewRequired,
-  reviewDepVisible,
-  reviewSectionAllFields,
-  type ReviewFieldDef,
 } from '@/constants/contractReview'
-import ContractSectionTitle from '@/components/ContractSectionTitle'
-import AttachmentPanel from '@/components/AttachmentPanel'
-import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import ContractReviewReadonly from '@/components/lowcode/ContractReviewReadonly'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
@@ -28,33 +22,6 @@ const STATUS_LABEL: Record<string, string> = Object.fromEntries(
 )
 const STATUS_COLOR: Record<string, string> = {
   draft: 'default', submitted: 'processing', approved: 'success', rejected: 'error',
-}
-
-/** 详情展示：人员/部门显示名称，不展示 UUID */
-function formatReviewField(
-  f: ReviewFieldDef,
-  row: ContractReview,
-  rj: Record<string, unknown>,
-): ReactNode {
-  if (f.key === 'owner_id') return row.owner_name || '-'
-  if (f.key === 'region_manager_id') return row.region_manager_name || '-'
-  if (f.key === 'department_id') return row.department_name || '-'
-
-  const raw = f.source === 'native'
-    ? (row as unknown as Record<string, unknown>)[f.key]
-    : rj[f.key]
-
-  if (raw == null || raw === '') return '-'
-  if (f.key === 'contract_amount' && typeof raw === 'number') {
-    return `¥${raw.toLocaleString()}`
-  }
-  if (f.key === 'reported_at' && raw) {
-    return new Date(String(raw)).toLocaleString('zh-CN')
-  }
-  if (Array.isArray(raw)) {
-    return raw.length ? raw.map(String).join('、') : '-'
-  }
-  return String(raw)
 }
 
 export default function ContractReviewDetail() {
@@ -157,8 +124,6 @@ export default function ContractReviewDetail() {
     return <div className="flex justify-center py-20"><Spin /></div>
   }
 
-  const rj = row.review_json || {}
-  const contacts = Array.isArray(rj.contacts) ? rj.contacts as Record<string, unknown>[] : []
   const canSubmit = hasPermission('contract_review:edit') && (row.status === 'draft' || row.status === 'rejected')
   const canEdit = canSubmit
   const canDelete = hasPermission('contract_review:delete') && row.status === 'draft'
@@ -212,78 +177,9 @@ export default function ContractReviewDetail() {
         </Space>
       </div>
 
-      {CONTRACT_REVIEW_SECTIONS.map((sec) => {
-        const fields = reviewSectionAllFields(sec).filter((f) =>
-          reviewDepVisible(f.showWhen, row as unknown as Record<string, unknown>),
-        )
-        const showContacts = sec.afterSlot === 'contacts' && contacts.length > 0 && String(row.review_type || '') === '合同评审'
-        const showPricingFiles = sec.afterSlot === 'pricing_files'
-          && String(row.review_type || '') === '合同评审'
-          && String(row.need_pricing || '') === '有核价'
-        const showReviewFiles = sec.afterSlot === 'review_files'
-          && (String(row.review_type || '') === '合同评审' || String(row.review_type || '') === '项目评审')
-        const showFeedbackFiles = sec.afterSlot === 'feedback_files'
-        if (!fields.length && !showContacts && !showPricingFiles && !showReviewFiles && !showFeedbackFiles) return null
-        return (
-          <div key={sec.key} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-4">
-            <ContractSectionTitle title={sec.title} />
-            {fields.length > 0 && (
-              <Descriptions size="small" column={2} bordered>
-                {fields.map((f) => (
-                  <Descriptions.Item key={f.key} label={f.label} span={f.widget === 'textarea' ? 2 : 1}>
-                    {formatReviewField(f, row, rj)}
-                  </Descriptions.Item>
-                ))}
-              </Descriptions>
-            )}
-            {showContacts && (
-              <div className="mt-4">
-                <div className="text-sm font-semibold text-slate-500 mb-2">联系信息</div>
-                <Table
-                  size="small"
-                  pagination={false}
-                  rowKey={(_, i) => String(i)}
-                  dataSource={contacts}
-                  scroll={{ x: 900 }}
-                  columns={[
-                    { title: '联系人', dataIndex: 'contact_name', render: (v) => v || '-' },
-                    { title: '上级领导', dataIndex: 'superior', render: (v) => v || '-' },
-                    { title: '手机', dataIndex: 'mobile', render: (v) => v || '-' },
-                    { title: '职务', dataIndex: 'title', render: (v) => v || '-' },
-                    { title: '邮箱or请示', dataIndex: 'email_or_ask', render: (v) => v || '-' },
-                    { title: '邮箱', dataIndex: 'email', render: (v) => v || '-' },
-                    { title: '请示', dataIndex: 'ask', render: (v) => v || '-' },
-                    { title: '地址', dataIndex: 'address', render: (v) => v || '-' },
-                  ]}
-                />
-              </div>
-            )}
-            {showPricingFiles && (
-              <div className="mt-4">
-                <AttachmentPanel bizType="contract_review_cost" bizId={row.id} title="成本附件" />
-              </div>
-            )}
-            {showReviewFiles && (
-              <div className="mt-4 space-y-3">
-                <AttachmentPanel bizType="contract_review" bizId={row.id} title="附件" />
-                <AttachmentPanel bizType="contract_review_image" bizId={row.id} title="图片" accept="image/*" />
-              </div>
-            )}
-            {showFeedbackFiles && (
-              <div className="mt-4 space-y-3">
-                <AttachmentPanel bizType="contract_review_feedback" bizId={row.id} title="反馈附件" />
-                <AttachmentPanel bizType="contract_review_feedback_image" bizId={row.id} title="反馈图片" accept="image/*" />
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      <EntityCustomFields
-        entityType="contract_review"
-        value={row.custom_fields_json || {}}
-        readOnly
-      />
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-4">
+        <ContractReviewReadonly row={row} />
+      </div>
     </div>
   )
 

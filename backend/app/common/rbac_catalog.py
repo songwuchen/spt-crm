@@ -278,8 +278,17 @@ STANDARD_ROLES = [
         ],
     },
     {
-        "code": "room_leader", "name": "各室领导", "scope": "dept",
-        "desc": "中央研究院各室领导；对齐简道云设计指派/设计人选人范围（JDY role 63815e3a7fb607000acc9195）",
+        "code": "room_leader", "name": "设计指派27.3~4/1.2.8/6.8/27.16/19.3", "scope": "dept",
+        "desc": "对齐简道云设计指派人选（JDY role 63815e3a7fb607000acc9195）；方案/图纸/生产卡等「设计指派」字段",
+        "perms": [
+            "customer:view", "project:view", "quote:view", "contract:view", "product:view",
+            "solution:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "transfer_packaging", "name": "转新乡、工艺包装", "scope": "dept",
+        "desc": "对齐简道云角色 6942502ab4606b6b5375dc4f：方案/图纸/生产卡「转新乡、工艺包装」人选",
         "perms": [
             "customer:view", "project:view", "quote:view", "contract:view", "product:view",
             "solution:view",
@@ -414,7 +423,7 @@ STANDARD_ROLES = [
     },
     {
         "code": "prod_material_code", "name": "1.2.8生产卡/补充流程-物料编码", "scope": "dept",
-        "desc": "简道云生产卡物料编码岗:生产卡/补充「物料编码」节点审批",
+        "desc": "简道云生产卡「物料编码」节点：韩青芳、司子潆、郭雪",
         "perms": [
             "order:view", "product:view",
             "approval:approve", "approval:decide",
@@ -430,8 +439,8 @@ STANDARD_ROLES = [
         ],
     },
     {
-        "code": "legal", "name": "合同法务", "scope": "all",
-        "desc": "法务部:合同评审页面 + 参与合同评审审批（不开放合同签署/客户商机等）",
+        "code": "legal", "name": "法务办理", "scope": "all",
+        "desc": "对齐简道云「法务办理」：生产卡法务审核 / 迅焊合同评审法务；成员孔雪、张孟杰",
         "perms": [
             "contract_review:view",
             "approval:approve", "approval:decide",

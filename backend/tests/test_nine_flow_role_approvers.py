@@ -24,6 +24,19 @@ def test_jdy_role_crm_code_mapping():
     assert JDY_ROLE_TO_CRM_CODE["5f69a45077e34d0006f136dd"] == "legal"
     assert JDY_ROLE_TO_CRM_CODE["5f55d129a526650006b36c22"] == "prod_material_code"
     assert JDY_ROLE_TO_CRM_CODE["5f69a976fbf7110006288375"] == "legal"
+    assert JDY_ROLE_TO_CRM_CODE["63815e3a7fb607000acc9195"] == "room_leader"
+
+
+def test_room_leader_member_roster():
+    from app.common.rbac_catalog import STANDARD_ROLES
+    from app.common.rbac_sync import ROOM_LEADER_MEMBER_REAL_NAMES, ROOM_LEADER_MEMBER_USERNAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "room_leader")
+    assert role["name"] == "设计指派27.3~4/1.2.8/6.8/27.16/19.3"
+    assert len(ROOM_LEADER_MEMBER_USERNAMES) == 9
+    assert set(ROOM_LEADER_MEMBER_REAL_NAMES) == {
+        "曹修国", "樊磊", "丰芊", "刘松潮", "李兴玉", "吕芹", "王东明", "周彦立", "赵小康",
+    }
 
 
 def test_charger_rule_maps_new_roles():
@@ -81,12 +94,25 @@ def test_apply_xunhan_and_prod_card_roles():
     pnodes = [
         {"id": "n5", "name": "物料编码", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},
         {"id": "n45", "name": "法务审核", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},
+        {"id": "n4", "name": "通知生产", "type": "approval", "approver_rule": {"type": "specified_user", "value": "02425350081942"}},
     ]
     assert _flow_prod_card_supplement_needs_approver_fix(pnodes)
     assert apply_prod_card_supplement_approvers(pnodes)
     assert pnodes[0]["approver_rule"]["value"] == "prod_material_code"
     assert pnodes[1]["approver_rule"]["value"] == "legal"
     assert not apply_prod_card_supplement_approvers(pnodes)
+
+    from app.domains.lowcode.workflow_service import (
+        apply_prod_card_notify_production_cc,
+        _flow_prod_card_notify_cc_needs_fix,
+    )
+    assert _flow_prod_card_notify_cc_needs_fix(pnodes)
+    assert apply_prod_card_notify_production_cc(pnodes)
+    assert set(pnodes[2]["cc_rule"]["value"]) == {
+        "02364437547295", "02362247571234189", "1739424832704465",
+    }
+    assert not apply_prod_card_notify_production_cc(pnodes)
+    assert not _flow_prod_card_notify_cc_needs_fix(pnodes)
 
 
 def test_apply_correspondence_office_role():

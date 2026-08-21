@@ -673,6 +673,27 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
                 <Select size="small" style={{ width: '100%' }} value={normalizeMultiMode(node.multi_mode)} options={MULTI_MODES} onChange={onMode} /></div>
               <Divider style={{ margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>启用抄送</Text>
+                <Switch
+                  size="small"
+                  checked={!!node.cc_rule}
+                  onChange={(on) => onPatch({
+                    cc_rule: on
+                      ? (node.cc_rule || { type: 'specified_user', value: [] })
+                      : undefined,
+                  })}
+                />
+              </div>
+              {node.cc_rule && (
+                <ApproverRuleEditor
+                  rule={node.cc_rule}
+                  formFields={formFields}
+                  roleLabel="抄送人员"
+                  onChange={(r) => onPatch({ cc_rule: r })}
+                />
+              )}
+              <Divider style={{ margin: '8px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>审批超时(SLA)</Text>
                 <Switch size="small" checked={!!to}
                   onChange={(on) => onPatch({ timeout: on ? { hours: 24, action: 'notify' } : null })} />

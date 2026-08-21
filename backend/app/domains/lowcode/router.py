@@ -40,6 +40,14 @@ async def pickable_users(
         description="逗号分隔的角色 code（兼容旧配置）",
     ),
     scope_code: str | None = Query(None, description="可选范围编码（优先于 role_codes）"),
+    range_dept_ids: str | None = Query(
+        None,
+        description="逗号分隔的部门 id：作为固定部门范围（与 role_codes 取并集）",
+    ),
+    include_children: str | None = Query(
+        None,
+        description="range_dept_ids 是否含下级，默认 1；传 0 关闭",
+    ),
     dept_ids: str | None = Query(
         None,
         description="逗号分隔的部门 id；在范围结果上再收窄（表单科室联动）",
@@ -52,6 +60,8 @@ async def pickable_users(
     from app.domains.organization import pickable_scope_service as pss
 
     extra_depts = [x.strip() for x in (dept_ids or "").split(",") if x.strip()]
+    range_depts = [x.strip() for x in (range_dept_ids or "").split(",") if x.strip()]
+    kids = (include_children or "1").strip() not in ("0", "false", "False", "no")
     scoped_uids: set[str] | None = None
 
     if scope_code:
@@ -63,36 +73,47 @@ async def pickable_users(
         scoped_uids = await pss.resolve_person_ids(db, tenant_id, scope, extra_dept_ids=extra_depts or None)
     else:
         codes = [c.strip() for c in (role_codes or "").split(",") if c.strip()]
+        parts: list[set[str]] = []
         if codes:
-            from app.common.rbac_sync import ensure_business_roles
-            need_ensure = [c for c in codes if c == "room_leader"]
+            from app.common.rbac_sync import ensure_business_roles, ensure_transfer_packaging_role_members
+            need_ensure = [c for c in codes if c in ("room_leader", "transfer_packaging")]
             if need_ensure:
-                created = await ensure_business_roles(db, tenant_id, need_ensure)
-                if created:
+                if "room_leader" in need_ensure:
+                    created = await ensure_business_roles(db, tenant_id, ["room_leader"])
+                    if created:
+                        await db.commit()
+                if "transfer_packaging" in need_ensure:
+                    await ensure_transfer_packaging_role_members(db, tenant_id)
                     await db.commit()
             role_ids = (
                 await db.execute(
                     select(Role.id).where(Role.tenant_id == tenant_id, Role.code.in_(codes))
                 )
             ).scalars().all()
-            if not role_ids:
-                return ok([])
-            scoped_uids = set(
-                (
-                    await db.execute(
-                        select(UserRole.user_id).where(
-                            UserRole.tenant_id == tenant_id, UserRole.role_id.in_(role_ids),
+            if role_ids:
+                parts.append(set(
+                    (
+                        await db.execute(
+                            select(UserRole.user_id).where(
+                                UserRole.tenant_id == tenant_id, UserRole.role_id.in_(role_ids),
+                            )
                         )
-                    )
-                ).scalars().all()
-            )
-            if extra_depts:
-                from app.domains.organization.pickable_scope_service import _user_ids_in_depts
-                in_dept = await _user_ids_in_depts(db, tenant_id, extra_depts, True)
-                scoped_uids &= in_dept
+                    ).scalars().all()
+                ))
+            else:
+                parts.append(set())
+        if range_depts:
+            parts.append(await pss._user_ids_in_depts(db, tenant_id, range_depts, kids))
+        if parts:
+            scoped_uids = set()
+            for p in parts:
+                scoped_uids |= p
         elif extra_depts:
-            from app.domains.organization.pickable_scope_service import _user_ids_in_depts
-            scoped_uids = await _user_ids_in_depts(db, tenant_id, extra_depts, True)
+            scoped_uids = await pss._user_ids_in_depts(db, tenant_id, extra_depts, True)
+
+        if scoped_uids is not None and extra_depts and (codes or range_depts):
+            in_dept = await pss._user_ids_in_depts(db, tenant_id, extra_depts, True)
+            scoped_uids &= in_dept
 
     q = select(User.id, User.real_name, User.username).where(
         User.tenant_id == tenant_id, User.is_active == True,  # noqa: E712
@@ -314,6 +335,14 @@ async def pickable_roles(
 @router.get("/pickable-departments")
 async def pickable_departments(
     scope_code: str | None = Query(None, description="可选范围编码（department 类型）"),
+    dept_ids: str | None = Query(
+        None,
+        description="逗号分隔的部门 id：直接限定可选部门树（与 scope_code 二选一）",
+    ),
+    include_children: str | None = Query(
+        None,
+        description="dept_ids 是否含下级，默认 1；传 0 关闭",
+    ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
@@ -322,25 +351,33 @@ async def pickable_departments(
     from app.domains.organization import pickable_scope_service as pss
 
     tree = await get_department_tree(db, tenant_id)
-    if not scope_code:
-        return ok(tree)
+    allowed: set[str] | None = None
+    if scope_code:
+        await pss.ensure_preset_scopes(db, tenant_id)
+        await db.commit()
+        scope = await pss.get_scope_by_code(db, tenant_id, scope_code.strip())
+        if not scope or scope.kind != "department":
+            return ok([])
+        allowed = await pss.resolve_department_ids(db, tenant_id, scope)
+    else:
+        roots = [x.strip() for x in (dept_ids or "").split(",") if x.strip()]
+        if roots:
+            kids = (include_children or "1").strip() not in ("0", "false", "False", "no")
+            allowed = await pss.resolve_department_ids(
+                db, tenant_id,
+                {"kind": "department", "rules": {"dept_ids": roots, "include_children": kids}},
+            )
 
-    await pss.ensure_preset_scopes(db, tenant_id)
-    await db.commit()
-    scope = await pss.get_scope_by_code(db, tenant_id, scope_code.strip())
-    if not scope or scope.kind != "department":
-        return ok([])
-    allowed = await pss.resolve_department_ids(db, tenant_id, scope)
     if allowed is None:
         return ok(tree)
 
     def prune(nodes: list) -> list:
         out = []
         for n in nodes or []:
-            kids = prune(n.get("children") or [])
-            if n.get("id") in allowed or kids:
+            kids_nodes = prune(n.get("children") or [])
+            if n.get("id") in allowed or kids_nodes:
                 nn = dict(n)
-                nn["children"] = kids
+                nn["children"] = kids_nodes
                 # 不在允许集合内的祖先仅作展开用，仍返回（与 TreeSelect 常见行为一致）
                 out.append(nn)
         return out

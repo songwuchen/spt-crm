@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ===== 字段 / 规则定义(前端设计器产出的 JSON) =====
@@ -51,6 +51,16 @@ class FieldDefinition(BaseModel):
     fill_stage: str | None = None
 
     model_config = {"extra": "ignore"}
+
+    @field_validator("props", mode="before")
+    @classmethod
+    def _coerce_props_dict(cls, v: Any) -> dict[str, Any]:
+        # 内置/简道云导入字段常缺 props 或显式 null；设计器原样回传时不能 422
+        if v is None or v == "":
+            return {}
+        if isinstance(v, dict):
+            return v
+        return {}
 
 
 class FormRuleDefinition(BaseModel):

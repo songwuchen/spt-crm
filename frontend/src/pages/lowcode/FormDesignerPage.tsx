@@ -28,6 +28,8 @@ import type { CascadeOption } from '@/components/lowcode/fields/CascadeField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
+import PickableScopePropsEditor from '@/components/lowcode/PickableScopePropsEditor'
+import type { PickableScope } from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationFields from '@/components/ContractRegistrationFields'
 import { LineItemsEditor, PaymentTermsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
 import {
@@ -56,7 +58,7 @@ const SPANS = [{ label: '整行', value: 24 }, { label: '1/2', value: 12 }, { la
 const genId = () => 'f' + Math.random().toString(36).slice(2, 9)
 /** 角色列表尚未同步时，已写入 props 的 code 仍显示中文名 */
 const ROLE_CODE_FALLBACK: Record<string, string> = {
-  room_leader: '各室领导',
+  room_leader: '设计指派27.3~4/1.2.8/6.8/27.16/19.3',
   admin: '管理员',
   sales: '销售',
   finance: '财务',
@@ -203,8 +205,15 @@ export default function FormDesignerPage() {
       if (ids.has(f.id)) return message.error(`字段 id 重复: ${f.id}`)
       ids.add(f.id)
     }
+    // props 缺省/null 时后端要 dict；内置表单常带 null，保存前规整
+    const normalizeField = (f: FieldDefinition): FieldDefinition => ({
+      ...f,
+      props: (f.props && typeof f.props === 'object') ? f.props : {},
+      detail_table_columns: f.detail_table_columns?.map((c) => normalizeField(c as FieldDefinition)),
+    })
+    const payloadFields = fields.map(normalizeField)
     // 系统规则一并落库（作为租户覆盖）；运行时与目录默认 merge
-    await lowcodeApi.saveDesign(id, { field_definitions: fields, layout_definition: {}, rule_definitions: rules })
+    await lowcodeApi.saveDesign(id, { field_definitions: payloadFields, layout_definition: {}, rule_definitions: rules })
     if (publish) {
       await lowcodeApi.publish(id)
       if (entityType) {
@@ -826,68 +835,31 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
           <Input size="small" value={(field.props?.formula as string) || ''} onChange={(e) => setProp('formula', e.target.value)} /></div>
       )}
       {(field.type === 'person' || field.type === 'person_multi') && (
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>可选人员范围</Text>
-          <Select
-            allowClear
-            size="small"
-            style={{ width: '100%', marginTop: 4 }}
-            placeholder="留空=全部用户"
-            options={personScopeOptions}
-            value={(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code || undefined}
-            onChange={(code) => {
-              const props = { ...(field.props || {}) }
-              if (code) {
-                const prev = (props.pickable_scope as Record<string, unknown>) || {}
-                props.pickable_scope = {
-                  scope_code: code,
-                  ...(prev.filter_by_fields ? { filter_by_fields: prev.filter_by_fields } : {}),
-                }
-              } else {
-                delete props.pickable_scope
-              }
-              onPatch({ props })
-            }}
-          />
-          <div style={{ marginTop: 8 }}>
-            <Switch
-              size="small"
-              checked={!!((field.props?.pickable_scope as { filter_by_fields?: string[] } | undefined)?.filter_by_fields?.length)}
-              disabled={!(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code}
-              onChange={(on) => {
-                const props = { ...(field.props || {}) }
-                const prev = { ...((props.pickable_scope as Record<string, unknown>) || {}) }
-                if (on) prev.filter_by_fields = ['offices', 'offices_multi']
-                else delete prev.filter_by_fields
-                props.pickable_scope = prev
-                onPatch({ props })
-              }}
-            />
-            <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>按同单「科室」字段再收窄</Text>
-          </div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-            范围在「系统管理 → 可选范围」里直接勾选。预置「方案管理-设计指派」「方案管理-科室」。
-          </Text>
-        </div>
+        <PickableScopePropsEditor
+          kind="person"
+          value={(field.props?.pickable_scope as PickableScope | undefined) || null}
+          scopeOptions={personScopeOptions}
+          showDeptFilterSwitch
+          onChange={(next) => {
+            const props = { ...(field.props || {}) }
+            if (next) props.pickable_scope = next
+            else delete props.pickable_scope
+            onPatch({ props })
+          }}
+        />
       )}
       {(field.type === 'department' || field.type === 'department_multi') && (
-        <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>可选部门范围</Text>
-          <Select
-            allowClear
-            size="small"
-            style={{ width: '100%', marginTop: 4 }}
-            placeholder="留空=全部部门"
-            options={deptScopeOptions}
-            value={(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code || undefined}
-            onChange={(code) => {
-              const props = { ...(field.props || {}) }
-              if (code) props.pickable_scope = { scope_code: code }
-              else delete props.pickable_scope
-              onPatch({ props })
-            }}
-          />
-        </div>
+        <PickableScopePropsEditor
+          kind="department"
+          value={(field.props?.pickable_scope as PickableScope | undefined) || null}
+          scopeOptions={deptScopeOptions}
+          onChange={(next) => {
+            const props = { ...(field.props || {}) }
+            if (next) props.pickable_scope = next
+            else delete props.pickable_scope
+            onPatch({ props })
+          }}
+        />
       )}
 
       {field.type === 'detail_table' && (

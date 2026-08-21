@@ -13,11 +13,6 @@ from app.domains.auth.models import User, Role, UserRole
 from app.domains.organization.models import Department, UserDepartment
 from app.domains.organization.pickable_scope_models import PickableScope
 
-# 对齐简道云角色「转新乡、工艺包装」(6942502ab4606b6b5375dc4f)
-TRANSFER_PACKAGING_MEMBER_NAMES: tuple[str, ...] = (
-    "杨光", "赵连华", "李海春", "王昌轲",
-)
-
 PRESET_SCOPES = [
     {
         "code": "room_leaders",
@@ -32,14 +27,6 @@ PRESET_SCOPES = [
         "name": "方案管理-科室",
         "kind": "department",
         "description": "方案管理「科室」可选部门范围。",
-        "is_system": True,
-        "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
-    },
-    {
-        "code": "fa-zxxgy",
-        "name": "方案管理-转新乡、工艺包装",
-        "kind": "person",
-        "description": "方案管理「转新乡、工艺包装」人选范围；在此直接勾选成员。",
         "is_system": True,
         "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
     },
@@ -246,42 +233,6 @@ async def _user_ids_by_real_names(
     return ids, missing
 
 
-async def seed_transfer_packaging_users(db: AsyncSession, tenant_id: str) -> bool:
-    """方案管理-转新乡、工艺包装：对齐简道云角色成员（fa-zxxgy）。"""
-    row = (
-        await db.execute(
-            select(PickableScope).where(
-                PickableScope.tenant_id == tenant_id,
-                PickableScope.code == "fa-zxxgy",
-            )
-        )
-    ).scalar_one_or_none()
-    if not row:
-        return False
-    user_ids, missing = await _user_ids_by_real_names(
-        db, tenant_id, TRANSFER_PACKAGING_MEMBER_NAMES,
-    )
-    if not user_ids:
-        return False
-    r = _rules(row)
-    cur = [str(u) for u in (r.get("user_ids") or []) if u]
-    if cur == user_ids and not missing:
-        return False
-    row.rules = {
-        "role_codes": [],
-        "user_ids": user_ids,
-        "dept_ids": [],
-        "include_children": True,
-    }
-    if missing:
-        import logging
-        logging.getLogger(__name__).warning(
-            "fa-zxxgy seed missing users tenant=%s names=%s",
-            tenant_id, missing,
-        )
-    return True
-
-
 async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
     """确保预置可选范围存在；并把旧 role_codes 规则摊平成人员。返回新建的 code。"""
     existing_rows = list(
@@ -326,10 +277,6 @@ async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
         await db.flush()
 
     if await seed_quote_metallurgy_users(db, tenant_id):
-        changed = True
-        await db.flush()
-
-    if await seed_transfer_packaging_users(db, tenant_id):
         changed = True
         await db.flush()
 

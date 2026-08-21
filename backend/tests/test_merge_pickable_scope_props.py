@@ -11,7 +11,7 @@ def test_merge_keeps_tenant_pickable_scope_when_builtin_empty():
         "props": {"pickable_scope": {"scope_code": "fa-zxxgy"}},
     }]
     out = _merge_builtin_field_defs(want, current)
-    assert out[0]["props"]["pickable_scope"]["scope_code"] == "fa-zxxgy"
+    assert out[0]["props"]["pickable_scope"] == {"role_codes": ["transfer_packaging"]}
     assert out[0]["label"] == "转新乡、工艺包装"  # tenant label override
 
 
@@ -31,5 +31,5 @@ def test_merge_builtin_scope_wins():
 
 def test_merge_field_props_unit():
     assert _merge_field_props(None, None) is None
-    m = _merge_field_props({}, {"pickable_scope": {"scope_code": "fa-zxxgy"}})
-    assert m["pickable_scope"]["scope_code"] == "fa-zxxgy"
+    m = _merge_field_props({}, {"pickable_scope": {"scope_code": "fa-zxxgy"}}, field_id="transfer_packaging_users")
+    assert m["pickable_scope"] == {"role_codes": ["transfer_packaging"]}

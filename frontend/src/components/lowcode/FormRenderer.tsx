@@ -125,7 +125,6 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
 
 export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
-  const currentUser = useAuthStore((s) => s.user)
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
     [applyFieldPerms, fields, userRoles],
@@ -301,6 +300,7 @@ function FieldWidget({
   /** 明细子表单元格内的 file/image：简道云 Popover 模式 */
   inlineCell?: boolean
 }) {
+  const currentUser = useAuthStore((s) => s.user)
   const opts = field.options || []
   const ph = field.placeholder
   const downloadDenied = !!field.download_denied
@@ -354,7 +354,7 @@ function FieldWidget({
     }
     case 'department':
     case 'department_multi': {
-      const scopeCode = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope?.scope_code
+      const scope = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope
       // 方案管理「科室」历史版本曾标成单选 department，但共同场景值为 id 数组
       const asMulti = field.type === 'department_multi' || Array.isArray(value)
       return (
@@ -364,7 +364,9 @@ function FieldWidget({
           multi={asMulti}
           readonly={readonly}
           placeholder={ph}
-          scopeCode={scopeCode}
+          scopeCode={scope?.scope_code}
+          rangeDeptIds={scope?.scope_code ? undefined : scope?.dept_ids}
+          includeChildren={scope?.include_children}
         />
       )
     }

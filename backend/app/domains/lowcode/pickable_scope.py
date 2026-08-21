@@ -3,17 +3,20 @@
 字段 props.pickable_scope 支持：
   { "scope_code": "room_leaders" }
   { "scope_code": "xxx", "filter_by_fields": ["offices", "offices_multi"] }  # 可选按科室收窄
-  { "role_codes": ["room_leader"] }   # 兼容旧配置
+  { "role_codes": ["room_leader"] }   # 指定角色
+  { "dept_ids": ["..."], "include_children": true }  # 指定部门（人员=部门内成员；部门字段=可选树）
 """
 from __future__ import annotations
 
 # 默认（SPT）租户可使用方案管理预置人选/科室范围；其它租户 ensure 时剥离，避免空范围选不了人
 DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
-SPT_SCHEME_SCOPE_CODES = frozenset({"room_leaders", "scheme_offices", "fa-zxxgy"})
+SPT_SCHEME_SCOPE_CODES = frozenset({"room_leaders", "scheme_offices"})
 SPT_SCHEME_SCOPED_FIELD_IDS = frozenset({
-    "design_assignees", "transfer_packaging_users",
+    "design_assignees",
     "offices", "offices_multi",
 })
+TRANSFER_PACKAGING_ROLE_CODE = "transfer_packaging"
+TRANSFER_PACKAGING_PICKABLE_SCOPE = {"role_codes": [TRANSFER_PACKAGING_ROLE_CODE]}
 
 # 设计人：不限可选范围（全员）；设计指派：room_leaders
 DESIGNER_FIELD_ID = "designer"
@@ -45,7 +48,7 @@ def strip_spt_scheme_pickable_scopes(
         if fid in SPT_SCHEME_SCOPED_FIELD_IDS or (code and code in SPT_SCHEME_SCOPE_CODES):
             props = {k: v for k, v in props.items() if k != "pickable_scope"}
             fd = dict(fd)
-            fd["props"] = props or None
+            fd["props"] = props
         out.append(fd)
     return out
 
@@ -69,13 +72,13 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     "5f69a976fbf7110006288375": "legal",  # 法务办理
     # 生产卡物料编码
     "5f55d129a526650006b36c22": "prod_material_code",
+    # 转新乡、工艺包装（方案/图纸/生产卡 transfer_packaging_users）
+    "6942502ab4606b6b5375dc4f": "transfer_packaging",
 }
 
 # 简道云角色 → 预置可选范围 code
 JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leaders",
-    # 转新乡、工艺包装（方案/图纸/生产卡等 transfer_packaging_users）
-    "6942502ab4606b6b5375dc4f": "fa-zxxgy",
     # 报价管理「冶金装备销售事业部」← 27.7核价管理流程-冶金
     "5f6c394b2ad3770006ded49a": "quote_metallurgy",
 }
@@ -83,7 +86,6 @@ JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
 # 简道云角色名 → 审批人可选范围（charger_rule 用；id 优先）
 JDY_ROLE_NAME_TO_APPROVER_SCOPE: dict[str, str] = {
     "27.7核价管理流程-冶金": "quote_metallurgy",
-    "转新乡、工艺包装": "fa-zxxgy",
 }
 
 # 简道云「一人角色」（角色名即人名/专属岗）→ 指定用户 username（对齐合同等具名审批）
@@ -193,6 +195,20 @@ def role_codes_from_field(fd: dict | None) -> list[str]:
     return [str(c) for c in codes if c]
 
 
+def dept_ids_from_field(fd: dict | None) -> list[str]:
+    """字段上直接配置的部门范围（无 scope_code 时）。"""
+    scope = scope_props_from_field(fd)
+    if scope.get("scope_code"):
+        return []
+    ids = scope.get("dept_ids") or []
+    return [str(d) for d in ids if d]
+
+
+def include_children_from_field(fd: dict | None) -> bool:
+    scope = scope_props_from_field(fd)
+    return scope.get("include_children") is not False
+
+
 def scope_code_from_field(fd: dict | None) -> str | None:
     code = scope_props_from_field(fd).get("scope_code")
     return str(code) if code else None
@@ -202,6 +218,27 @@ def filter_by_fields_from_field(fd: dict | None) -> list[str]:
     scope = scope_props_from_field(fd)
     raw = scope.get("filter_by_fields") or []
     return [str(x) for x in raw if x]
+
+
+def normalize_pickable_scope(scope: dict | None) -> dict | None:
+    """fa-zxxgy 可选范围已废弃，统一走 RBAC 角色 transfer_packaging。"""
+    if not isinstance(scope, dict):
+        return None
+    if scope.get("scope_code") == "fa-zxxgy":
+        return dict(TRANSFER_PACKAGING_PICKABLE_SCOPE)
+    return dict(scope)
+
+
+def apply_transfer_packaging_role_scope(field_definitions: list | None) -> None:
+    """transfer_packaging_users 统一绑定角色 transfer_packaging。"""
+    for fd in field_definitions or []:
+        if not isinstance(fd, dict) or fd.get("id") != "transfer_packaging_users":
+            continue
+        props = dict(fd.get("props") or {})
+        scope = props.get("pickable_scope")
+        norm = normalize_pickable_scope(scope if isinstance(scope, dict) else None)
+        props["pickable_scope"] = norm or dict(TRANSFER_PACKAGING_PICKABLE_SCOPE)
+        fd["props"] = props
 
 
 def apply_scheme_design_person_scope_rules(field_definitions: list | None) -> None:
@@ -214,7 +251,7 @@ def apply_scheme_design_person_scope_rules(field_definitions: list | None) -> No
             props = dict(fd.get("props") or {})
             if "pickable_scope" in props:
                 props.pop("pickable_scope")
-                fd["props"] = props or None
+                fd["props"] = props
         elif fid == DESIGN_ASSIGN_FIELD_ID:
             props = dict(fd.get("props") or {})
             scope = props.get("pickable_scope")
@@ -223,3 +260,4 @@ def apply_scheme_design_person_scope_rules(field_definitions: list | None) -> No
                     k: v for k, v in scope.items() if k != "filter_by_fields"
                 }
                 fd["props"] = props
+    apply_transfer_packaging_role_scope(field_definitions)

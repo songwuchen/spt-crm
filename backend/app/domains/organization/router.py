@@ -260,10 +260,15 @@ async def list_roles(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:view")),
 ):
-    from app.common.rbac_sync import ensure_business_roles
-    created = await ensure_business_roles(db, tenant_id)
-    if created:
-        await db.commit()
+    from app.common.rbac_sync import (
+        ensure_business_roles,
+        ensure_transfer_packaging_role_members,
+        ensure_room_leader_role_members,
+    )
+    await ensure_business_roles(db, tenant_id)
+    await ensure_transfer_packaging_role_members(db, tenant_id)
+    await ensure_room_leader_role_members(db, tenant_id)
+    await db.commit()
     roles = await service.list_roles(db, tenant_id)
     counts = await service.count_role_members(db, tenant_id, [r.id for r in roles])
     role_list = []

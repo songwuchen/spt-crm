@@ -27,7 +27,7 @@ function stepDotColor(step: WfFlowStep) {
 }
 
 function stepTagColor(step: WfFlowStep) {
-  if (step.node_type === 'cc') return 'default'
+  if (step.node_type === 'cc' || step.action === 'cc') return 'default'
   if (step.status === 'rejected') return 'error'
   if (step.is_current || step.status === 'running') return 'processing'
   if (step.status === 'completed') return 'success'
@@ -35,9 +35,14 @@ function stepTagColor(step: WfFlowStep) {
 }
 
 function stepTagText(step: WfFlowStep) {
-  if (step.node_type === 'cc') return '抄送'
+  if (step.node_type === 'cc' || step.action === 'cc') return '抄送'
   if (step.action === 'auto_approve') return '自动通过'
   return step.status_text || step.status
+}
+
+function isCcStep(step: WfFlowStep) {
+  // 独立抄送节点，或审批节点「启用抄送」落库的卡片（node_type=approval + action=cc）
+  return step.node_type === 'cc' || step.action === 'cc'
 }
 
 function avatarLetter(name: string) {
@@ -109,8 +114,7 @@ export default function WfFlowDynamics({
               <Text type="secondary" className="text-sm">暂无流程动态</Text>
             )}
             {(steps || []).map((s, idx) => {
-              const isCc = s.node_type === 'cc'
-              const ccPeople = isCc ? (s.assignees || []) : []
+              const isCc = isCcStep(s)
               return (
                 <div key={s.step_key || `${s.node_instance_id}:${idx}`} className="relative mb-4 pl-4">
                   <span
@@ -131,7 +135,7 @@ export default function WfFlowDynamics({
                         <span className="font-medium text-slate-800">{s.handler_name}</span>
                       </div>
                     )}
-                    {/* 会签等多人节点：列出每位审批人状态（避免只显示最后操作人） */}
+                    {/* 会签等多人节点：列出每位审批人状态（避免只显示最后操作人）；抄送不在此列名单 */}
                     {!isCc && (s.assignees || []).length > 1 && (
                       <div className="text-sm text-slate-500 mt-0.5 space-y-0.5">
                         {(s.assignees || []).filter((a) => a.status !== 'cancelled').map((a) => {
@@ -157,13 +161,13 @@ export default function WfFlowDynamics({
                         操作：{ACTION_TXT[s.action] || s.action}
                       </div>
                     )}
-                    {s.opinion && (
+                    {s.opinion && !isCc && (
                       <div className="text-sm text-slate-500 mt-0.5">意见：{s.opinion}</div>
                     )}
-                    {isCc && ccPeople.length > 0 && (
+                    {isCc && (
                       <button
                         type="button"
-                        className="mt-1.5 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100"
+                        className="mt-1.5 text-sm text-amber-600 hover:text-amber-700 hover:underline"
                         onClick={() => setCcStep(s)}
                       >
                         查看抄送详情

@@ -115,3 +115,6 @@ def apply_install_drawing_notice_fields(field_defs: list[dict[str, Any]]) -> Non
             fd["available_on_create"] = False
             fd["fill_stage"] = "approver"
             fd["required"] = False
+
+    from app.domains.lowcode.pickable_scope import apply_transfer_packaging_role_scope
+    apply_transfer_packaging_role_scope(field_defs)

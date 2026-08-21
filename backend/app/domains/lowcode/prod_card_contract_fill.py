@@ -195,7 +195,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             # 与「(否)图纸编号」同排：用普通输入框展示（选合同自动带出），勿 props.readonly（会变纯文本）
             props = dict(f.get("props") or {})
             props.pop("readonly", None)
-            f["props"] = props or None
+            f["props"] = props
             f["description"] = f.get("description") or "由所选合同自动带出单位名称。"
         elif fid == "select_contract_tech_review":
             # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
@@ -219,13 +219,21 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
     apply_prod_card_approver_only_fields(defs)
 
 
-# 圈选区：确认协议 + 设计指派填写（安装图项目号 / 室主任0414 等）——发起页不展示
-_PROD_CARD_APPROVER_ONLY: dict[str, str] = {
+# 圈选区：仅审批可填（创建页隐藏）；字段级必填下沉到节点 field_perms
+# 业务员确认：是否同意按协议/方案执行
+_PROD_CARD_SALES_CONFIRM_PERMS: dict[str, str] = {
     "confirm_agreement": "required",
+}
+# 研管办安排：设计指派填写（安装图项目号 / 室主任0414 等）
+_PROD_CARD_DESIGN_ASSIGN_PERMS: dict[str, str] = {
     "install_project_no": "editable",
     "f_0414": "required",
     "has_install_project": "required",
     "design_assignees": "required",
+}
+_PROD_CARD_APPROVER_ONLY: dict[str, str] = {
+    **_PROD_CARD_SALES_CONFIRM_PERMS,
+    **_PROD_CARD_DESIGN_ASSIGN_PERMS,
 }
 
 
@@ -243,8 +251,199 @@ def apply_prod_card_approver_only_fields(defs: list) -> None:
         f["required"] = False
 
 
+def _merge_node_field_perms(node: dict, want: dict[str, str]) -> bool:
+    """把 want 合并进 node.field_perms；required 优先。返回是否有改动。"""
+    perms = list(node.get("field_perms") or [])
+    by_field = {
+        str(p.get("field")): p
+        for p in perms
+        if isinstance(p, dict) and p.get("field")
+    }
+    changed = False
+    for fid, access in want.items():
+        cur = by_field.get(fid)
+        if not cur:
+            perms.append({"field": fid, "access": access})
+            changed = True
+        elif access == "required" and cur.get("access") != "required":
+            cur["access"] = "required"
+            changed = True
+    if changed:
+        node["field_perms"] = perms
+    return changed
+
+
+def apply_prod_card_sales_confirm_field_perms(nodes: list | None) -> bool:
+    """业务员确认：可填「请确认是否同意按本协议约定、方案执行」（必填）。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        if str(n.get("name") or "") != "业务员确认":
+            continue
+        if n.get("type") != "approval":
+            continue
+        if _merge_node_field_perms(n, _PROD_CARD_SALES_CONFIRM_PERMS):
+            changed = True
+    return changed
+
+
+def _route_cond_is_region_manager_not_empty(cond) -> bool:
+    if not isinstance(cond, dict):
+        return False
+    if cond.get("field") == "region_manager" and cond.get("operator") == "is_not_empty":
+        return True
+    for c in cond.get("cond") or []:
+        if isinstance(c, dict) and _route_cond_is_region_manager_not_empty(c):
+            return True
+    return False
+
+
+def apply_prod_card_sales_before_region(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """生产卡：先业务员确认，再按区域经理/组长是否为空分支（对齐简道云画布 V43）。
+
+    错误拓扑（data-hub 旧缓存 + 误补节点）：
+      发起 --区域不为空--> 区域经理/组长 → 部门审批
+      发起 --else--> 业务员确认 → 部门审批
+
+    正确拓扑：
+      发起 --else--> 业务员确认
+      业务员确认 --区域不为空--> 区域经理/组长 → 部门审批
+      业务员确认 --else--> 部门审批
+    """
+    if not isinstance(routes, list) or not nodes:
+        return False
+    by_name: dict[str, str] = {}
+    start_ids: set[str] = set()
+    for n in nodes:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        nid = str(n["id"])
+        name = str(n.get("name") or "")
+        if n.get("type") == "start" or name == "生产卡发起":
+            start_ids.add(nid)
+        if name and name not in by_name:
+            by_name[name] = nid
+    sales_id = by_name.get("业务员确认")
+    region_id = by_name.get("区域经理/组长")
+    dept_id = by_name.get("部门审批")
+    if not sales_id or not region_id or not dept_id or not start_ids:
+        return False
+
+    excl = f"ex_{sales_id}"
+    changed = False
+    has_sales_to_dept = False
+    has_sales_to_region = False
+
+    for r in routes:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        src = str(r.get("source") or "")
+        tgt = str(r.get("target") or "")
+        cond = r.get("condition")
+
+        # 发起→区域经理（区域不为空）→ 改挂业务员确认
+        if (
+            src in start_ids
+            and tgt == region_id
+            and _route_cond_is_region_manager_not_empty(cond)
+        ):
+            r["source"] = sales_id
+            r["exclusive_group"] = excl
+            r.pop("fork", None)
+            changed = True
+            has_sales_to_region = True
+            continue
+
+        if src == sales_id and tgt == region_id:
+            has_sales_to_region = True
+            if r.get("exclusive_group") != excl:
+                r["exclusive_group"] = excl
+                changed = True
+            if r.get("fork") == "parallel":
+                r.pop("fork", None)
+                changed = True
+            continue
+
+        if src == sales_id and tgt == dept_id:
+            has_sales_to_dept = True
+            if r.get("exclusive_group") != excl:
+                r["exclusive_group"] = excl
+                changed = True
+            if r.get("fork") == "parallel":
+                r.pop("fork", None)
+                changed = True
+            continue
+
+        # 发起仍直达部门审批（旧 else）→ 改到业务员确认
+        if src in start_ids and tgt == dept_id and not cond:
+            r["target"] = sales_id
+            changed = True
+
+    if not has_sales_to_region:
+        routes.append({
+            "id": "r_sales_to_region",
+            "source": sales_id,
+            "target": region_id,
+            "condition": {
+                "field": "region_manager",
+                "operator": "is_not_empty",
+                "value": None,
+            },
+            "exclusive_group": excl,
+        })
+        changed = True
+
+    if not has_sales_to_dept:
+        routes.append({
+            "id": "r_sales_to_dept",
+            "source": sales_id,
+            "target": dept_id,
+            "exclusive_group": excl,
+        })
+        changed = True
+
+    # 互斥组内：有条件的区域边排在 else 前，避免 else 抢先
+    sales_outs = [
+        r for r in routes
+        if isinstance(r, dict)
+        and not r.get("always")
+        and str(r.get("source") or "") == sales_id
+    ]
+    if len(sales_outs) >= 2:
+        def _rank(r: dict) -> tuple:
+            if str(r.get("target") or "") == region_id:
+                return (0, 0)
+            if r.get("condition"):
+                return (1, 0)
+            return (2, 0)
+
+        ordered = sorted(sales_outs, key=_rank)
+        if [id(r) for r in ordered] != [id(r) for r in sales_outs]:
+            new_routes: list = []
+            replaced = False
+            for r in routes:
+                if not isinstance(r, dict):
+                    new_routes.append(r)
+                    continue
+                if r.get("always") or str(r.get("source") or "") != sales_id:
+                    new_routes.append(r)
+                    continue
+                if not replaced:
+                    new_routes.extend(ordered)
+                    replaced = True
+            routes[:] = new_routes
+            changed = True
+
+    return changed
+
+
 def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
-    """研管办安排节点补上确认协议 / 安装图项目号 / 室主任0414 等可写权限。"""
+    """研管办安排节点补上安装图项目号 / 室主任0414 等可写权限。"""
     if not nodes:
         return False
     changed = False
@@ -254,23 +453,16 @@ def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
         name = str(n.get("name") or "")
         if "研管办安排" not in name:
             continue
+        if _merge_node_field_perms(n, _PROD_CARD_DESIGN_ASSIGN_PERMS):
+            changed = True
+        # 协议确认已归业务员确认，从研管办节点去掉避免重复必填
         perms = list(n.get("field_perms") or [])
-        by_field = {
-            str(p.get("field")): p
-            for p in perms
-            if isinstance(p, dict) and p.get("field")
-        }
-        node_changed = False
-        for fid, access in _PROD_CARD_APPROVER_ONLY.items():
-            cur = by_field.get(fid)
-            if not cur:
-                perms.append({"field": fid, "access": access})
-                node_changed = True
-            elif access == "required" and cur.get("access") != "required":
-                cur["access"] = "required"
-                node_changed = True
-        if node_changed:
-            n["field_perms"] = perms
+        pruned = [
+            p for p in perms
+            if not (isinstance(p, dict) and p.get("field") == "confirm_agreement")
+        ]
+        if len(pruned) != len(perms):
+            n["field_perms"] = pruned
             changed = True
     return changed
 

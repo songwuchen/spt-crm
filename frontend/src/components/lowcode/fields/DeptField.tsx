@@ -1,5 +1,5 @@
 // 部门选择字段(department / department_multi)。值为部门 id(单)或 id 数组(多)。
-// props.pickable_scope.scope_code 可限制可选部门树。
+// props.pickable_scope.scope_code 或 dept_ids 可限制可选部门树。
 import { useEffect, useState } from 'react'
 import { TreeSelect } from 'antd'
 import client from '@/api/client'
@@ -19,14 +19,29 @@ function build(nodes: Department[], names: Record<string, string>): TreeNode[] {
   })
 }
 
-async function loadTree(scopeCode?: string | null): Promise<DeptCache> {
-  const key = scopeCode || '__all__'
+function cacheKey(scopeCode?: string | null, rangeDeptIds?: string[] | null, includeChildren?: boolean) {
+  if (scopeCode) return `scope:${scopeCode}`
+  const depts = [...(rangeDeptIds || [])].map(String).filter(Boolean).sort()
+  if (depts.length) return `depts:${depts.join(',')}|kids:${includeChildren === false ? '0' : '1'}`
+  return '__all__'
+}
+
+async function loadTree(
+  scopeCode?: string | null,
+  rangeDeptIds?: string[] | null,
+  includeChildren?: boolean,
+): Promise<DeptCache> {
+  const key = cacheKey(scopeCode, rangeDeptIds, includeChildren)
   const cached = cacheByScope.get(key)
   if (cached && Date.now() - cached.ts < TTL) return cached
   const pending = inflightByScope.get(key)
   if (pending) return pending
   const params: Record<string, string> = {}
   if (scopeCode) params.scope_code = scopeCode
+  else if (rangeDeptIds?.length) {
+    params.dept_ids = rangeDeptIds.map(String).filter(Boolean).join(',')
+    if (includeChildren === false) params.include_children = '0'
+  }
   const p = client.get<unknown, ApiResponse<Department[]>>('/api/v1/lc/pickable-departments', { params })
     .then((res) => {
       const names: Record<string, string> = {}
@@ -86,7 +101,7 @@ function normalizeDeptIds(value: unknown, multi?: boolean): {
 }
 
 export default function DeptField({
-  value, onChange, multi, readonly, placeholder, scopeCode,
+  value, onChange, multi, readonly, placeholder, scopeCode, rangeDeptIds, includeChildren,
 }: {
   /** Form.Item 会注入；单独使用时可省略 */
   value?: unknown
@@ -96,17 +111,20 @@ export default function DeptField({
   placeholder?: string
   /** 可选范围编码（department 类型） */
   scopeCode?: string | null
+  /** 直接指定可选部门 id（与 scopeCode 二选一，scopeCode 优先） */
+  rangeDeptIds?: string[] | null
+  includeChildren?: boolean
 }) {
-  const cacheKey = scopeCode || '__all__'
-  const [tree, setTree] = useState<TreeNode[]>(cacheByScope.get(cacheKey)?.tree || [])
-  const [names, setNames] = useState<Record<string, string>>(cacheByScope.get(cacheKey)?.names || {})
-  const [loading, setLoading] = useState(!cacheByScope.get(cacheKey))
+  const key = cacheKey(scopeCode, rangeDeptIds, includeChildren)
+  const [tree, setTree] = useState<TreeNode[]>(cacheByScope.get(key)?.tree || [])
+  const [names, setNames] = useState<Record<string, string>>(cacheByScope.get(key)?.names || {})
+  const [loading, setLoading] = useState(!cacheByScope.get(key))
   const [labelsPending, setLabelsPending] = useState(false)
 
   useEffect(() => {
     let alive = true
     setLoading(true)
-    loadTree(scopeCode).then((c) => {
+    loadTree(scopeCode, rangeDeptIds, includeChildren).then((c) => {
       if (!alive || !c) return
       setTree(c.tree)
       // 合并而非整表替换：避免后到的树覆盖已通过 labels/nameHints 解析的树外 id
@@ -114,7 +132,7 @@ export default function DeptField({
       setLoading(false)
     })
     return () => { alive = false }
-  }, [scopeCode])
+  }, [scopeCode, (rangeDeptIds || []).join(','), includeChildren])
 
   const { ids: selectedIds, nameHints } = normalizeDeptIds(value, multi)
   // 对象值里自带的 name 先并入，避免只读态闪「未知部门([object Object])」
@@ -145,7 +163,9 @@ export default function DeptField({
         params: { ids: missing.join(',') },
       }).then((res) => res.data || {}).catch(() => ({}) as Record<string, string>),
       // 范围树可能不含已选 id：再并一份全量名称
-      scopeCode ? loadTree().then((c) => c.names || {}).catch(() => ({})) : Promise.resolve({} as Record<string, string>),
+      (scopeCode || rangeDeptIds?.length)
+        ? loadTree().then((c) => c.names || {}).catch(() => ({}))
+        : Promise.resolve({} as Record<string, string>),
     ]).then(([labels, allNames]) => {
       if (!alive) return
       setNames((prev) => {
@@ -159,7 +179,7 @@ export default function DeptField({
       setLabelsPending(false)
     })
     return () => { alive = false }
-  }, [missingKey, scopeCode])
+  }, [missingKey, scopeCode, (rangeDeptIds || []).join(',')])
 
   const treeIdSet = new Set<string>()
   ;(function collect(nodes: TreeNode[]) {
