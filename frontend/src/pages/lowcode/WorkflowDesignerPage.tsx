@@ -8,23 +8,23 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
-import type { WfNode, WfDesign, FieldDefinition } from '@/types/lowcode'
+import type { WfNode, WfDesign, FieldDefinition, WfMultiMode } from '@/types/lowcode'
 import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
 import { defaultCcApproverRule } from '@/utils/wfApproverDefaults'
 
 const { Title, Text } = Typography
 
-const MULTI_MODES = [
+const MULTI_MODES: { value: WfMultiMode; label: string }[] = [
   { value: 'or_sign', label: '或签(一人通过即可)' },
   { value: 'countersign', label: '会签(全部通过)' },
   { value: 'sequential', label: '顺序会签(依次)' },
 ]
 
 /** 历史别名 and_sign → 会签；Select 无匹配 option 时会直接显示英文 value */
-function normalizeMultiMode(mode?: string | null) {
-  if (mode === 'and_sign') return 'countersign' as const
+function normalizeMultiMode(mode?: string | null): WfMultiMode {
+  if (mode === 'and_sign') return 'countersign'
   if (mode === 'countersign' || mode === 'sequential' || mode === 'or_sign') return mode
-  return 'or_sign' as const
+  return 'or_sign'
 }
 
 const genId = (p: string) => p + Math.random().toString(36).slice(2, 8)
@@ -174,8 +174,13 @@ export default function WorkflowDesignerPage() {
               {n.type === 'approval' && (
                 <Col span={7}>
                   <Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
-                  <Select size="small" style={{ width: '100%' }} value={normalizeMultiMode(n.multi_mode)}
-                    options={MULTI_MODES} onChange={(v) => patch(idx, { multi_mode: v })} />
+                  <Select
+                    size="small"
+                    style={{ width: '100%' }}
+                    value={normalizeMultiMode(n.multi_mode)}
+                    options={MULTI_MODES}
+                    onChange={(v: WfMultiMode) => patch(idx, { multi_mode: v })}
+                  />
                 </Col>
               )}
             </Row>
