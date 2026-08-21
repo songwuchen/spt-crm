@@ -69,7 +69,7 @@ export default function AttachmentPreviewModal({
 
   const contentHeight = fullscreen
     ? 'calc(100vh - 108px)'
-    : (kind === 'pdf' || kind === 'weboffice' ? 'min(88vh, 920px)' : 'min(82vh, 800px)')
+    : (kind === 'pdf' || kind === 'weboffice' || kind === 'video' ? 'min(88vh, 920px)' : 'min(82vh, 800px)')
 
   const officeKind = kind === 'word' || kind === 'excel' || kind === 'pptx' ? kind : null
   const hasOffice = !!(officeKind && fileBlob)
@@ -98,7 +98,7 @@ export default function AttachmentPreviewModal({
   )
 
   const hint = unsupportedHint(fileName)
-  const wide = kind === 'pdf' || kind === 'weboffice' || officeKind || kind === 'text'
+  const wide = kind === 'pdf' || kind === 'weboffice' || officeKind || kind === 'text' || kind === 'video'
 
   return (
     <Modal
@@ -146,6 +146,19 @@ export default function AttachmentPreviewModal({
             className="max-h-full max-w-full object-contain"
             style={{ maxHeight: contentHeight }}
           />
+        </div>
+      )}
+      {!loading && kind === 'video' && url && (
+        <div className="flex h-full items-center justify-center bg-black/90">
+          <video
+            src={url}
+            controls
+            playsInline
+            className="max-h-full max-w-full"
+            style={{ maxHeight: contentHeight }}
+          >
+            您的浏览器不支持视频播放，请下载后查看。
+          </video>
         </div>
       )}
       {!loading && kind === 'pdf' && url && (

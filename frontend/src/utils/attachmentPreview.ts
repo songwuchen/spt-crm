@@ -6,6 +6,7 @@ export type PreviewableKind =
   | 'excel'
   | 'pptx'
   | 'text'
+  | 'video'
   | 'weboffice'
   | 'unsupported'
 
@@ -14,6 +15,7 @@ const WORD_EXT = new Set(['docx'])
 const EXCEL_EXT = new Set(['xlsx', 'xls', 'xlsm'])
 const PPT_EXT = new Set(['pptx'])
 const TEXT_EXT = new Set(['txt', 'csv', 'md', 'log'])
+const VIDEO_EXT = new Set(['mp4', 'mov', 'webm', 'm4v', 'mkv', 'avi', 'wmv', 'flv', 'mpeg', 'mpg', '3gp'])
 const CAD_EXT = new Set([
   'dwg', 'dxf', 'dwt', 'dwf', 'step', 'stp', 'iges', 'igs',
   'sldprt', 'sldasm', 'slddrw', 'ipt', 'iam',
@@ -53,6 +55,7 @@ export function isPreviewable(contentType?: string, name?: string): PreviewableK
   const ct = (contentType || '').toLowerCase()
   const ext = fileExt(name)
   if (ct.startsWith('image/') || IMAGE_EXT.has(ext)) return 'image'
+  if (ct.startsWith('video/') || VIDEO_EXT.has(ext)) return 'video'
   if (ct === 'application/pdf' || ext === 'pdf') return 'pdf'
   // IMM 优先（含 .doc / ppt / xlsx…）；docx 仍本地
   if (needsWebOfficePreview(name, contentType) && !WORD_EXT.has(ext) && !TEXT_EXT.has(ext)) {

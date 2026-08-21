@@ -700,6 +700,7 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
             apply_prod_card_design_assign_field_perms,
         )
         apply_prod_card_design_assign_field_perms(nodes)
+        apply_prod_card_finance_branch_parallel(nodes, routes)
     return nodes, routes
 
 
@@ -1592,6 +1593,60 @@ def apply_prod_card_supplement_approvers(nodes: list[dict]) -> bool:
         n["approver_rule"] = dict(want)
         changed = True
     return changed
+
+
+def _prod_card_nodes_named(nodes: list | None, name: str) -> set[str]:
+    return {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("name") == name
+    }
+
+
+def apply_prod_card_finance_branch_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """财务核价后：安排设计/通知生产/产线设计等可同时命中，对齐简道云并行分支。
+
+    流程生成器对同源多出边一律标 ``exclusive_group``，导致「是否需研究院出图=是」
+    且「不是机器人」时只走通知生产、跳过安排设计1。
+    """
+    finance_ids = _prod_card_nodes_named(nodes, "财务核价")
+    if not finance_ids:
+        return False
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in finance_ids:
+            continue
+        if not r.get("condition"):
+            continue
+        if r.get("exclusive_group") or r.get("fork") != "parallel":
+            r.pop("exclusive_group", None)
+            r["fork"] = "parallel"
+            changed = True
+    return changed
+
+
+def _flow_prod_card_finance_not_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """财务核价出边仍在互斥组 → 设计分支会被通知生产吞掉。"""
+    finance_ids = _prod_card_nodes_named(nodes, "财务核价")
+    if not finance_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in finance_ids:
+            continue
+        if r.get("condition"):
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                return True
+        elif r.get("exclusive_group"):
+            return True
+    return False
 
 
 _CS_RETURN_CS_USERS = {
@@ -4209,6 +4264,10 @@ async def _upgrade_drawing_form_flow_if_needed(
             version.node_definitions, patched_routes,
         ):
             tags.append("通知发起人须转采购≠是")
+        if form_code == "prod_card_supplement" and apply_prod_card_finance_branch_parallel(
+            version.node_definitions, patched_routes,
+        ):
+            tags.append("财务核价后设计/生产分支并行")
         if form_code in ("cs_service_request", "cs_product_replace") and (
             apply_cs_service_request_start_region_first(
                 version.node_definitions, patched_routes,

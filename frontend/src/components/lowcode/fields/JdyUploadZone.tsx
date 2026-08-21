@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Spin } from 'antd'
 
-const FILE_MAX = 50 * 1024 * 1024
+const FILE_MAX = 200 * 1024 * 1024
 const IMAGE_MAX = 20 * 1024 * 1024
 
 /** 截图/复制文件多在 items 里，files 可能为空 */
@@ -35,7 +35,7 @@ export function jdyUploadHint(image?: boolean, inCellPopover?: boolean): string 
   if (image && inCellPopover) return '拖拽或Ctrl+v粘贴图片，单张20MB以内'
   return image
     ? '拖拽或单击后粘贴图片，单张20MB以内'
-    : '拖拽或单击后粘贴文件（含 PDF/OFD/CAD 等），单个50MB以内'
+    : '拖拽或单击后粘贴文件（含 PDF/OFD/CAD/MP4 等），单个200MB以内'
 }
 
 export function jdyMaxBytes(image?: boolean): number {

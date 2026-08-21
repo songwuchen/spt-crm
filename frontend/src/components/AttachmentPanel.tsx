@@ -73,7 +73,7 @@ function PendingDropZone({
         continue
       }
       if (file.size > maxBytes) {
-        message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 50MB')
+        message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 200MB')
         continue
       }
       next.push(file)
@@ -215,7 +215,7 @@ function AttachmentPanelBound({
           continue
         }
         if (file.size > maxBytes) {
-          message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 50MB')
+          message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 200MB')
           continue
         }
         try {

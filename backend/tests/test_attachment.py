@@ -22,6 +22,16 @@ def test_cad_extensions_allowlisted():
     _validate_upload_type("model.step", "application/weird-cad-vendor")
 
 
+def test_video_extensions_allowlisted():
+    """MP4 等常见视频（售后/现场附件）。"""
+    for ext in (".mp4", ".mov", ".avi", ".wmv", ".mkv", ".webm", ".m4v"):
+        assert ext in ALLOWED_EXTENSIONS
+        assert _validate_ext(f"clip{ext}") == ext
+    _validate_upload_type("现场.MP4", "video/mp4")
+    _validate_upload_type("demo.webm", "video/webm")
+    _validate_upload_type("a.mov", "application/octet-stream")
+
+
 def test_ofd_extension_allowlisted():
     """电子发票 OFD（开票申请附件常用）。"""
     assert ".ofd" in ALLOWED_EXTENSIONS

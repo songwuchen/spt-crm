@@ -21,4 +21,10 @@ describe('attachmentPreview IMM weboffice', () => {
     expect(isPreviewable(undefined, 'a.pptx')).toBe('weboffice')
     expect(isPreviewable(undefined, 'a.xlsx')).toBe('weboffice')
   })
+
+  it('routes mp4/webm to video preview', () => {
+    expect(isPreviewable('video/mp4', 'clip.mp4')).toBe('video')
+    expect(isPreviewable(undefined, 'demo.webm')).toBe('video')
+    expect(isPreviewable(undefined, 'a.mov')).toBe('video')
+  })
 })

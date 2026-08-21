@@ -20,7 +20,7 @@ from app.domains.lowcode import workflow_service as wsvc
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["附件管理"])
 
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB（与前端 FileField 一致；CAD 版图常偏大）
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB（含 MP4 等视频；与前端 FileField 一致）
 ALLOWED_EXTENSIONS = {
     # 图片
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tif', '.tiff', '.svg',
@@ -29,6 +29,9 @@ ALLOWED_EXTENSIONS = {
     '.txt', '.csv', '.rtf',
     # 压缩包
     '.zip', '.rar', '.7z',
+    # 视频
+    '.mp4', '.mov', '.avi', '.wmv', '.mkv', '.webm', '.m4v', '.flv',
+    '.mpeg', '.mpg', '.3gp',
     # CAD / 工程图（报价询价单附件常用）
     '.dwg', '.dxf', '.dwt', '.dwf', '.dwfx',
     '.step', '.stp', '.iges', '.igs',
@@ -41,7 +44,8 @@ ALLOWED_EXTENSIONS = {
     '.vsd', '.vsdx', '.eml', '.msg',
 }
 ALLOWED_MIME_PREFIXES = {
-    'image/', 'application/pdf', 'application/ofd', 'application/vnd.ofd',
+    'image/', 'video/',
+    'application/pdf', 'application/ofd', 'application/vnd.ofd',
     'application/msword',
     'application/vnd.openxmlformats', 'application/vnd.ms-',
     'text/plain', 'text/csv', 'text/rtf', 'application/rtf',
