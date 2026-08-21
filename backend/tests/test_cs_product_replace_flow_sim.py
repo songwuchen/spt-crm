@@ -225,9 +225,13 @@ async def test_cs_replace_approvers_resolve_against_db(db):
     from app.domains.organization.models import Department, UserDepartment
     from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessDefinitionVersion
     from app.domains.lowcode import service as lc
+    from app.common.rbac_sync import ensure_cs_office_role_members
 
     tenant = DEMO_TENANT
     await lc.ensure_builtin_form(db, tenant, "cs_product_replace", {"sub": "admin"})
+    await ensure_cs_office_role_members(db, tenant)
+    await db.commit()
+
     d = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant,
         WfProcessDefinition.code == "SYS_CS_PRODUCT_REPLACE",
@@ -238,48 +242,41 @@ async def test_cs_replace_approvers_resolve_against_db(db):
     ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one()
 
     nodes = {n["id"]: n for n in (v.node_definitions or []) if isinstance(n, dict)}
+
+    # 客服会签应对齐 cs_office 角色（成员在角色管理维护）
+    n4_rule = (nodes.get("n4") or {}).get("approver_rule") or {}
+    assert n4_rule.get("type") == "specified_role"
+    assert n4_rule.get("value") == "cs_office"
+
+    # 自建业务员≠负责人，避免依赖 seed 部门树
+    suffix = generate_uuid()[:8]
+    leader_id = generate_uuid()
+    sp_id = generate_uuid()
+    dept_id = generate_uuid()
+    db.add(User(
+        id=leader_id, tenant_id=tenant, username=f"cs_replace_leader_{suffix}",
+        real_name="更换流程部门负责人", password_hash="x", is_active=True,
+    ))
+    db.add(User(
+        id=sp_id, tenant_id=tenant, username=f"cs_replace_salesperson_{suffix}",
+        real_name="更换流程业务员", password_hash="x", is_active=True,
+    ))
+    db.add(Department(
+        id=dept_id, tenant_id=tenant, name=f"更换流程测试部_{suffix}",
+        path=f"/更换流程测试部_{suffix}/", sort_order=0, leader_id=leader_id,
+    ))
+    db.add(UserDepartment(
+        id=generate_uuid(), tenant_id=tenant, user_id=leader_id, department_id=dept_id,
+    ))
+    db.add(UserDepartment(
+        id=generate_uuid(), tenant_id=tenant, user_id=sp_id, department_id=dept_id,
+    ))
+    await db.commit()
+    created_ids = [leader_id, sp_id]
+    created_dept_ids = [dept_id]
+
+    # 在挂部门之后再建 resolver，避免部门缓存过期
     resolver = ApproverResolver(db, tenant)
-
-    # 找一位有部门的业务员用于 n1 部门负责人；CI seed 通常没有「业务员≠负责人」，则自建
-    sp_row = (await db.execute(text("""
-        SELECT u.id, u.real_name, ud.department_id, d.leader_id
-        FROM users u
-        JOIN user_departments ud ON ud.user_id = u.id AND ud.tenant_id = :t
-        JOIN departments d ON d.id = ud.department_id
-        WHERE u.tenant_id = :t AND u.is_active = true
-          AND d.leader_id IS NOT NULL AND u.id != d.leader_id
-        LIMIT 1
-    """), {"t": tenant})).first()
-
-    created_ids: list[str] = []
-    created_dept_ids: list[str] = []
-    if sp_row:
-        sp_id, _sp_name, dept_id, leader_id = sp_row
-    else:
-        leader_id = generate_uuid()
-        sp_id = generate_uuid()
-        dept_id = generate_uuid()
-        db.add(User(
-            id=leader_id, tenant_id=tenant, username="cs_replace_leader",
-            real_name="更换流程部门负责人", password_hash="x", is_active=True,
-        ))
-        db.add(User(
-            id=sp_id, tenant_id=tenant, username="cs_replace_salesperson",
-            real_name="更换流程业务员", password_hash="x", is_active=True,
-        ))
-        db.add(Department(
-            id=dept_id, tenant_id=tenant, name="更换流程测试部",
-            path="/更换流程测试部/", sort_order=0, leader_id=leader_id,
-        ))
-        db.add(UserDepartment(
-            id=generate_uuid(), tenant_id=tenant, user_id=leader_id, department_id=dept_id,
-        ))
-        db.add(UserDepartment(
-            id=generate_uuid(), tenant_id=tenant, user_id=sp_id, department_id=dept_id,
-        ))
-        await db.commit()
-        created_ids = [leader_id, sp_id]
-        created_dept_ids = [dept_id]
 
     try:
         ctx = ApprovalContext(
@@ -295,7 +292,7 @@ async def test_cs_replace_approvers_resolve_against_db(db):
 
         checks = [
             ("n1", "业务经理审批·部门负责人"),
-            ("n4", "客服会签·4人或签"),
+            ("n4", "客服会签·cs_office"),
             ("n6", "总工审批"),
             ("n8", "总经理审批"),
             ("n18", "财务核算"),
@@ -317,7 +314,13 @@ async def test_cs_replace_approvers_resolve_against_db(db):
                     select(User.real_name).where(User.id.in_(ids))
                 )).scalars().all()
                 print(f"  OK {label} -> {list(names)} ({len(ids)}人)")
-            elif rule.get("type") != "specified_user":
+            elif rule.get("type") == "specified_user":
+                # CI seed 常无钉钉 username，具名用户允许空（节点 empty_strategy）
+                continue
+            elif rule.get("type") == "specified_role" and rule.get("value") == "cs_office":
+                # 角色已创建但成员账号可能不在本库；规则本身已断言为 cs_office
+                continue
+            else:
                 failures.append(f"{label}: 审批人为空 rule={rule}")
 
         if failures:
