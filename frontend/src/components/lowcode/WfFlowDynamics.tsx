@@ -108,11 +108,11 @@ export default function WfFlowDynamics({
             {(steps || []).length === 0 && (
               <Text type="secondary" className="text-sm">暂无流程动态</Text>
             )}
-            {(steps || []).map((s) => {
+            {(steps || []).map((s, idx) => {
               const isCc = s.node_type === 'cc'
               const ccPeople = isCc ? (s.assignees || []) : []
               return (
-                <div key={s.node_instance_id} className="relative mb-4 pl-4">
+                <div key={s.step_key || `${s.node_instance_id}:${idx}`} className="relative mb-4 pl-4">
                   <span
                     className="absolute left-[-9px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm"
                     style={{ background: stepDotColor(s) }}

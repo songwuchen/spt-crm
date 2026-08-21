@@ -91,8 +91,8 @@ async def test_build_flow_steps_shows_cc_recipients():
 
 
 @pytest.mark.asyncio
-async def test_build_flow_steps_transfer_shows_pending_assignee():
-    """转交后流程动态应显示接收人为当前负责人，并保留转交人意见。"""
+async def test_build_flow_steps_transfer_splits_like_jdy():
+    """对齐简道云：转交人一条（操作=转交），接收人另条（处理中）。"""
     from app.domains.lowcode.workflow_service import _build_flow_steps
 
     db = AsyncMock()
@@ -114,6 +114,7 @@ async def test_build_flow_steps_transfer_shows_pending_assignee():
         nodes=[_ni(node_name="设计审批1")],
         tasks=[task],
         logs=[_log(
+            id="log-xfer",
             action="transfer",
             actor_id="u-from",
             actor_name="王东明",
@@ -121,13 +122,17 @@ async def test_build_flow_steps_transfer_shows_pending_assignee():
         )],
         process_status="running",
     )
-    assert len(steps) == 1
-    assert steps[0]["status"] == "running"
-    assert steps[0]["is_current"] is True
-    assert steps[0]["handler_name"] == "刘松潮"
-    assert steps[0]["action"] == "pending"
-    assert "王东明转交" in (steps[0]["opinion"] or "")
-    assert "供货范围" in (steps[0]["opinion"] or "")
+    assert len(steps) == 2
+    cur = next(s for s in steps if s["is_current"])
+    xfer = next(s for s in steps if s.get("action") == "transfer")
+    assert cur["handler_name"] == "刘松潮"
+    assert cur["status"] == "running"
+    assert cur["action"] == "pending"
+    assert xfer["handler_name"] == "王东明"
+    assert xfer["status"] == "completed"
+    assert "供货范围" in (xfer["opinion"] or "")
+    # 当前待办排在转交记录之前（最新在前）
+    assert steps.index(cur) < steps.index(xfer)
 
 
 @pytest.mark.asyncio

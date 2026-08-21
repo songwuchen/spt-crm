@@ -336,8 +336,10 @@ export interface WfTimelineItem {
   node_name?: string | null
 }
 
-/** 流程动态节点（对齐简道云右侧时间线） */
+/** 流程动态节点（对齐简道云右侧时间线；同节点转交可拆多条） */
 export interface WfFlowStep {
+  /** 同节点多条动态时的稳定键（转交日志 / 当前待办） */
+  step_key?: string
   node_instance_id: string
   node_def_id?: string
   node_name: string

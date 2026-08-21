@@ -6478,10 +6478,13 @@ def _fmt_duration(start, end) -> str | None:
 async def _build_flow_steps(
     db, nodes: list, tasks: list, logs: list, process_status: str | None = None,
 ) -> list[dict]:
-    """按节点实例构造「流程动态」(对齐简道云右侧时间线)。"""
+    """按节点实例构造「流程动态」(对齐简道云右侧时间线)。
+
+    简道云：同一节点可有多条日志 —— 转交人一条（finishAction=transfer），
+    接收人待办另见 runningNodes。此处同样拆成多条 step。
+    """
     from app.domains.auth.models import User
 
-    # 最新在前
     nodes_sorted = sorted(
         nodes,
         key=lambda n: n.started_at or n.created_at or _now(),
@@ -6490,10 +6493,10 @@ async def _build_flow_steps(
     by_node: dict[str, list] = {}
     for t in tasks:
         by_node.setdefault(t.node_instance_id, []).append(t)
-    last_log: dict[str, object] = {}
+    logs_by_node: dict[str, list] = {}
     for l in logs:
         if l.node_instance_id:
-            last_log[l.node_instance_id] = l
+            logs_by_node.setdefault(l.node_instance_id, []).append(l)
 
     uid_set: set[str] = set()
     for t in tasks:
@@ -6503,7 +6506,6 @@ async def _build_flow_steps(
         if l.actor_id:
             uid_set.add(l.actor_id)
 
-    # 抄送节点：从 wf_process_cc 取被抄送人（无审批任务，原先流程动态看不到人）
     cc_node_ids = [n.id for n in nodes_sorted if getattr(n, "node_type", None) == "cc"]
     cc_by_node: dict[str, list[str]] = {}
     if cc_node_ids:
@@ -6529,12 +6531,54 @@ async def _build_flow_steps(
         "running": "处理中", "completed": "已完成", "cancelled": "已取消",
         "pending": "待处理", "rejected": "已驳回",
     }
-    out = []
+    # 会进入时间线的操作（对齐简道云 finishAction）；评论不单独占节点卡片
+    _LOG_ACTIONS = frozenset({
+        "approve", "reject", "transfer", "auto_transfer", "auto_approve",
+        "auto_reject", "return", "withdraw", "cc",
+    })
+
+    def _iso(dt) -> str | None:
+        return dt.isoformat() if dt else None
+
+    def _step(
+        *,
+        step_key: str,
+        n,
+        status: str,
+        handler_name: str | None,
+        action: str | None,
+        opinion: str | None,
+        assignees: list,
+        started_at,
+        completed_at,
+        is_current: bool,
+    ) -> dict:
+        end_at = completed_at if status != "running" else _now()
+        return {
+            "step_key": step_key,
+            "node_instance_id": n.id,
+            "node_def_id": n.node_def_id,
+            "node_name": n.node_name,
+            "node_type": n.node_type,
+            "status": status,
+            "status_text": status_text.get(status, status),
+            "assignees": assignees,
+            "handler_name": handler_name,
+            "action": action,
+            "opinion": opinion,
+            "started_at": _iso(started_at),
+            "completed_at": _iso(completed_at) if status != "running" else None,
+            "duration": _fmt_duration(started_at, end_at),
+            "is_current": is_current,
+        }
+
+    out: list[dict] = []
     for n in nodes_sorted:
         if n.node_type in ("parallel", "merge"):
             continue
+
         nt = by_node.get(n.id) or []
-        assignees = []
+        assignees: list[dict] = []
         seen: set[str] = set()
         for t in nt:
             if t.assignee_id and t.assignee_id not in seen:
@@ -6544,89 +6588,167 @@ async def _build_flow_steps(
                     "name": name_map.get(t.assignee_id, t.assignee_id),
                     "status": t.status,
                 })
-        lg = last_log.get(n.id)
-        action = getattr(lg, "action", None) if lg else None
-        actor_name = getattr(lg, "actor_name", None) if lg else None
-        opinion = getattr(lg, "opinion", None) if lg else None
+
+        node_logs = sorted(
+            logs_by_node.get(n.id) or [],
+            key=lambda x: x.created_at or x.updated_at or _now(),
+        )
+        actionable = [l for l in node_logs if getattr(l, "action", None) in _LOG_ACTIONS]
+        last_lg = actionable[-1] if actionable else None
+        last_action = getattr(last_lg, "action", None) if last_lg else None
+
         cfg = n.config if isinstance(getattr(n, "config", None), dict) else {}
-        if cfg.get("auto_approve") or action == "auto_approve":
-            action = action or "auto_approve"
-            actor_name = actor_name or "系统"
-            if not opinion:
-                opinion = f"节点「{n.node_name}」无审批人，自动通过"
-        # 历史数据兼容：旧版驳回未关闭节点，仍为 running，但操作已是驳回 / 流程已结束
-        display_status = n.status
-        if display_status == "running":
-            if action in ("reject", "auto_reject") or process_status == "rejected":
-                display_status = "rejected"
-            elif process_status == "withdrawn":
-                display_status = "cancelled"
-            elif process_status == "completed":
-                # 旁路抄送误触 end 等历史数据：流程已结束但节点未关
-                display_status = "cancelled"
-        # 处理中：负责人必须是当前待办人。转交后 last_log 是转交人，不能盖住接收人。
-        if display_status == "running" and assignees:
-            _task_st = {
-                "pending": "待处理", "waiting": "排队中", "approved": "已通过",
-                "rejected": "已驳回", "cancelled": "已取消",
-            }
-            active = [a for a in assignees if a.get("status") != "cancelled"]
-            if action in ("transfer", "auto_transfer") and lg:
-                xfer = getattr(lg, "actor_name", None) or "上一处理人"
-                label = "自动转交" if action == "auto_transfer" else "转交"
-                op = (opinion or "").strip()
-                # 意见保留转交痕迹；操作改为 pending，避免「当前负责人=接收人 + 操作=转交」歧义
-                opinion = f"{xfer}{label}" + (f"：{op}" if op else "")
-                action = "pending"
-            if len(active) > 1:
-                parts = [
-                    f"{a['name']}({_task_st.get(a['status'], a['status'])})"
-                    for a in active
-                ]
-                if parts:
-                    actor_name = "、".join(parts)
-            else:
-                pending_names = [a["name"] for a in active if a["status"] == "pending"]
-                waiting_names = [a["name"] for a in active if a["status"] == "waiting"]
-                names = pending_names or waiting_names or [a["name"] for a in active]
-                if names:
-                    actor_name = "、".join(names)
-            action = action or "pending"
-        # 抄送节点：被抄送人放 assignees，供「查看抄送详情」；处理人显示为系统
+
+        # 抄送：一条卡片即可
         if n.node_type == "cc":
             cc_uids = cc_by_node.get(n.id) or []
             uniq: list[str] = []
             for uid in cc_uids:
                 if uid not in uniq:
                     uniq.append(uid)
-            if uniq:
-                assignees = [
-                    {"id": uid, "name": name_map.get(uid, uid), "status": "completed"}
-                    for uid in uniq
-                ]
-            actor_name = actor_name or "系统"
-            action = action or "cc"
-        # 处理中耗时应持续计时；勿用转交等中间日志时间把耗时钉死
-        if display_status == "running":
-            end_at = _now()
-        else:
-            end_at = n.completed_at or (getattr(lg, "created_at", None) if lg else None)
-        out.append({
-            "node_instance_id": n.id,
-            "node_def_id": n.node_def_id,
-            "node_name": n.node_name,
-            "node_type": n.node_type,
-            "status": display_status,
-            "status_text": status_text.get(display_status, display_status),
-            "assignees": assignees,
-            "handler_name": actor_name,
-            "action": action,
-            "opinion": opinion,
-            "started_at": n.started_at.isoformat() if n.started_at else None,
-            "completed_at": n.completed_at.isoformat() if n.completed_at else None,
-            "duration": _fmt_duration(n.started_at, end_at),
-            "is_current": display_status == "running",
-        })
+            cc_assignees = [
+                {"id": uid, "name": name_map.get(uid, uid), "status": "completed"}
+                for uid in uniq
+            ]
+            out.append(_step(
+                step_key=f"{n.id}:cc",
+                n=n,
+                status="completed",
+                handler_name="系统",
+                action="cc",
+                opinion=None,
+                assignees=cc_assignees,
+                started_at=n.started_at,
+                completed_at=n.completed_at or n.started_at,
+                is_current=False,
+            ))
+            continue
+
+        # 历史兼容：节点仍 running 但已驳回/撤回/流程结束
+        force_status = None
+        if n.status == "running":
+            if last_action in ("reject", "auto_reject") or process_status == "rejected":
+                force_status = "rejected"
+            elif process_status == "withdrawn":
+                force_status = "cancelled"
+            elif process_status == "completed":
+                force_status = "cancelled"
+
+        # 自动通过（无日志时靠 config）
+        if cfg.get("auto_approve") and not actionable:
+            out.append(_step(
+                step_key=f"{n.id}:auto",
+                n=n,
+                status="completed",
+                handler_name="系统",
+                action="auto_approve",
+                opinion=f"节点「{n.node_name}」无审批人，自动通过",
+                assignees=assignees,
+                started_at=n.started_at,
+                completed_at=n.completed_at or n.started_at,
+                is_current=False,
+            ))
+            continue
+
+        # 每条操作日志 → 一条动态（转交人单独成卡，对齐简道云）
+        prev_at = n.started_at
+        for lg in actionable:
+            act = lg.action
+            st = "rejected" if act in ("reject", "auto_reject") else "completed"
+            if force_status == "rejected" and act in ("reject", "auto_reject"):
+                st = "rejected"
+            actor = lg.actor_name or (name_map.get(lg.actor_id) if lg.actor_id else None)
+            op = lg.opinion
+            if act == "auto_approve":
+                actor = actor or "系统"
+                if not op:
+                    op = f"节点「{n.node_name}」无审批人，自动通过"
+            done_at = lg.created_at
+            out.append(_step(
+                step_key=f"{n.id}:log:{getattr(lg, 'id', id(lg))}",
+                n=n,
+                status=st,
+                handler_name=actor,
+                action=act,
+                opinion=op,
+                assignees=assignees,
+                started_at=prev_at or done_at,
+                completed_at=done_at,
+                is_current=False,
+            ))
+            prev_at = done_at
+
+        # 仍在处理中：当前待办人单独一条（转交后显示接收人）
+        if n.status == "running" and not force_status:
+            _task_st = {
+                "pending": "待处理", "waiting": "排队中", "approved": "已通过",
+                "rejected": "已驳回", "cancelled": "已取消",
+            }
+            active = [a for a in assignees if a.get("status") != "cancelled"]
+            pending = [a for a in active if a["status"] == "pending"]
+            waiting = [a for a in active if a["status"] == "waiting"]
+            if len(active) > 1:
+                handler = "、".join(
+                    f"{a['name']}({_task_st.get(a['status'], a['status'])})"
+                    for a in active
+                )
+            else:
+                names = [a["name"] for a in (pending or waiting or active)]
+                handler = "、".join(names) if names else None
+            # 转交后待办起点用转交时间，对齐简道云 runningNodes.startAt
+            cur_start = prev_at or n.started_at
+            out.append(_step(
+                step_key=f"{n.id}:current",
+                n=n,
+                status="running",
+                handler_name=handler,
+                action="pending",
+                opinion=None,
+                assignees=assignees,
+                started_at=cur_start,
+                completed_at=None,
+                is_current=True,
+            ))
+        elif not actionable and force_status:
+            # 无日志的僵死节点
+            out.append(_step(
+                step_key=f"{n.id}:force",
+                n=n,
+                status=force_status,
+                handler_name=getattr(last_lg, "actor_name", None) if last_lg else None,
+                action=last_action,
+                opinion=getattr(last_lg, "opinion", None) if last_lg else None,
+                assignees=assignees,
+                started_at=n.started_at,
+                completed_at=n.completed_at or (getattr(last_lg, "created_at", None) if last_lg else None),
+                is_current=False,
+            ))
+        elif not actionable and n.status == "completed":
+            # 无日志已完成：用任务汇总兜底
+            handler = None
+            if assignees:
+                handler = "、".join(a["name"] for a in assignees)
+            out.append(_step(
+                step_key=f"{n.id}:done",
+                n=n,
+                status="completed",
+                handler_name=handler,
+                action="approve",
+                opinion=None,
+                assignees=assignees,
+                started_at=n.started_at,
+                completed_at=n.completed_at,
+                is_current=False,
+            ))
+
+    # 最新在前（同节点：当前处理中 > 最近操作）
+    def _sort_key(s: dict):
+        raw = s.get("completed_at") or s.get("started_at") or ""
+        # 处理中置顶于同节点其它卡片：加一点权重
+        boost = 1 if s.get("is_current") else 0
+        return (raw, boost)
+
+    out.sort(key=_sort_key, reverse=True)
     return out
 
 
