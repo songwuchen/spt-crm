@@ -1,7 +1,7 @@
 /** 线索流程：信息情报部 vs 业务员确认是否转商机 */
+import type { WfFieldPerm } from '@/types/lowcode'
 
-export function isLeadOwnerConfirmNode(nodeName?: string | null, nodeId?: string | null): boolean {
-  const id = (nodeId || '').trim()
+export function isLeadOwnerConfirmNode(nodeName?: string | null, nodeId?: string | null): boolean {  const id = (nodeId || '').trim()
   if (id === 'cc_owner' || id === 'approval_owner_confirm') return true
   const name = (nodeName || '').trim()
   if (!name) return false
@@ -69,7 +69,7 @@ export function isLeadReactivationFollowTodo(opts: {
 }
 
 /** 线索情报审节点默认可填字段（租户自建流未配 field_perms 时前端兜底） */
-export const LEAD_INTEL_FIELD_PERMS: { field: string; access: string }[] = [
+export const LEAD_INTEL_FIELD_PERMS: WfFieldPerm[] = [
   { field: 'customer_newness', access: 'required' },
   { field: 'reject_reason', access: 'editable' },
   { field: 'assess_remark', access: 'editable' },
