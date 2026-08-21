@@ -44,6 +44,8 @@ def build_excel(title: str, headers: list[str], rows: list[list]) -> io.BytesIO:
         for col_idx, val in enumerate(row_data, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.border = thin_border
+            if isinstance(val, str) and "\n" in val:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
 
     # Auto-width (approximate)
     for col_idx, h in enumerate(headers, 1):
@@ -83,6 +85,8 @@ def _style_sheet(ws, headers: list[str], rows: list[list]) -> None:
         for col_idx, val in enumerate(row_data, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.border = thin_border
+            if isinstance(val, str) and "\n" in val:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
 
     for col_idx, h in enumerate(headers, 1):
         max_len = len(str(h))

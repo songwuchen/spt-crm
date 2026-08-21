@@ -36,24 +36,40 @@ export const APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'mixed', label: '组合选人', needValue: 'mixed' },
 ]
 
-function personFieldOptions(formFields: FieldDefinition[], current?: string) {
+function personFieldOptions(formFields: FieldDefinition[], currents: string[] = []) {
   const opts = formFields
     .filter((f) => f.type === 'person' || f.type === 'person_multi')
     .map((f) => ({ value: f.id, label: f.label || f.id }))
-  if (current && !opts.some((o) => o.value === current)) {
-    opts.unshift({ value: current, label: current })
+  for (const current of currents) {
+    if (current && !opts.some((o) => o.value === current)) {
+      opts.unshift({ value: current, label: current })
+    }
   }
   return opts
 }
 
-function deptFieldOptions(formFields: FieldDefinition[], current?: string) {
+function deptFieldOptions(formFields: FieldDefinition[], currents: string[] = []) {
   const opts = formFields
     .filter((f) => f.type === 'department' || f.type === 'department_multi')
     .map((f) => ({ value: f.id, label: f.label || f.id }))
-  if (current && !opts.some((o) => o.value === current)) {
-    opts.unshift({ value: current, label: current })
+  for (const current of currents) {
+    if (current && !opts.some((o) => o.value === current)) {
+      opts.unshift({ value: current, label: current })
+    }
   }
   return opts
+}
+
+function asFieldIds(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  if (typeof value === 'string' && value.trim()) return [value.trim()]
+  return []
+}
+
+/** 单字段存 string，多字段存 string[]（对齐后端 form_field_person 解析） */
+function normalizeFieldIds(ids: string[]): string | string[] | undefined {
+  if (ids.length <= 1) return ids[0] || undefined
+  return ids
 }
 
 function asSubRules(value: unknown): WfApproverRule[] {
@@ -186,32 +202,36 @@ function AtomicValueEditor({
     return <PersonField value={rule.value} onChange={onChange} multi />
   }
   if (meta.needValue === 'field_person') {
-    const cur = typeof rule.value === 'string' ? rule.value : undefined
+    const selected = asFieldIds(rule.value)
     return (
       <Select
         size="small"
+        mode="multiple"
+        allowClear
         style={{ width: '100%' }}
-        placeholder="选择人员字段"
-        value={cur}
-        options={personFieldOptions(formFields, cur)}
+        placeholder="选择人员字段（可多选，取并集）"
+        value={selected}
+        options={personFieldOptions(formFields, selected)}
         optionFilterProp="label"
         showSearch
-        onChange={onChange}
+        onChange={(ids) => onChange(normalizeFieldIds(ids))}
       />
     )
   }
   if (meta.needValue === 'field_dept') {
-    const cur = typeof rule.value === 'string' ? rule.value : undefined
+    const selected = asFieldIds(rule.value)
     return (
       <Select
         size="small"
+        mode="multiple"
+        allowClear
         style={{ width: '100%' }}
-        placeholder="选择部门字段"
-        value={cur}
-        options={deptFieldOptions(formFields, cur)}
+        placeholder="选择部门字段（可多选）"
+        value={selected}
+        options={deptFieldOptions(formFields, selected)}
         optionFilterProp="label"
         showSearch
-        onChange={onChange}
+        onChange={(ids) => onChange(normalizeFieldIds(ids))}
       />
     )
   }

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -173,14 +173,25 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
     if not user:
         return ok(None)
 
-    dept_ids: list[str] = []
-    dept_name: str | None = None
+    dept_entries: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
     for ud in (user.user_departments or []):
         did = getattr(ud, "department_id", None)
-        if did and did not in dept_ids:
-            dept_ids.append(did)
-        if not dept_name and getattr(ud, "department", None) is not None:
-            dept_name = getattr(ud.department, "name", None)
+        if not did or did in seen:
+            continue
+        seen.add(did)
+        dname = None
+        if getattr(ud, "department", None) is not None:
+            dname = getattr(ud.department, "name", None)
+        dept_entries.append((did, dname))
+
+    # 多部门：主部门优先非「市场支持中心」（支持中心本身无合同，不宜作为唯一默认）
+    support = [e for e in dept_entries if (e[1] or "") == "市场支持中心"]
+    others = [e for e in dept_entries if (e[1] or "") != "市场支持中心"]
+    ordered = others + support if others else dept_entries
+    dept_ids = [e[0] for e in ordered]
+    dept_name = ordered[0][1] if ordered else None
+    departments = [{"id": e[0], "name": e[1] or ""} for e in ordered]
 
     # 权限/角色以库为准，避免角色调整后仍读 JWT 里的旧清单（编辑按钮等前端门控会错）
     permissions = await get_user_permissions(db, user.id, user.tenant_id)
@@ -200,6 +211,7 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
         department_id=dept_ids[0] if dept_ids else None,
         department_ids=dept_ids,
         department_name=dept_name,
+        departments=departments,
     )
     return ok(info.model_dump())
 
@@ -475,34 +487,75 @@ async def _issue_login_tokens(db: AsyncSession, user, request: Request, summary:
     return tokens.model_dump()
 
 
+async def _list_dingtalk_endpoints(db):
+    from sqlalchemy import select as sa_select
+    from app.domains.admin.models import IntegrationEndpoint
+
+    return (await db.execute(
+        sa_select(IntegrationEndpoint).where(
+            IntegrationEndpoint.system_code == "dingtalk_oa",
+        ).order_by(IntegrationEndpoint.created_at)
+    )).scalars().all()
+
+
+def _dingtalk_cfg(ep) -> dict:
+    from app.common.crypto import decrypt_config_json
+    raw = ep.auth_config_json or {}
+    return decrypt_config_json(raw) or raw or {}
+
+
+async def _resolve_dingtalk_endpoint(
+    db, *, tenant_code: str | None = None, corp_id: str | None = None,
+):
+    """多租户钉钉：优先 tenant_code，再 corp_id，最后才回落到最早创建的集成。"""
+    eps = await _list_dingtalk_endpoints(db)
+    if not eps:
+        return None
+    if tenant_code:
+        from app.domains.tenant.models import PlatformTenant
+        tenant = (await db.execute(
+            select(PlatformTenant).where(PlatformTenant.code == tenant_code)
+        )).scalar_one_or_none()
+        if tenant:
+            ep = next((e for e in eps if e.tenant_id == tenant.id), None)
+            if ep:
+                return ep
+    if corp_id:
+        ep = next((e for e in eps if _dingtalk_cfg(e).get("corp_id") == corp_id), None)
+        if ep:
+            return ep
+    return eps[0]
+
+
 @router.get("/dingtalk/config")
-async def dingtalk_sso_config(db: AsyncSession = Depends(get_db)):
+async def dingtalk_sso_config(
+    tenant_code: str | None = Query(None, description="租户 code，多租户时定位正确钉钉应用"),
+    corp_id: str | None = Query(None, description="钉钉 corpId，工作台 $CORPID$ 占位可传入"),
+    db: AsyncSession = Depends(get_db),
+):
     """Public endpoint — returns DingTalk OAuth config for the login page.
     Only exposes app_key and login_enabled; never the secret.
     """
-    from sqlalchemy import select as sa_select
     from sqlalchemy.exc import ProgrammingError, OperationalError
-    from app.domains.admin.models import IntegrationEndpoint
 
     try:
-        ep = (await db.execute(
-            sa_select(IntegrationEndpoint).where(
-                IntegrationEndpoint.system_code == "dingtalk_oa",
-            ).order_by(IntegrationEndpoint.created_at).limit(1)
-        )).scalar_one_or_none()
+        ep = await _resolve_dingtalk_endpoint(db, tenant_code=tenant_code, corp_id=corp_id)
     except (ProgrammingError, OperationalError):
         # Empty DB / migrations not applied yet — login page should still render.
         await db.rollback()
-        return ok({"login_enabled": False, "app_key": ""})
+        return ok({"login_enabled": False, "app_key": "", "corp_id": "", "tenant_code": tenant_code or ""})
 
     if not ep:
-        return ok({"login_enabled": False, "app_key": ""})
+        return ok({"login_enabled": False, "app_key": "", "corp_id": "", "tenant_code": tenant_code or ""})
 
-    cfg = ep.auth_config_json or {}
+    cfg = _dingtalk_cfg(ep)
+    from app.domains.tenant.models import PlatformTenant
+    tenant = (await db.execute(select(PlatformTenant).where(PlatformTenant.id == ep.tenant_id))).scalar_one_or_none()
     return ok({
         "login_enabled": cfg.get("login_enabled", False),
         "app_key": cfg.get("app_key", ""),
         "corp_id": cfg.get("corp_id", ""),
+        "tenant_code": tenant.code if tenant else "",
     })
 
 
@@ -522,18 +575,14 @@ async def dingtalk_sso_callback(
     from app.common.dingtalk_sync import exchange_oauth_code, get_dingtalk_user_info
     from app.config import settings
 
-    # Load DingTalk config
-    ep = (await db.execute(
-        sa_select(IntegrationEndpoint).where(
-            IntegrationEndpoint.system_code == "dingtalk_oa",
-        ).order_by(IntegrationEndpoint.created_at).limit(1)
-    )).scalar_one_or_none()
+    ep = await _resolve_dingtalk_endpoint(
+        db, tenant_code=body.tenant_code, corp_id=body.corp_id,
+    )
 
     if not ep:
         raise BusinessException(code=40300, message="钉钉集成未配置")
 
-    from app.common.crypto import decrypt_config_json
-    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
+    cfg = _dingtalk_cfg(ep)
     if not cfg.get("login_enabled"):
         raise BusinessException(code=40300, message="钉钉登录未启用")
 
@@ -596,22 +645,14 @@ async def dingtalk_jsapi_login(
     from app.domains.admin.models import IntegrationEndpoint
     from app.domains.auth.models import User
     from app.common.dingtalk_sync import get_userinfo_by_auth_code
-    from app.common.crypto import decrypt_config_json
 
-    eps = (await db.execute(
-        sa_select(IntegrationEndpoint).where(
-            IntegrationEndpoint.system_code == "dingtalk_oa",
-        ).order_by(IntegrationEndpoint.created_at)
-    )).scalars().all()
-    if not eps:
+    ep = await _resolve_dingtalk_endpoint(
+        db, tenant_code=body.tenant_code, corp_id=body.corp_id,
+    )
+    if not ep:
         raise BusinessException(code=40300, message="钉钉集成未配置")
-    # 多租户：前端带了 corpId 时选 corp_id 匹配的配置（定位到正确租户），否则取最早创建的
-    ep = None
-    if body.corp_id:
-        ep = next((e for e in eps if (e.auth_config_json or {}).get("corp_id") == body.corp_id), None)
-    ep = ep or eps[0]
 
-    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
+    cfg = _dingtalk_cfg(ep)
     if not cfg.get("login_enabled"):
         raise BusinessException(code=40300, message="钉钉登录未启用")
     app_key = cfg.get("app_key", "")

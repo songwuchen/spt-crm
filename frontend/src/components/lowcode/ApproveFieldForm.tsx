@@ -17,6 +17,8 @@ import ContractField, {
 import TechAgreementReviewField, {
   fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
 } from '@/components/lowcode/fields/TechAgreementReviewField'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { contractPickDepartments } from '@/utils/contractPickDepartments'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates, validateApproverDetailRows } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
@@ -148,6 +150,7 @@ export default function ApproveFieldForm({
   formData?: Record<string, unknown>
   formFields?: FieldDefinition[]
 }) {
+  const currentUser = useAuthStore((s) => s.user)
   const metaById = Object.fromEntries((currentTask.field_meta || []).map((m) => [m.id, m]))
   const perms = currentTask.field_perms || []
   const [localHighlight, setLocalHighlight] = useState(highlightMissing)
@@ -349,22 +352,24 @@ export default function ApproveFieldForm({
           if (t === 'contract') {
             const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' }).contract_fill
             const deptField = (fieldProps as { filter_by_department_field?: string }).filter_by_department_field
-            let departmentId: string | undefined
+            let formDepartmentId: string | undefined
             if (deptField) {
               const rawDept = mergedValues[deptField]
               if (Array.isArray(rawDept) && rawDept[0] != null && rawDept[0] !== '') {
-                departmentId = String(rawDept[0])
+                formDepartmentId = String(rawDept[0])
               } else if (rawDept != null && rawDept !== '') {
-                departmentId = String(rawDept)
+                formDepartmentId = String(rawDept)
               }
             }
+            const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FieldLabel label={label} required={required} error={err} />
                 <div style={{ marginTop: 4 }}>
                   <ContractField
                     value={val}
-                    departmentId={departmentId}
+                    departmentId={pickDepts.departmentId}
+                    departmentIds={pickDepts.departmentIds}
                     placeholder={`请选择${label}`}
                     onChange={(v) => {
                       if (!fillMode) {

@@ -494,33 +494,57 @@ async def pickable_contracts(
     keyword: str | None = Query(None),
     ids: str | None = Query(None, description="逗号分隔的合同 id，用于只读回显"),
     department_id: str | None = Query(
-        None, description="按合同所属部门过滤（生产卡：只能选所在部门关联合同）",
+        None, description="按合同所属部门过滤（单部门用户或表单指定部门）",
+    ),
+    department_ids: str | None = Query(
+        None, description="逗号分隔的部门 id；多部门编制用户选合同时并集过滤",
     ),
     page: int | None = Query(None, ge=1, description="传 page 时返回弹窗分页结构"),
     page_size: int = Query(20, ge=1, le=50),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """表单/审批关联合同：按图纸编号检索与回显（仅需登录，不要求 contract:view）。"""
+    from app.common.data_scope import org_department_subtree_ids, resolve_module_scope
     from app.domains.contract.models import Contract
+    from app.domains.lowcode.contract_pick_scope import (
+        apply_contract_department_filter,
+        resolve_pick_department_ids,
+    )
     from sqlalchemy import case
 
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    dept_id_list = [x.strip() for x in (department_ids or "").split(",") if x.strip()]
+    scope = await resolve_module_scope(db, current_user, tenant_id)
+    user_depts = await org_department_subtree_ids(db, tenant_id, current_user.get("sub"))
+    pick_depts = resolve_pick_department_ids(
+        scope_all=(scope == "all"),
+        user_department_ids=user_depts,
+        department_id=department_id,
+        department_ids=dept_id_list or None,
+        for_id_lookup=bool(id_list),
+    )
+
     if page is not None:
         from app.domains.lowcode.contract_pick import list_pickable_contracts_page
         data = await list_pickable_contracts_page(
             db, tenant_id,
             keyword=keyword, ids=id_list or None,
-            department_id=department_id, page=page, page_size=page_size,
+            department_id=department_id,
+            department_ids=dept_id_list or None,
+            scope_all=(scope == "all"),
+            user_department_ids=user_depts,
+            page=page, page_size=page_size,
         )
         return ok(data)
     q = select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
         Contract.tenant_id == tenant_id,
     )
-    dept = (department_id or "").strip()
-    if dept and not id_list:
-        q = q.where(Contract.department_id == dept)
+    dept_conds: list = []
+    apply_contract_department_filter(dept_conds, Contract, pick_depts)
+    if dept_conds:
+        q = q.where(*dept_conds)
     if id_list:
         q = q.where(Contract.id.in_(id_list))
     elif keyword:
@@ -1418,6 +1442,36 @@ def _export_detail_columns(detail_fd: dict, roles: set[str]) -> list[dict]:
     return out
 
 
+def _export_detail_col_specs(
+    detail_fields: list,
+    roles: set[str],
+) -> tuple[list[tuple[dict, dict]], list[str]]:
+    """明细列定义与表头；仅当不同子表存在同名列时才加子表前缀。"""
+    specs: list[tuple[dict, dict]] = []
+    clabels: list[str] = []
+    for dfd in detail_fields:
+        for col in _export_detail_columns(dfd, roles):
+            specs.append((dfd, col))
+            clabels.append(str(col.get("label") or col.get("id") or ""))
+    dup = {lb for lb in clabels if lb and clabels.count(lb) > 1}
+    headers: list[str] = []
+    for (dfd, col), clabel in zip(specs, clabels):
+        if clabel in dup:
+            dlabel = str(dfd.get("label") or dfd.get("id") or "明细")
+            headers.append(f"{dlabel}·{clabel}")
+        else:
+            headers.append(clabel)
+    return specs, headers
+
+
+def _detail_row_count(fd_data: dict, dfd: dict) -> int:
+    fid = dfd.get("id")
+    raw = fd_data.get(fid) if fid else None
+    if not isinstance(raw, list):
+        return 0
+    return sum(1 for row in raw if isinstance(row, dict))
+
+
 def _build_form_export_sheets(
     *,
     sheet_title: str,
@@ -1426,14 +1480,67 @@ def _build_form_export_sheets(
     label_maps: dict[str, dict[str, str]],
     roles: set[str],
     truncated: bool,
+    layout: str = "flat",
 ) -> list[tuple[str, list[str], list[list]]]:
-    """主表 + 每个明细一张 sheet。filtered_rows: [(inst, fd_data), ...]。"""
+    """导出 sheet 列表。filtered_rows: [(inst, fd_data), ...]。
+
+    layout=flat（默认）：单 sheet，主表字段与明细按行展开（每条明细一行，主字段重复）。
+    layout=multi：主表 + 每个明细子表各一张 sheet（旧版简道云风格）。
+    """
     users = (label_maps or {}).get("users") or {}
-    main_headers = (
-        ["业务编号", "标题", "状态", "创建人", "创建时间"]
-        + [fd.get("label") or fd.get("id") for fd in data_fields]
-    )
-    main_rows: list[list] = []
+    meta_headers = ["业务编号", "标题", "状态", "创建人", "创建时间"]
+
+    if layout == "flat":
+        scalar_fields = [
+            fd for fd in data_fields
+            if (fd.get("type") or "") not in ("detail_table", "sub_table_data")
+        ]
+        detail_fields = [
+            fd for fd in data_fields
+            if (fd.get("type") or "") in ("detail_table", "sub_table_data")
+        ]
+        detail_col_specs, detail_headers = _export_detail_col_specs(detail_fields, roles)
+
+        main_headers = list(meta_headers)
+        main_headers += [str(fd.get("label") or fd.get("id") or "") for fd in scalar_fields]
+        main_headers += detail_headers
+
+        main_rows: list[list] = []
+        for inst, fd_data in filtered_rows:
+            initiator_id = getattr(inst, "initiator_id", None) or ""
+            base = [
+                inst.business_no or "", inst.title or "",
+                _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
+                users.get(str(initiator_id), "") if initiator_id else "",
+                inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
+            ]
+            base += [
+                _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
+                for fd in scalar_fields
+            ]
+            detail_counts = [_detail_row_count(fd_data, dfd) for dfd in detail_fields]
+            row_count = max(detail_counts + [1])
+            for idx in range(row_count):
+                line = list(base)
+                for dfd, col in detail_col_specs:
+                    fid = dfd.get("id")
+                    raw = fd_data.get(fid) if fid else None
+                    cell = ""
+                    if isinstance(raw, list) and idx < len(raw) and isinstance(raw[idx], dict):
+                        cell = _fmt_export_cell(
+                            col.get("type"), raw[idx].get(col.get("id")), label_maps,
+                        )
+                    line.append(cell)
+                main_rows.append(line)
+        if truncated:
+            note = [
+                f"⚠ 数据超过导出上限 {_EXPORT_ROW_CAP} 条，已按最新时间截断，请缩小筛选范围后再导出",
+            ]
+            main_rows.append(note + [""] * (len(main_headers) - 1))
+        return [(sheet_title or "表单数据", main_headers, main_rows)]
+
+    main_headers = meta_headers + [fd.get("label") or fd.get("id") for fd in data_fields]
+    main_rows = []
     for inst, fd_data in filtered_rows:
         initiator_id = getattr(inst, "initiator_id", None) or ""
         line = [
@@ -1543,12 +1650,13 @@ async def export_form_instances(
     keyword: str = Query(None),
     status: str = Query(None),
     filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
+    layout: str = Query("flat", description="flat=单 sheet 主从合并行展开；multi=主表+各明细分 sheet"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_permissions("form_data:view")),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
-    """导出当前筛选下的表单数据为 Excel（主表 + 每个明细子表一张 sheet，对齐简道云）。"""
+    """导出当前筛选下的表单数据为 Excel（默认单 sheet，主表与明细合并按行展开）。"""
     tpl, field_defs, rows = await service.export_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
         filters=filters, limit=_EXPORT_ROW_CAP, user=user,
@@ -1569,6 +1677,7 @@ async def export_form_instances(
             field_defs, inst.form_data or {}, _roles, is_creator=is_creator,
         )
         filtered_rows.append((inst, fd_data))
+    export_layout = "multi" if (layout or "").strip().lower() == "multi" else "flat"
     sheets = _build_form_export_sheets(
         sheet_title=(tpl.name if tpl else "表单数据"),
         data_fields=data_fields,
@@ -1576,6 +1685,7 @@ async def export_form_instances(
         label_maps=label_maps,
         roles=_roles,
         truncated=len(rows) >= _EXPORT_ROW_CAP,
+        layout=export_layout,
     )
     buf = build_excel_multi(sheets)
     fname = f"{(tpl.name if tpl else '表单数据')}.xlsx"

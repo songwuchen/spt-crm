@@ -119,6 +119,7 @@ async def list_definitions(db, tenant_id, page_no, page_size, name=None):
         await ensure_all_biz_defaults(db, tenant_id)
     except Exception as e:
         logger.warning("ensure_all_biz_defaults on list failed: %s", e)
+        await db.rollback()
     conds = [WfProcessDefinition.tenant_id == tenant_id, WfProcessDefinition.is_deleted == False]  # noqa: E712
     if name:
         conds.append(WfProcessDefinition.name.ilike(f"%{name}%"))
@@ -2595,6 +2596,7 @@ async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
             )
         except Exception as e:
             logger.warning("ensure default flow %s failed: %s", spec.get("code"), e)
+            await db.rollback()
     await ensure_all_form_defaults(db, tenant_id)
 
 
@@ -2606,6 +2608,29 @@ async def ensure_all_form_defaults(db, tenant_id: str) -> None:
             await ensure_builtin_form(db, tenant_id, spec["form_code"], {"sub": None})
         except Exception as e:
             logger.warning("ensure form flow %s failed: %s", spec.get("code"), e)
+            await db.rollback()
+    # 租户自建线索流（如 WF_*）也补齐情报审 field_perms，否则审批页无「新/老、收录/袭击」
+    try:
+        lead_defs = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.biz_type == "lead",
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+            WfProcessDefinition.status == "published",
+        ))).scalars().all()
+        for d in lead_defs:
+            try:
+                await _upgrade_lead_intel_field_perms_if_needed(db, tenant_id, d)
+            except Exception as e:
+                logger.warning("upgrade lead intel field perms %s failed: %s", d.code, e)
+                await db.rollback()
+            try:
+                await _upgrade_lead_owner_confirm_if_missing(db, tenant_id, d)
+            except Exception as e:
+                logger.warning("upgrade lead owner confirm %s failed: %s", d.code, e)
+                await db.rollback()
+    except Exception as e:
+        logger.warning("ensure lead intel field perms failed: %s", e)
+        await db.rollback()
 
 
 # 引擎在「有条件边命中时会忽略无条件 else」：与条件边并存的必经边需挂恒真条件。
@@ -3614,19 +3639,26 @@ async def _upgrade_lead_intel_field_perms_if_needed(
     """给线索情报审批节点补齐「本节点可填写字段」（不改审批人，尊重租户已配指定人）。
 
     字段顺序对齐简道云：新/老 → 回退原因 → 备注2 → 操作意见（最终状态由情报表单承担）。
+    系统默认流与租户自建 lead 流均适用；跳过「业务员确认转商机」节点。
     """
-    if d.code != "SYS_LEAD_REVIEW":
-        return
-    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+    if d.biz_type != "lead":
         return
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return
     nodes = list(version.node_definitions or [])
-    approvals = [n for n in nodes if isinstance(n, dict) and n.get("type") == "approval"]
-    if len(approvals) != 1:
+    ap = None
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        nid = (n.get("id") or "").strip()
+        name = (n.get("name") or "").strip()
+        if nid in ("approval_owner_confirm", "cc_owner") or "转商机" in name or "确认转化" in name:
+            continue
+        ap = n
+        break
+    if not ap:
         return
-    ap = approvals[0]
     existing = {
         (p.get("field") or p.get("id")): p
         for p in (ap.get("field_perms") or [])
@@ -5660,6 +5692,59 @@ async def _upgrade_lead_owner_confirm_to_approval_if_needed(
         db, tenant_id, d, version, new_nodes, new_routes,
         "系统默认流程（业务员确认是否转商机：抄送→审批）",
         "线索业务员确认改审批",
+    )
+
+
+async def _upgrade_lead_owner_confirm_if_missing(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """租户自建/系统 lead 流：唯一情报审后直接结束 → 插入「业务员确认是否转商机」。
+
+    对齐简道云：情报收录后由申报人（业务员）确认是否转商机，而非流程直接结束。
+    """
+    if d.biz_type != "lead":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    nodes = list(version.node_definitions or [])
+    routes = list(version.route_definitions or [])
+    if _flow_has_owner_cc(nodes):
+        return
+    intel_nodes = [
+        n for n in nodes
+        if isinstance(n, dict) and n.get("type") == "approval" and not _is_lead_owner_confirm_node_dict(n)
+    ]
+    if len(intel_nodes) != 1:
+        return
+    intel_id = intel_nodes[0].get("id")
+    if not intel_id:
+        return
+    confirm = _lead_owner_confirm_node()
+    new_nodes = [n for n in nodes if n.get("id") != confirm["id"]]
+    new_nodes.append(confirm)
+    new_routes: list[dict] = []
+    patched = False
+    for r in routes:
+        rr = dict(r)
+        if rr.get("source") == intel_id and rr.get("target") == "end":
+            rr["target"] = confirm["id"]
+            patched = True
+        new_routes.append(rr)
+    if not patched:
+        return
+    new_routes.append({
+        "id": f"r_{confirm['id']}_end",
+        "source": confirm["id"],
+        "target": "end",
+    })
+    desc = (d.description or "").strip()
+    if "转商机" not in desc:
+        desc = (desc + "；" if desc else "") + "情报审后业务员确认是否转商机"
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        desc,
+        "线索流补齐业务员确认转商机节点",
     )
 
 

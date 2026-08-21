@@ -348,6 +348,8 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
 
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全
     customer_id = data.customer_id or (getattr(project, "customer_id", None) if project else None)
+    if not as_draft and not customer_id:
+        raise BusinessException(code=BUSINESS_ERROR, message="请选择关联客户")
 
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,

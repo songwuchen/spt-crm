@@ -133,6 +133,7 @@ def test_build_form_export_sheets_expands_details():
         label_maps=labels,
         roles=set(),
         truncated=False,
+        layout="multi",
     )
     assert len(sheets) == 3
     assert sheets[0][0] == "收款登记"
@@ -181,6 +182,7 @@ def test_build_form_export_sheets_empty_detail_headers_only():
         label_maps={},
         roles=set(),
         truncated=False,
+        layout="multi",
     )
     assert len(sheets) == 2
     assert sheets[1][0] == "来款明细"
@@ -203,3 +205,63 @@ def test_build_form_export_sheets_truncation_note():
     )
     assert len(sheets[0][2]) == 2
     assert "导出上限" in str(sheets[0][2][1][0])
+
+
+def test_build_form_export_sheets_flat_single_sheet():
+    """默认 flat：单 sheet，主从字段合并，每条明细占一行。"""
+    data_fields = [
+        {"id": "customer_name", "type": "customer", "label": "单位名称"},
+        {
+            "id": "payment_details",
+            "type": "detail_table",
+            "label": "来款明细",
+            "detail_table_columns": [
+                {"id": "payment_method", "type": "select", "label": "来款形式"},
+                {"id": "amount", "type": "number", "label": "金额"},
+            ],
+        },
+        {
+            "id": "payment_allocation",
+            "type": "detail_table",
+            "label": "款项分配",
+            "detail_table_columns": [
+                {"id": "drawing_no", "type": "text", "label": "图纸编号"},
+            ],
+        },
+    ]
+    inst = SimpleNamespace(
+        business_no="SK001",
+        title="测试收款",
+        status="completed",
+        created_at=datetime(2026, 8, 20, 10, 30),
+    )
+    fd_data = {
+        "customer_name": "c1",
+        "payment_details": [
+            {"payment_method": "电汇", "amount": 1000},
+            {"payment_method": "承兑", "amount": 500},
+        ],
+        "payment_allocation": [{"drawing_no": "WMGF-1"}],
+    }
+    labels = {"customers": {"c1": "珠海粤裕丰钢铁有限公司"}}
+    sheets = _build_form_export_sheets(
+        sheet_title="收款登记",
+        data_fields=data_fields,
+        filtered_rows=[(inst, fd_data)],
+        label_maps=labels,
+        roles=set(),
+        truncated=False,
+    )
+    assert len(sheets) == 1
+    headers, rows = sheets[0][1], sheets[0][2]
+    assert headers == [
+        "业务编号", "标题", "状态", "创建人", "创建时间",
+        "单位名称", "来款形式", "金额", "图纸编号",
+    ]
+    assert len(rows) == 2
+    assert rows[0][:6] == [
+        "SK001", "测试收款", "已通过", "", "2026-08-20 10:30", "珠海粤裕丰钢铁有限公司",
+    ]
+    assert rows[0][6:] == ["电汇", "1000", "WMGF-1"]
+    assert rows[1][:6] == rows[0][:6]
+    assert rows[1][6:] == ["承兑", "500", ""]

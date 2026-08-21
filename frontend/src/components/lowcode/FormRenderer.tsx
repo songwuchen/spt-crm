@@ -23,6 +23,7 @@ import ProjectField, {
 import ContractField, {
   fetchProdCardContractFill, PROD_CARD_FILL_CLEAR, warnPriorInvoicesAfterFill,
 } from './fields/ContractField'
+import { contractPickDepartments } from '@/utils/contractPickDepartments'
 import TechAgreementReviewField, {
   fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
 } from './fields/TechAgreementReviewField'
@@ -124,6 +125,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
 
 export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const currentUser = useAuthStore((s) => s.user)
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
     [applyFieldPerms, fields, userRoles],
@@ -402,22 +404,24 @@ function FieldWidget({
         contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice'
       }
       const deptField = props.filter_by_department_field
-      let departmentId: string | undefined
+      let formDepartmentId: string | undefined
       if (deptField) {
         const rawDept = allValues[deptField]
         if (Array.isArray(rawDept) && rawDept[0] != null && rawDept[0] !== '') {
-          departmentId = String(rawDept[0])
+          formDepartmentId = String(rawDept[0])
         } else if (rawDept != null && rawDept !== '') {
-          departmentId = String(rawDept)
+          formDepartmentId = String(rawDept)
         }
       }
+      const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
       const fillMode = props.contract_fill
       return (
         <ContractField
           value={value}
           readonly={readonly}
           placeholder={ph}
-          departmentId={departmentId}
+          departmentId={pickDepts.departmentId}
+          departmentIds={pickDepts.departmentIds}
           onChange={(v) => {
             if (!fillMode || !onPatch) {
               onChange(v)

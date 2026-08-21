@@ -26,7 +26,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
-import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath, LEAD_INTEL_FIELD_PERMS } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -378,7 +378,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const isLeadReactivation = detail?.biz_type === 'lead_reactivation'
   const originalBizEntries = bizEntries.filter(([k]) => !REACT_BIZ_LABELS.has(k))
   const activationBizEntries = bizEntries.filter(([k]) => REACT_BIZ_LABELS.has(k))
-  const hasNodeFields = canAct && (detail?.current_task?.field_perms?.length ?? 0) > 0
   const currentNode = detail?.current_task?.node_name
     || detail?.flow_steps?.find((s) => s.is_current)?.node_name
     || '审批'
@@ -396,6 +395,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     && !isReviseTask && !isLeadOwnerConfirm)
     || isLeadReactivationIntel
 
+  const taskFieldPerms = detail?.current_task?.field_perms || []
+  const effectiveFieldPerms = isLeadIntel && taskFieldPerms.length === 0
+    ? LEAD_INTEL_FIELD_PERMS
+    : taskFieldPerms
+  const hasNodeFields = canAct && effectiveFieldPerms.length > 0 && !!detail?.current_task
+
   const isLeadReactivationFollow = detail?.biz_type === 'lead_reactivation' && canAct && !!effectiveTaskId
     && isLeadReactivationFollowTodo({
       bizType: detail.biz_type,
@@ -409,13 +414,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const nodeFieldSection = hasNodeFields && detail?.current_task ? (
     <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
       <div className="text-sm font-semibold text-slate-700 mb-2">
-        本节点{(detail.current_task.field_perms || []).every((p) => p.access === 'readonly') ? '核对' : '填写'}
+        本节点{effectiveFieldPerms.every((p) => p.access === 'readonly') ? '核对' : '填写'}
         （{detail.current_task.node_name || '审批'}）
       </div>
       <ApproveFieldForm
         currentTask={{
           ...detail.current_task,
-          field_perms: (detail.current_task.field_perms || []).filter(
+          field_perms: effectiveFieldPerms.filter(
             (p) => p.field !== 'review_opinion',
           ),
         }}

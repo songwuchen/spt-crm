@@ -13,6 +13,14 @@ const DT_COLOR = '#1A7AF8'
 
 type TenantOpt = { code: string; name: string; id?: string }
 
+function resolveLoginTenantCode(searchParams: URLSearchParams): string | undefined {
+  return searchParams.get('tenant_code') || searchParams.get('tenant') || undefined
+}
+
+function resolveDingTalkCorpId(searchParams: URLSearchParams, fallback?: string): string | undefined {
+  return searchParams.get('corpId') || searchParams.get('corp_id') || fallback
+}
+
 function DingTalkIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -29,7 +37,7 @@ export default function Login() {
   const [form] = Form.useForm()
   const [needTotp, setNeedTotp] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string; corp_id: string } | null>(null)
+  const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string; corp_id: string; tenant_code?: string } | null>(null)
   const [dtLoading, setDtLoading] = useState(false)
   const [tenantOptions, setTenantOptions] = useState<TenantOpt[]>([])
 
@@ -41,12 +49,18 @@ export default function Login() {
     if (token) navigate(redirectTo, { replace: true })
   }, [token])
 
-  // Load DingTalk SSO config
+  const loginTenantCode = resolveLoginTenantCode(searchParams)
+  const urlCorpId = resolveDingTalkCorpId(searchParams)
+
+  // Load DingTalk SSO config（多租户：URL 带 tenant_code / corpId 时取对应租户的钉钉应用）
   useEffect(() => {
-    authApi.dingtalkConfig()
+    authApi.dingtalkConfig({
+      tenant_code: loginTenantCode,
+      corp_id: urlCorpId,
+    })
       .then(res => setDtConfig(res.data))
       .catch(() => {/* silently ignore — no config */})
-  }, [])
+  }, [loginTenantCode, urlCorpId])
 
   // Handle OAuth callback: if ?code= is present in URL, exchange it
   useEffect(() => {
@@ -71,7 +85,13 @@ export default function Login() {
     setDtLoading(true)
     const redirectUri = `${window.location.origin}/login`
     let cancelled = false
-    authApi.dingtalkCallback({ code, redirect_uri: redirectUri, state: state ?? undefined })
+    authApi.dingtalkCallback({
+      code,
+      redirect_uri: redirectUri,
+      state: state ?? undefined,
+      tenant_code: loginTenantCode || dtConfig?.tenant_code,
+      corp_id: urlCorpId || dtConfig?.corp_id,
+    })
       .then(res => {
         if (cancelled) return
         setAuth(res.data.access_token, res.data.refresh_token)
@@ -100,9 +120,15 @@ export default function Login() {
     if (searchParams.get('code')) return // 走 OAuth 回调分支，不重复触发
     if (token) return
 
+    const corpId = urlCorpId || dtConfig.corp_id
+    if (!corpId) return
     setDtLoading(true)
-    getDingTalkAuthCode(dtConfig.corp_id)
-      .then((authCode) => authApi.dingtalkJsapiLogin({ auth_code: authCode, corp_id: dtConfig.corp_id }))
+    getDingTalkAuthCode(corpId)
+      .then((authCode) => authApi.dingtalkJsapiLogin({
+        auth_code: authCode,
+        corp_id: corpId,
+        tenant_code: loginTenantCode || dtConfig.tenant_code,
+      }))
       .then((res) => {
         setAuth(res.data.access_token, res.data.refresh_token)
         navigate(redirectTo, { replace: true })

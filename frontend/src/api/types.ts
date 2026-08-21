@@ -38,10 +38,11 @@ export interface UserInfo {
   permissions: string[]
   /** 账号由系统代建（钉钉同步）且用户从未设过自己的密码——改密时无需填原密码 */
   must_change_password?: boolean
-  /** 主部门（填报 default_current_dept） */
+  /** 主部门（填报 default_current_dept）；多部门见 department_ids / departments */
   department_id?: string
   department_ids?: string[]
   department_name?: string
+  departments?: Array<{ id: string; name?: string }>
 }
 
 export interface Customer {

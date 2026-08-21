@@ -496,9 +496,13 @@ export default function ContractList() {
               onChange={(id) => { if (id) void fillFromProject(id) }}
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
           </Form.Item>
-          <Form.Item name="customer_id" label="关联客户">
+          <Form.Item
+            name="customer_id"
+            label="关联客户"
+            rules={[{ required: true, message: '请选择关联客户' }]}
+          >
             <Select
-              allowClear showSearch filterOption={false}
+              showSearch filterOption={false}
               placeholder="搜索客户管理中的客户"
               options={customerSelect.options}
               loading={customerSelect.loading}

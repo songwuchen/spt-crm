@@ -8,6 +8,10 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.contract.models import Contract
+from app.domains.lowcode.contract_pick_scope import (
+    apply_contract_department_filter,
+    resolve_pick_department_ids,
+)
 
 # 发货通知等：合同号选择弹窗列（对齐简道云 linkFieldsFormShow）
 CONTRACT_PICK_COLUMNS: list[tuple[str, str]] = [
@@ -46,20 +50,24 @@ async def list_pickable_contracts_page(
     keyword: str | None = None,
     ids: list[str] | None = None,
     department_id: str | None = None,
+    department_ids: list[str] | None = None,
+    scope_all: bool = False,
+    user_department_ids: list[str] | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict[str, Any]:
     """分页合同选择列表（登录即可，不要求 contract:view）。"""
     columns = contract_pick_column_defs()
-    empty: dict[str, Any] = {
-        "items": [], "total": 0, "page": page, "page_size": page_size, "columns": columns,
-    }
-    conds = [Contract.tenant_id == tenant_id]
-    dept = (department_id or "").strip()
-    if dept:
-        conds.append(Contract.department_id == dept)
-
     id_list = [x for x in (ids or []) if x]
+    pick_depts = resolve_pick_department_ids(
+        scope_all=scope_all,
+        user_department_ids=user_department_ids,
+        department_id=department_id,
+        department_ids=department_ids,
+        for_id_lookup=bool(id_list),
+    )
+    conds = [Contract.tenant_id == tenant_id]
+    apply_contract_department_filter(conds, Contract, pick_depts)
     if id_list:
         conds.append(Contract.id.in_(id_list))
         total = len(id_list)

@@ -3,7 +3,8 @@ import { Tree, Button, Modal, Form, Input, InputNumber, message, Table, Switch, 
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { departmentApi, deptRoleRuleApi } from '@/api/department'
 import type { DeptRoleRule } from '@/api/department'
-import { roleApi, userApi } from '@/api/user'
+import { roleApi } from '@/api/user'
+import client from '@/api/client'
 import type { Department, Role } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
@@ -38,7 +39,9 @@ async function enrichLeaderNames(departments: Department[]): Promise<Department[
     await Promise.all(
       chunk.map(async (id) => {
         try {
-          const r = await userApi.get(id)
+          const r = await client.get(`/api/admin/v1/tenant/users/${id}`, {
+            headers: { 'X-Silent-Error': '1' },
+          }) as { data?: { real_name?: string } }
           if (r.data?.real_name) names.set(id, r.data.real_name)
         } catch {
           /* 无权限或用户已删则跳过 */

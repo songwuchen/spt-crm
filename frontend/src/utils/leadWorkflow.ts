@@ -67,3 +67,10 @@ export function isLeadReactivationFollowTodo(opts: {
   const id = (opts.nodeId || '').trim()
   return id === 'approval_sales' || id === 'approval_filler' || id === 'approval_filler_skip' || !!opts.nodeName
 }
+
+/** 线索情报审节点默认可填字段（租户自建流未配 field_perms 时前端兜底） */
+export const LEAD_INTEL_FIELD_PERMS: { field: string; access: string }[] = [
+  { field: 'customer_newness', access: 'required' },
+  { field: 'reject_reason', access: 'editable' },
+  { field: 'assess_remark', access: 'editable' },
+]

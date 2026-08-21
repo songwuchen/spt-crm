@@ -4,11 +4,13 @@ import type { ApiResponse, TokenResponse, UserInfo, LoginRequest } from './types
 export const authApi = {
   login: (data: LoginRequest) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/login', data),
-  dingtalkConfig: () =>
-    client.get<unknown, ApiResponse<{ login_enabled: boolean; app_key: string; corp_id: string }>>('/api/v1/auth/dingtalk/config'),
-  dingtalkCallback: (data: { code: string; redirect_uri: string; state?: string }) =>
+  dingtalkConfig: (params?: { tenant_code?: string; corp_id?: string }) =>
+    client.get<unknown, ApiResponse<{ login_enabled: boolean; app_key: string; corp_id: string; tenant_code?: string }>>(
+      '/api/v1/auth/dingtalk/config', { params },
+    ),
+  dingtalkCallback: (data: { code: string; redirect_uri: string; state?: string; tenant_code?: string; corp_id?: string }) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/dingtalk/callback', data),
-  dingtalkJsapiLogin: (data: { auth_code: string; corp_id?: string }) =>
+  dingtalkJsapiLogin: (data: { auth_code: string; corp_id?: string; tenant_code?: string }) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/dingtalk/jsapi-login', data),
   refresh: (refresh_token: string) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/refresh', { refresh_token }),

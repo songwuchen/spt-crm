@@ -31,10 +31,11 @@ class UserInfo(BaseModel):
     permissions: List[str] = []
     # 前端据此隐藏「当前密码」输入框并提示用户先设置自己的密码
     must_change_password: bool = False
-    # 所属部门（填报表单 default_current_dept）
+    # 所属部门（填报表单 default_current_dept；多部门时 department_ids 为完整列表）
     department_id: Optional[str] = None
     department_ids: List[str] = []
     department_name: Optional[str] = None
+    departments: List[dict] = []
 
 
 class ChangePasswordRequest(BaseModel):
@@ -63,9 +64,12 @@ class DingTalkCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
     state: Optional[str] = None
+    tenant_code: Optional[str] = None
+    corp_id: Optional[str] = None
 
 
 class DingTalkJsapiLoginRequest(BaseModel):
     """容器内免登：requestAuthCode 得到的临时授权码。"""
     auth_code: str
     corp_id: Optional[str] = None
+    tenant_code: Optional[str] = None

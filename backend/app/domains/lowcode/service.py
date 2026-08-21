@@ -10,6 +10,7 @@ import json
 import re
 
 from sqlalchemy import func, select, or_, and_, not_, cast, String
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
@@ -1085,7 +1086,27 @@ async def ensure_builtin_form(
         status="draft", current_version=0, created_by=user.get("sub"),
     )
     db.add(tpl)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        existing = await get_template_by_code(db, tenant_id, key)
+        if not existing:
+            raise
+        if existing.name != bt["name"]:
+            existing.name = bt["name"]
+            await db.flush()
+        published = await _get_published_version(db, tenant_id, existing.id)
+        if not published:
+            latest = await _get_latest_version(db, tenant_id, existing.id)
+            if latest and latest.status == "draft":
+                await publish(db, tenant_id, existing.id, user.get("sub") or "")
+                await db.refresh(existing)
+        existing = await sync_builtin_form_fields(db, tenant_id, key, existing, user)
+        await _ensure_builtin_form_flow(db, tenant_id, key, existing.id)
+        await db.commit()
+        return existing
+
     from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
     install_defs = strip_spt_scheme_pickable_scopes(tenant_id, bt["field_definitions"])
     db.add(FormTemplateVersion(

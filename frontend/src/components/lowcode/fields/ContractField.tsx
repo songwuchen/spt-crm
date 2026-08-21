@@ -57,14 +57,17 @@ function highlightText(text: string, kw: string): ReactNode {
 async function fetchPage(params: {
   keyword?: string
   departmentId?: string | null
+  departmentIds?: string[]
   ids?: string[]
   page?: number
   pageSize?: number
 }): Promise<PickPage> {
+  const multi = (params.departmentIds?.length ?? 0) > 1
   const r = await client.get<unknown, ApiResponse<PickPage | ContractRow[]>>('/api/v1/lc/pickable-contracts', {
     params: {
       keyword: params.keyword || undefined,
-      department_id: params.departmentId || undefined,
+      department_id: multi ? undefined : (params.departmentId || undefined),
+      department_ids: multi ? params.departmentIds!.join(',') : undefined,
       ids: params.ids?.length ? params.ids.join(',') : undefined,
       page: params.page || 1,
       page_size: params.pageSize || 20,
@@ -237,17 +240,21 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
 }
 
 export default function ContractField({
-  value, onChange, readonly, placeholder, departmentId,
+  value, onChange, readonly, placeholder, departmentId, departmentIds,
 }: {
   value: unknown
   onChange?: (v: string | undefined) => void
   readonly?: boolean
   placeholder?: string
-  /** 按合同所属部门过滤（生产卡：所在部门） */
+  /** 单部门：按表单所在部门过滤 */
   departmentId?: string | null
+  /** 多部门编制：并集过滤（优先于 departmentId） */
+  departmentIds?: string[]
 }) {
   const raw = value == null || value === '' ? undefined : String(value)
-  const dept = departmentId || undefined
+  const multiDept = (departmentIds?.length ?? 0) > 1
+  const dept = multiDept ? undefined : (departmentId || undefined)
+  const deptFilter = multiDept ? departmentIds : undefined
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -266,6 +273,7 @@ export default function ContractField({
       const pack = await fetchPage({
         keyword: opts?.kw ?? keyword,
         departmentId: dept,
+        departmentIds: deptFilter,
         page: opts?.page ?? page,
         pageSize: opts?.pageSize ?? pageSize,
       })
@@ -287,12 +295,12 @@ export default function ContractField({
       setDisplay('')
       return
     }
-    void fetchPage({ ids: [raw], departmentId: dept }).then((pack) => {
+    void fetchPage({ ids: [raw], departmentId: dept, departmentIds: deptFilter }).then((pack) => {
       const hit = (pack.items || []).find((r) => r.id === raw)
       if (hit?.label) setDisplay(hit.label)
       else if (hit) setDisplay(contractLabel(hit))
     })
-  }, [raw, dept])
+  }, [raw, dept, deptFilter])
 
   useEffect(() => {
     if (!open) return
@@ -301,7 +309,7 @@ export default function ContractField({
     setPage(1)
     void loadPage({ kw: '', page: 1 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dept])
+  }, [open, dept, deptFilter])
 
   const commit = (id?: string) => {
     onChange?.(id)
@@ -371,7 +379,13 @@ export default function ContractField({
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder={dept ? '按图纸编号/合同号搜索（本部门合同）' : '按图纸编号/合同号搜索'}
+          placeholder={
+            multiDept
+              ? '按图纸编号/合同号搜索（本人相关部门合同）'
+              : dept
+                ? '按图纸编号/合同号搜索（本部门合同）'
+                : '按图纸编号/合同号搜索'
+          }
           value={keyword}
           onChange={(e) => {
             const kw = e.target.value
