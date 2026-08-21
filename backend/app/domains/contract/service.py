@@ -457,6 +457,12 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
         db, tenant_id, "contract", payload, contract, user.get("roles"),
         required_scope="payload", skip_required=as_draft,
     )
+    if not as_draft:
+        effective_customer_id = (
+            payload.get("customer_id") if "customer_id" in payload else contract.customer_id
+        )
+        if not effective_customer_id:
+            raise BusinessException(code=BUSINESS_ERROR, message="请选择关联客户")
     for field, val in payload.items():
         setattr(contract, field, val)
     await db.commit()

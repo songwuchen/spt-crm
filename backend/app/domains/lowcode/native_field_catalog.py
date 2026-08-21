@@ -376,6 +376,7 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
     "contract": [
         # 顺序对齐 frontend CONTRACT_REGISTRATION_SECTIONS（基本信息 → 产品 → 收款 → 其他 → 物流 → 验收）
         # ---- 基本信息（表列）----
+        _f("customer_id", "关联客户", "customer", default_required=True),
         _f("card_date", "下卡日期", "date", default_required=True),
         _f("department_id", "部门", "department", companions=("department_name",),
            default_required=True),

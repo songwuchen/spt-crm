@@ -284,3 +284,44 @@ async def test_masked_contract_amount_cannot_be_overwritten(client: AsyncClient,
     finally:
         await _publish_contract_native_override(client, h, [])
         await client.delete(f"/api/v1/contracts/{contract_id}", headers=h)
+
+
+async def test_contract_customer_id_required(client: AsyncClient, auth_headers: dict):
+    """提交合同登记时必须关联客户；存草稿可暂不选。"""
+    h = auth_headers
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+
+    missing = await client.post("/api/v1/contracts", json={
+        "title": "缺客户",
+        "contract_no": f"CT-NOCUST-{datetime.datetime.now().strftime('%H%M%S%f')}",
+        "drawing_no": peek,
+        "as_draft": False,
+    }, headers=h)
+    assert missing.json()["code"] != 0
+    assert "关联客户" in (missing.json().get("message") or "")
+
+    draft = await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "title": "草稿可无客户",
+    }, headers=h)
+    assert draft.json()["code"] == 0, draft.text
+    cid = draft.json()["data"]["contract"]["id"]
+
+    blocked = await client.put(f"/api/v1/contracts/{cid}", json={
+        "as_draft": False,
+        "customer_id": None,
+    }, headers=h)
+    assert blocked.json()["code"] != 0
+    assert "关联客户" in (blocked.json().get("message") or "")
+
+    cust_id = (await client.post("/api/v1/customers", json={
+        "name": "合同登记必填客户", "industry": "IT", "level": "B",
+    }, headers=h)).json()["data"]["id"]
+    ok = await client.put(f"/api/v1/contracts/{cid}", json={
+        "as_draft": False,
+        "customer_id": cust_id,
+    }, headers=h)
+    assert ok.json()["code"] == 0, ok.text
+
+    await client.delete(f"/api/v1/contracts/{cid}", headers=h)
+    await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
