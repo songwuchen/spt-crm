@@ -982,9 +982,10 @@ export default function FormDataListPage({
     || templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
-  /** 草稿/驳回可改；合同图纸领用、安装图设计通知流程通过后也可改内容（审批中仍锁） */
+  /** 草稿/驳回可改；合同图纸领用、安装图设计通知、客服领图流程通过后也可改（审批中仍锁） */
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
+    || templateCode === 'cs_drawing_request'
   const canEditRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
     || (postCompleteEditable && status === 'completed')
@@ -993,6 +994,14 @@ export default function FormDataListPage({
   /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
   const canDeleteRecord = (rec: ViewRec | null) =>
     Boolean(rec) && !rec?.process_instance_id && !wfDetail?.id
+
+  /** 通过后编辑：露出审批才填字段（设计单分派/科室/下单日期/附件等） */
+  const includeApproverFieldsOnEdit = Boolean(
+    viewRec
+    && !viewRec.readonly
+    && postCompleteEditable
+    && viewRec.status === 'completed',
+  )
 
   const handlePrint = async (recId: string) => {
     try {
@@ -1374,6 +1383,7 @@ export default function FormDataListPage({
                   value={viewRec.value}
                   onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
                   serialPreviews={serialPreviews}
+                  includeApproverFields={includeApproverFieldsOnEdit}
                 />
                 <FormInstanceSystemMeta
                   initiatorName={viewRec.initiator_name}

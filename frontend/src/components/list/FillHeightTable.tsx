@@ -11,8 +11,8 @@ export const DEFAULT_TABLE_BODY_HEIGHT = 480
 const EDGE_PX = 12
 
 export type FillHeightTableProps<RecordType extends object = Record<string, unknown>> = TableProps<RecordType> & {
-  /** 表体内滚动高度，默认 480 */
-  bodyHeight?: number
+  /** 表体内滚动高度，默认 480；传 false 关闭纵向滚动（表单明细等自适应高度场景） */
+  bodyHeight?: number | false
   /** 关闭表头列宽拖拽（默认开启，配合 useListView 持久化宽度） */
   resizableColumns?: boolean
   /** 优先于内部 registry：列宽松手回调 */
@@ -104,7 +104,13 @@ export default function FillHeightTable<RecordType extends object = Record<strin
 
   const mergedScroll = {
     x: scrollX,
-    y: typeof scroll?.y === 'number' ? scroll.y : bodyHeight,
+    ...(bodyHeight === false
+      ? (scroll?.y != null ? { y: scroll.y } : {})
+      : {
+          y: typeof scroll?.y === 'number'
+            ? scroll.y
+            : (typeof bodyHeight === 'number' ? bodyHeight : DEFAULT_TABLE_BODY_HEIGHT),
+        }),
   }
 
   const mergedComponents = resizableColumns

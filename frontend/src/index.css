@@ -546,6 +546,25 @@ input, textarea, select {
 .spt-resizable-th:hover .spt-col-resize-handle::after {
   background: rgba(19, 127, 236, 0.65);
 }
+
+/* 表单明细子表：可拖右下角调整可视高度；列宽拖拽复用 .spt-resizable-th */
+.detail-table-resizable-wrap {
+  resize: vertical;
+  overflow: auto;
+  min-height: 120px;
+  max-height: 560px;
+  height: 260px;
+  margin-bottom: 4px;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+.detail-table-resizable-wrap .fill-height-table-wrap {
+  min-width: min-content;
+}
+.detail-table-resizable-wrap .ant-table-cell {
+  vertical-align: top;
+}
+
 body.spt-col-resizing,
 body.spt-col-resizing * {
   cursor: col-resize !important;

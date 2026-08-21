@@ -29,6 +29,9 @@ def test_is_status_editable_matrix():
     assert is_status_editable(
         "form_instance", "completed", template_code="install_drawing_notice",
     )
+    assert is_status_editable(
+        "form_instance", "completed", template_code="cs_drawing_request",
+    )
     assert not is_status_editable(
         "form_instance", "completed", template_code="invoice_application",
     )
@@ -195,7 +198,7 @@ async def test_assert_form_instance_editable_status():
 
 @pytest.mark.asyncio
 async def test_assert_form_instance_completed_drawing_ok():
-    """合同图纸领用 / 安装图：流程完成后可改内容。"""
+    """合同图纸领用 / 安装图 / 客服领图：流程完成后可改内容。"""
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
@@ -210,6 +213,9 @@ async def test_assert_form_instance_completed_drawing_ok():
         )
         await assert_form_instance_editable(
             db, "t1", "fi1", "completed", template_code="install_drawing_notice",
+        )
+        await assert_form_instance_editable(
+            db, "t1", "fi1", "completed", template_code="cs_drawing_request",
         )
         with pytest.raises(BusinessException):
             await assert_form_instance_editable(

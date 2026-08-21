@@ -1,6 +1,6 @@
 """提交后锁编辑：审批中单据不可改内容；驳回（或撤回回草稿）后可再编辑。
 
-部分表单（合同图纸领用 / 安装图设计通知）流程通过后仍允许改内容。
+部分表单（合同图纸领用 / 安装图设计通知 / 客服领图）流程通过后仍允许改内容。
 权威边界在各业务 update_*；审批人字段写回走 wf act / field_updates，不经本闸门。
 """
 from __future__ import annotations
@@ -35,6 +35,7 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
 POST_COMPLETE_EDITABLE_FORM_CODES: frozenset[str] = frozenset({
     "drawing_requisition",
     "install_drawing_notice",
+    "cs_drawing_request",
 })
 
 _LOCK_MSG = "审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交"
@@ -204,8 +205,8 @@ async def assert_form_instance_editable(
 ) -> None:
     """表单实例：status 闸门 + biz/form_instance_id 任一 running 流程。
 
-    ``drawing_requisition`` / ``install_drawing_notice``：流程完成后(completed)
-    仍可改内容；审批中(running)依旧锁定。
+    ``drawing_requisition`` / ``install_drawing_notice`` / ``cs_drawing_request``：
+    流程完成后(completed)仍可改内容；审批中(running)依旧锁定。
     """
     code = (template_code or "").strip() or None
     if code is None:

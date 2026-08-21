@@ -1,10 +1,10 @@
 // 动态表单渲染器 —— 按 FieldDefinition schema 渲染填报/只读表单。
 // 移植/重写自 spt-lowcode FormRenderer,聚焦核心自足字段类型;人员/部门/附件等高级类型
 // 暂以占位呈现(后续切片接入)。规则引擎(显隐/只读/必填)复用 RuleEngine。
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Row, Col, Input, InputNumber, DatePicker, Select, Radio, Checkbox, Switch,
-  Button, Table, Typography, Tag, Empty, Space, Tooltip,
+  Button, Typography, Tag, Empty, Space, Tooltip,
 } from 'antd'
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -38,6 +38,8 @@ import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
 import { fetchCustomerFormFill, needsCustomerFormFill, clearCustomerFormFillPatch, pickShipAddressFill } from '@/utils/customerFormFill'
+import FillHeightTable from '@/components/list/FillHeightTable'
+import type { ColumnType } from 'antd/es/table'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -88,6 +90,11 @@ interface Props {
   detailLayout?: 'table' | 'cards'
   /** 发起填报：隐藏 available_on_create=false 的明细列；审批填表传 false */
   detailCreateFill?: boolean
+  /**
+   * 流程通过后整单编辑：展示并可改审批才填字段（设计单分派/科室/下单日期等）。
+   * 默认 false，避免创建/草稿编辑页露出审批字段。
+   */
+  includeApproverFields?: boolean
 }
 
 // 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
@@ -115,7 +122,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
@@ -141,9 +148,11 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
   if (!topFields.length) return <Empty description="该表单暂无字段" />
 
+  const hideApproverOnEdit = mode === 'edit' && !includeApproverFields
+
   const isShown = (field: FieldDefinition): boolean => {
     if (field.type === 'section' || field.type === 'separator') return false
-    if (mode === 'edit' && isCreateHiddenField(field)) return false
+    if (hideApproverOnEdit && isCreateHiddenField(field)) return false
     const st = states[field.id]
     if (st && !st.visible) return false
     return true
@@ -169,8 +178,8 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
             </Col>
           )
         }
-        // 审批阶段才填的字段：创建/编辑填报页不展示（详情只读仍展示）
-        if (mode === 'edit' && isCreateHiddenField(field)) return null
+        // 审批阶段才填的字段：创建/草稿编辑不展示；流程通过后整单编辑可展示
+        if (hideApproverOnEdit && isCreateHiddenField(field)) return null
         const st = states[field.id]
         if (st && !st.visible) return null
         // detail_table 强制整行；附件/图片按 layout span 与简道云 lineWidth 同排
@@ -196,7 +205,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               rules={rules}
               fields={fields}
               detailLayout={detailLayout}
-              detailCreateFill={detailCreateFill}
+              detailCreateFill={includeApproverFields ? false : detailCreateFill}
               fieldSpan={span}
             />
           </Col>
@@ -823,6 +832,15 @@ function DetailTable({
     c.id, field.id, row, formValues, ruleFields, rules,
   )))
 
+  const defaultColWidth = (c: FieldDefinition) => {
+    if (c.type === 'image' || c.type === 'file') return 200
+    if (c.id === 'company_model' || (c.label || '').includes('公司型号')) return 220
+    if ((c.label || '').includes('货物') || (c.label || '').includes('名称')) return 180
+    return 140
+  }
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const widthOf = (c: FieldDefinition) => colWidths[c.id] ?? defaultColWidth(c)
+
   if (layout === 'cards') {
     return (
       <div className="space-y-3">
@@ -873,28 +891,36 @@ function DetailTable({
     )
   }
 
-  const columns = [
-    ...cols.map((c) => ({
-      title: (<span>{c.required && <span style={{ color: '#ff4d4f' }}>*</span>}{c.label}</span>),
-      dataIndex: c.id,
-      key: c.id,
-      minWidth: c.type === 'image' || c.type === 'file' ? 200 : 140,
-      render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
-        const row = rows[idx] || {}
-        const visible = isDetailColVisibleInRow(
-          c.id, field.id, row, formValues, ruleFields, rules,
-        )
-        if (!visible) return null
-        return (
-          <FieldWidget
-            field={c} readonly={readonly}
-            value={row[c.id]} allValues={row}
-            onChange={(v) => setCell(idx, c.id, v)}
-            inlineCell={c.type === 'file' || c.type === 'image'}
-          />
-        )
-      },
-    })),
+  const columns: ColumnType<Record<string, unknown>>[] = [
+    ...cols.map((c) => {
+      const w = widthOf(c)
+      return {
+        title: (<span>{c.required && <span style={{ color: '#ff4d4f' }}>*</span>}{c.label}</span>),
+        dataIndex: c.id,
+        key: c.id,
+        width: w,
+        ellipsis: true,
+        onHeaderCell: () => ({
+          width: w,
+          colKey: c.id,
+        }),
+        render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
+          const row = rows[idx] || {}
+          const visible = isDetailColVisibleInRow(
+            c.id, field.id, row, formValues, ruleFields, rules,
+          )
+          if (!visible) return null
+          return (
+            <FieldWidget
+              field={c} readonly={readonly}
+              value={row[c.id]} allValues={row}
+              onChange={(v) => setCell(idx, c.id, v)}
+              inlineCell={c.type === 'file' || c.type === 'image'}
+            />
+          )
+        },
+      }
+    }),
     ...(readonly ? [] : [{
       title: '操作', key: '__op', width: 70,
       render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
@@ -905,12 +931,22 @@ function DetailTable({
 
   return (
     <div>
-      <Table
-        size="small" rowKey={(_, i) => String(i)} pagination={false}
-        dataSource={rows} columns={columns as never}
-        scroll={{ x: 'max-content' }}
-        locale={{ emptyText: '暂无明细' }}
-      />
+      <div className="detail-table-resizable-wrap">
+        <FillHeightTable
+          size="small"
+          rowKey={(_, i) => String(i)}
+          pagination={false}
+          dataSource={rows}
+          columns={columns}
+          bodyHeight={false}
+          resizableColumns
+          onColumnWidthChange={(colKey, width) => {
+            setColWidths((prev) => ({ ...prev, [colKey]: width }))
+          }}
+          scroll={{ x: 'max-content' }}
+          locale={{ emptyText: '暂无明细' }}
+        />
+      </div>
       {!readonly && (
         <Button type="dashed" block icon={<PlusOutlined />} style={{ marginTop: 8 }} onClick={addRow}>
           添加一行
