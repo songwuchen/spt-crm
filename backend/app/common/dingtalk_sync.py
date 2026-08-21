@@ -500,6 +500,7 @@ async def sync_users(
     token: str,
     default_password: str = "Changeme@123",
     dt_to_local_dept: Optional[dict[int, str]] = None,
+    sync_leaders: bool = True,
     progress_cb: ProgressCb = None,
 ) -> dict:
     """
@@ -508,8 +509,10 @@ async def sync_users(
     Matching: mobile phone number → local User.phone
     New users get default_password (must be changed on first login).
     Department memberships are synced.
-    Dept leaders are set from listbypage `isLeader` (and isLeaderInDepts if present),
-    then backfilled via department detail manager_userid_list after users exist.
+    If sync_leaders=True, dept leaders are set from listbypage `isLeader`
+    (and isLeaderInDepts if present), then backfilled via department detail
+    manager_userid_list after users exist. Timed auto-sync should pass False
+    so local manual leader_id is preserved.
 
     Returns: { created, updated, skipped, failed: [{userid, reason}], total }
     """
@@ -725,7 +728,7 @@ async def sync_users(
                         user_id=local_user.id, department_id=local_dept_id,
                     ))
                     # Check if this user is a leader in this dept
-                    if (
+                    if sync_leaders and (
                         is_leader_raw.get(str(dt_did))
                         or is_leader_raw.get(dt_did)
                         or dt_did in leader_from_list
@@ -745,7 +748,7 @@ async def sync_users(
 
     # Apply dept leaders collected from user list (isLeader / isLeaderInDepts)
     leader_updated = 0
-    if dept_leaders:
+    if sync_leaders and dept_leaders:
         depts = (await db.execute(
             select(Department).where(
                 Department.id.in_(dept_leaders.keys()),
@@ -763,12 +766,14 @@ async def sync_users(
     # 兜底：用部门详情 manager_userid_list 再补一轮。
     # 推荐流程是「先部门后用户」，首次同步部门时本地还没有 userid→用户，主管会全空；
     # 用户落库后再按钉钉 userid(=CRM username) 匹配主管即可补齐。
-    if progress_cb:
-        await progress_cb("补全部门主管", 0, len(dt_depts))
-    extra_leaders = await _apply_dept_managers_from_dingtalk(
-        db, tenant_id, token, dt_depts, dt_to_local_dept or {}, progress_cb=progress_cb,
-    )
-    leader_updated += extra_leaders
+    # 定时自动同步传 sync_leaders=False，跳过以免覆盖本地手工指定。
+    if sync_leaders:
+        if progress_cb:
+            await progress_cb("补全部门主管", 0, len(dt_depts))
+        extra_leaders = await _apply_dept_managers_from_dingtalk(
+            db, tenant_id, token, dt_depts, dt_to_local_dept or {}, progress_cb=progress_cb,
+        )
+        leader_updated += extra_leaders
 
     # 依「部门→角色」规则给同步进来的用户自动补角色(仅新增，不覆盖已有角色)
     roles_added = 0

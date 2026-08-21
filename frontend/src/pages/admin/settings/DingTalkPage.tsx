@@ -66,8 +66,8 @@ const api = {
     client.post<unknown, ApiResponse<{ connected: boolean; dept_count?: number; error?: string }>>('/api/admin/v1/tenant/dingtalk/test'),
   syncDepts: (syncLeaders = true) =>
     client.post<unknown, ApiResponse<{ task_id: string; reused: boolean }>>(`/api/admin/v1/tenant/dingtalk/sync/departments?sync_leaders=${syncLeaders}`),
-  syncUsers: () =>
-    client.post<unknown, ApiResponse<{ task_id: string; reused: boolean }>>('/api/admin/v1/tenant/dingtalk/sync/users'),
+  syncUsers: (syncLeaders = true) =>
+    client.post<unknown, ApiResponse<{ task_id: string; reused: boolean }>>(`/api/admin/v1/tenant/dingtalk/sync/users?sync_leaders=${syncLeaders}`),
   taskStatus: <R,>(taskId: string) =>
     client.get<unknown, ApiResponse<SyncTaskStatus<R>>>(`/api/admin/v1/tenant/dingtalk/sync/tasks/${taskId}`),
   activeTask: (kind: SyncKind) =>
@@ -89,6 +89,8 @@ export default function DingTalkPage() {
   const [userResult, setUserResult] = useState<SyncUserResult | null>(null)
   const [deptProgress, setDeptProgress] = useState<SyncTaskStatus<SyncDeptResult> | null>(null)
   const [userProgress, setUserProgress] = useState<SyncTaskStatus<SyncUserResult> | null>(null)
+  /** 手动同步时是否按钉钉覆盖本地部门负责人；定时同步始终不覆盖 */
+  const [syncLeadersOnManual, setSyncLeadersOnManual] = useState(true)
 
   // Track active poll timers so unmount/re-click cancels them cleanly
   const deptPollRef = useRef<number | null>(null)
@@ -232,7 +234,7 @@ export default function DingTalkPage() {
     setDeptResult(null)
     setDeptProgress(null)
     try {
-      const res = await api.syncDepts(true)
+      const res = await api.syncDepts(syncLeadersOnManual)
       if (res.data.reused) message.info('已有同步任务在运行，继续显示其进度')
       pollTask<SyncDeptResult>(res.data.task_id, 'dept')
     } catch (e: any) {
@@ -246,7 +248,7 @@ export default function DingTalkPage() {
     setUserResult(null)
     setUserProgress(null)
     try {
-      const res = await api.syncUsers()
+      const res = await api.syncUsers(syncLeadersOnManual)
       if (res.data.reused) message.info('已有同步任务在运行，继续显示其进度')
       pollTask<SyncUserResult>(res.data.task_id, 'user')
     } catch (e: any) {
@@ -378,10 +380,10 @@ export default function DingTalkPage() {
               <Form.Item name="auto_sync" valuePropName="checked" className="mb-0">
                 <Switch />
               </Form.Item>
-              <span className="text-sm text-slate-400">每天定时自动同步部门与用户（无需手动点击）</span>
+              <span className="text-sm text-slate-400">每天定时自动同步部门与用户（不改动部门负责人）</span>
             </div>
             <Form.Item name="sync_time" label="每日同步时间（北京时间）"
-              tooltip="到达该时间后由后台任务自动执行一次部门+用户同步，格式 HH:MM">
+              tooltip="到达该时间后由后台任务自动执行一次部门+用户同步；不会覆盖本地手工指定的部门负责人。若要按钉钉覆盖主管，请在下方「数据同步」中手动同步并勾选覆盖。">
               <Input className="!w-40" placeholder="02:00" />
             </Form.Item>
             {lastSyncAt && (
@@ -424,7 +426,18 @@ export default function DingTalkPage() {
           <SyncOutlined className="text-emerald-500 text-lg" />
           <span className="font-bold text-slate-800">数据同步</span>
         </div>
-        <p className="text-sm text-slate-400 mb-5">建议先同步部门，再同步用户。用户同步结束后会自动按钉钉主管补齐部门负责人。</p>
+        <p className="text-sm text-slate-400 mb-3">
+          建议先同步部门，再同步用户。定时同步不会改部门负责人；仅在下方勾选并手动同步时，才会按钉钉覆盖本地指定。
+        </p>
+        <div className="flex items-center gap-2 mb-5">
+          <Switch
+            checked={syncLeadersOnManual}
+            onChange={setSyncLeadersOnManual}
+            disabled={syncingDepts || syncingUsers}
+          />
+          <span className="text-sm text-slate-600">手动同步时覆盖部门负责人</span>
+          <span className="text-[12px] text-slate-400">（默认开启；关闭则只同步结构/人员）</span>
+        </div>
 
         {/* Sync Departments */}
         <div className="border border-slate-100 rounded-lg p-4 mb-4">
@@ -435,7 +448,10 @@ export default function DingTalkPage() {
                 <span className="font-semibold text-slate-700">同步部门</span>
               </div>
               <p className="text-sm text-slate-400">
-                从钉钉拉取全部部门，按层级结构创建或更新本地部门。同时同步部门主管（若本地已有对应用户）。
+                从钉钉拉取全部部门，按层级结构创建或更新本地部门。
+                {syncLeadersOnManual
+                  ? ' 已勾选覆盖负责人时，会按钉钉主管写入（需本地已有对应用户）。'
+                  : ' 当前未勾选覆盖负责人，不会改本地主管。'}
               </p>
             </div>
             <Button
@@ -468,10 +484,13 @@ export default function DingTalkPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <TeamOutlined className="text-emerald-500" />
-                <span className="font-semibold text-slate-700">同步用户 & 部门主管</span>
+                <span className="font-semibold text-slate-700">
+                  {syncLeadersOnManual ? '同步用户 & 部门主管' : '同步用户'}
+                </span>
               </div>
               <p className="text-sm text-slate-400">
-                从钉钉拉取全部员工，按手机号匹配本地用户。未匹配的新员工将以默认密码创建账号，同时更新各部门主管。
+                从钉钉拉取全部员工，按手机号匹配本地用户。未匹配的新员工将以默认密码创建账号
+                {syncLeadersOnManual ? '，并按钉钉更新各部门主管。' : '。当前未勾选覆盖负责人，不会改本地主管。'}
               </p>
             </div>
             <Button
@@ -522,6 +541,8 @@ export default function DingTalkPage() {
           <li>启用一键登录还需在应用「登录与分享」中添加 OAuth 回调地址（见上方提示）</li>
           <li>一键登录以<b>手机号</b>匹配本地账号，建议先同步用户再启用登录</li>
           <li>用户同步以<b>手机号</b>为主键匹配本地账号；无手机号的钉钉员工将跳过</li>
+          <li>定时同步只更新部门结构与用户，不会改本地指定的部门负责人</li>
+          <li>若要按钉钉覆盖部门负责人，请在「数据同步」勾选「手动同步时覆盖部门负责人」后手动执行</li>
           <li>已存在的本地用户密码不会被覆盖，仅同步姓名、邮箱、手机号和部门信息</li>
           <li>新建用户默认密码在「应用配置」中设置，建议强制首次登录修改</li>
         </ul>

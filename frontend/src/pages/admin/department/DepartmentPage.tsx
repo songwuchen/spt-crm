@@ -7,6 +7,7 @@ import { roleApi, userApi } from '@/api/user'
 import type { Department, Role } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
+import PersonField from '@/components/lowcode/fields/PersonField'
 
 import Icon from '@/components/Icon'
 
@@ -157,17 +158,30 @@ export default function DepartmentPage() {
   const openEdit = (dept: Department) => {
     setEditing(dept)
     setParentId(dept.parent_id || undefined)
-    form.setFieldsValue({ name: dept.name, sort_order: dept.sort_order })
+    form.setFieldsValue({
+      name: dept.name,
+      sort_order: dept.sort_order,
+      leader_id: dept.leader_id || undefined,
+    })
     setModal(true)
   }
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
+    const leaderRaw = values.leader_id
+    const leaderId = Array.isArray(leaderRaw)
+      ? (leaderRaw[0] ? String(leaderRaw[0]) : null)
+      : (leaderRaw ? String(leaderRaw) : null)
+    const payload = {
+      name: values.name as string,
+      sort_order: values.sort_order as number | undefined,
+      leader_id: leaderId,
+    }
     if (editing) {
-      await departmentApi.update(editing.id, values)
+      await departmentApi.update(editing.id, payload)
       message.success('部门已更新')
     } else {
-      await departmentApi.create({ ...values, parent_id: parentId })
+      await departmentApi.create({ ...payload, parent_id: parentId })
       message.success('部门已创建')
     }
     setModal(false)
@@ -279,7 +293,9 @@ export default function DepartmentPage() {
                     <div className="text-sm font-semibold text-slate-700">
                       {selectedDept.leader_name || <span className="text-slate-400 font-normal">未设置</span>}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-1">由钉钉组织同步写入，不可在此编辑</div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      可在「编辑」中指定；钉钉定时同步不会改；仅手动同步并勾选覆盖时才会按钉钉主管写入
+                    </div>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">排序权重</div>
@@ -326,6 +342,13 @@ export default function DepartmentPage() {
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="部门名称" rules={[{ required: true }]}>
             <Input placeholder="请输入部门名称" />
+          </Form.Item>
+          <Form.Item
+            name="leader_id"
+            label="部门负责人"
+            extra="流程里「部门负责人」审批取此字段；钉钉定时同步不会覆盖；手动同步勾选覆盖时才会改"
+          >
+            <PersonField placeholder="选择部门负责人（可清空）" />
           </Form.Item>
           <Form.Item name="sort_order" label="排序权重" initialValue={0}>
             <InputNumber min={0} className="w-full" />

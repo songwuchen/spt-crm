@@ -35,7 +35,7 @@ class DingTalkConfigBody(BaseModel):
     crm_base_url: Optional[str] = ""       # 待办/通知跳转链接的 PC 域名
     crm_h5_base_url: Optional[str] = ""    # 移动端域名（留空同 PC）
     # 通讯录定时同步
-    auto_sync: Optional[bool] = False      # 是否每天定时自动同步部门+用户
+    auto_sync: Optional[bool] = False      # 是否每天定时自动同步部门+用户（不改 leader_id）
     sync_time: Optional[str] = "02:00"     # 每日同步时间 HH:MM（北京时间）
 
 router = APIRouter(prefix="/api/admin/v1/tenant", tags=["组织管理"])
@@ -584,7 +584,7 @@ async def _run_sync_departments_bg(task_id: str, tenant_id: str, cfg: dict, sync
         await sync_tasks.fail_task(task_id, f"同步部门失败: {e}")
 
 
-async def _run_sync_users_bg(task_id: str, tenant_id: str, cfg: dict) -> None:
+async def _run_sync_users_bg(task_id: str, tenant_id: str, cfg: dict, sync_leaders: bool) -> None:
     from app.common.dingtalk_sync import get_access_token, sync_users
     from app.common import sync_tasks
     from app.database import async_session_factory
@@ -598,6 +598,7 @@ async def _run_sync_users_bg(task_id: str, tenant_id: str, cfg: dict) -> None:
             result = await sync_users(
                 bg_db, tenant_id, token,
                 default_password=cfg.get("default_password", "Changeme@123"),
+                sync_leaders=sync_leaders,
                 progress_cb=_cb,
             )
         await sync_tasks.finish_task(task_id, result)
@@ -634,11 +635,16 @@ async def dingtalk_sync_departments(
 
 @router.post("/dingtalk/sync/users")
 async def dingtalk_sync_users(
+    sync_leaders: bool = Query(True),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    """Kick off user sync in background; returns task_id for status polling."""
+    """Kick off user sync in background; returns task_id for status polling.
+
+    sync_leaders=True（默认）：按钉钉主管覆盖本地 departments.leader_id。
+    定时自动同步走 worker 且传 False，不会改手工指定的负责人。
+    """
     import asyncio
     from app.common import sync_tasks
 
@@ -653,7 +659,7 @@ async def dingtalk_sync_users(
         return ok({"task_id": existing, "reused": True})
 
     task_id = await sync_tasks.create_task(tenant_id, "dingtalk_users")
-    asyncio.create_task(_run_sync_users_bg(task_id, tenant_id, cfg))
+    asyncio.create_task(_run_sync_users_bg(task_id, tenant_id, cfg, sync_leaders))
     return ok({"task_id": task_id, "reused": False})
 
 

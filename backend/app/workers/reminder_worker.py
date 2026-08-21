@@ -697,14 +697,17 @@ async def check_dingtalk_auto_sync(db: AsyncSession) -> int:
             if last_dt is not None and last_dt >= scheduled_today:
                 continue  # 今天已同步过
 
-            # 到点且今天未同步 → 执行
+            # 到点且今天未同步 → 执行。
+            # 定时同步只更新部门结构/用户，不改 departments.leader_id；
+            # 按钉钉覆盖主管请到「钉钉集成」页手动同步。
             token = await dts.get_access_token(app_key, app_secret)
-            dept_res = await dts.sync_departments(db, ep.tenant_id, token, sync_leaders=True)
+            dept_res = await dts.sync_departments(db, ep.tenant_id, token, sync_leaders=False)
             dt_to_local = {int(k): v for k, v in (dept_res.get("dt_to_local") or {}).items()}
             user_res = await dts.sync_users(
                 db, ep.tenant_id, token,
                 default_password=dec.get("default_password") or "Changeme@123",
                 dt_to_local_dept=dt_to_local,
+                sync_leaders=False,
             )
             # 回写 last_sync_at 到加密态 dict（app_secret 保持 enc: 不变）
             stored["last_sync_at"] = now_cn.isoformat()
@@ -713,7 +716,7 @@ async def check_dingtalk_auto_sync(db: AsyncSession) -> int:
             await db.commit()
             synced += 1
             logger.info(
-                "DingTalk auto-sync done for tenant %s: depts(new=%s upd=%s) users(new=%s upd=%s)",
+                "DingTalk auto-sync done for tenant %s: depts(new=%s upd=%s) users(new=%s upd=%s) leaders_skipped",
                 ep.tenant_id, dept_res.get("created"), dept_res.get("updated"),
                 user_res.get("created"), user_res.get("updated"),
             )
