@@ -1857,18 +1857,30 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         if existing:
             return await update_contract_from_openapi(db, ctx, existing, data)
 
-    from app.domains.contract.service import _resolve_create_drawing_no, drawing_no_apply_date_today
+    from app.domains.contract.service import (
+        _resolve_create_drawing_no,
+        allocate_create_drawing_no,
+        drawing_no_apply_date_today,
+    )
     reg = getattr(data, "registration_json", None) or {}
     if not isinstance(reg, dict):
         reg = {}
-    drawing_no = await _resolve_create_drawing_no(
-        db, ctx.tenant_id,
-        {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"},
-        getattr(data, "drawing_no", None),
-        # 无显式图纸号时按取号当天编号；有传入号则 trust_requested 直接采用（与订货日无关）
-        apply_date=drawing_no_apply_date_today(),
-        trust_requested=bool(getattr(data, "drawing_no", None)),
-    )
+    openapi_user = {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"}
+    requested_dn = (getattr(data, "drawing_no", None) or "").strip() or None
+    if requested_dn:
+        # 有传入号：直接采用并校验唯一（不强制对应表存在）
+        drawing_no = await _resolve_create_drawing_no(
+            db, ctx.tenant_id, openapi_user, requested_dn,
+            apply_date=drawing_no_apply_date_today(),
+            trust_requested=True,
+            map_contract_no=contract_no if data.contract_no else None,
+        )
+    else:
+        # 无显式图纸号：按取号当天自动生成（兼容中间服务推送）
+        drawing_no = await allocate_create_drawing_no(
+            db, ctx.tenant_id, openapi_user,
+            apply_date=drawing_no_apply_date_today(),
+        )
 
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
