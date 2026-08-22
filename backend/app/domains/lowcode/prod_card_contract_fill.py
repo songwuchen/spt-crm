@@ -45,6 +45,12 @@ def map_contract_lines_to_prod_card(key_clauses: Any) -> list[dict]:
     return out
 
 
+def _fmt_delivery_date(raw: Any) -> str:
+    if raw is None or raw == "":
+        return ""
+    return str(raw).strip()[:10]
+
+
 def build_prod_card_fill_from_contract(
     *,
     contract_no: str | None,
@@ -52,6 +58,7 @@ def build_prod_card_fill_from_contract(
     assignee_id: str | None,
     assignee_name: str | None,
     customer_name: str | None,
+    delivery_date: str | None = None,
     registration_json: dict | None,
     key_clauses_json: Any,
     mode: str,
@@ -68,8 +75,12 @@ def build_prod_card_fill_from_contract(
             if raw is not None and str(raw).strip():
                 unit = str(raw).strip()
                 break
+    delivery = _fmt_delivery_date(delivery_date) or _fmt_delivery_date(reg.get("delivery_date"))
+    has_intel = str(reg.get("has_intelligence") or reg.get("has_smart") or "").strip()
+    is_export = str(reg.get("is_export") or "").strip()
 
     if mode == "contract_no_select":
+        # 简道云「合同号选择1」linkDataMaps：仅合同号 / 业务员 / 单位名称 / 评审流水号
         return {
             "yes_contract_no": contract_no or "",
             "yes_sales_person": sales,
@@ -77,11 +88,12 @@ def build_prod_card_fill_from_contract(
             "contract_tech_review_sn": reg.get("review_sn") or "",
         }
 
-    # drawing_no_query（非补充）：图纸/明细等 + 单位名称（表单上（是）单位名称也会展示）
+    # drawing_no_query（非补充）：对齐简道云 linkfield 同区展示的关键信息
     return {
         "no_drawing_no": drawing_no or "",
         "no_sales_person": sales,
         "yes_customer_name": unit,
+        "contract_delivery_date": delivery,
         "prod_card_line_items": lines,
         "tech_params": reg.get("tech_requirements") or "",
         "packaging_req": reg.get("packaging") or "",
@@ -90,17 +102,23 @@ def build_prod_card_fill_from_contract(
         "special_reminder": reg.get("special_note") or "",
         "no_warranty_period": reg.get("warranty_period") or "",
         "project_name": reg.get("project_name") or "",
+        "has_intelligence": has_intel,
+        "is_export_equipment": is_export,
         "contract_tech_review_sn": reg.get("review_sn") or "",
     }
 
 
 def prod_card_fill_clear_keys(mode: str) -> list[str]:
     if mode == "contract_no_select":
-        return ["yes_contract_no", "yes_sales_person", "yes_customer_name", "contract_tech_review_sn", "region_manager"]
+        return [
+            "yes_contract_no", "yes_sales_person", "yes_customer_name", "contract_tech_review_sn",
+            "region_manager",
+        ]
     return [
         "no_drawing_no", "no_sales_person", "yes_customer_name", "prod_card_line_items",
         "tech_params", "packaging_req", "remark_prod_card", "paint_req",
         "special_reminder", "no_warranty_period", "project_name",
+        "contract_delivery_date", "has_intelligence", "is_export_equipment",
         "contract_tech_review_sn", "region_manager",
     ]
 
@@ -166,7 +184,92 @@ _CONTRACT_PICK_READONLY_IDS = frozenset({
     "no_warranty_period",
     "project_name",
     "prod_card_line_items",
+    "contract_delivery_date",
+    "has_intelligence",
+    "is_export_equipment",
 })
+
+# 简道云 linkDataMaps：否=图纸编号查询（整块合同信息）；是=合同号选择（仅 4 项）
+_PC_DRAWING_ONLY_FILL_FIELDS: tuple[str, ...] = (
+    "no_drawing_no",
+    "no_sales_person",
+    "contract_delivery_date",
+    "project_name",
+    "packaging_req",
+    "prod_card_line_items",
+    "paint_req",
+    "has_intelligence",
+    "is_export_equipment",
+    "no_warranty_period",
+    "special_reminder",
+    "tech_params",
+    "remark_prod_card",
+)
+_PC_YES_ONLY_FILL_FIELDS: tuple[str, ...] = (
+    "yes_contract_no",
+    "yes_sales_person",
+)
+_PC_SHARED_CONTRACT_FILL_FIELDS: tuple[str, ...] = (
+    "yes_customer_name",
+    "region_manager",
+)
+_PC_DRAWING_CONTRACT_FILL_FIELDS: tuple[str, ...] = (
+    *_PC_DRAWING_ONLY_FILL_FIELDS,
+    *_PC_SHARED_CONTRACT_FILL_FIELDS,
+)
+_PC_YES_CONTRACT_FILL_FIELDS: tuple[str, ...] = (
+    *_PC_YES_ONLY_FILL_FIELDS,
+    *_PC_SHARED_CONTRACT_FILL_FIELDS,
+)
+# 简道云 linkfield 展示字段在 JDY 里 available_on_create=false；CRM 发起页选合同后需同区展示
+_PROD_CARD_CONTRACT_FILL_ON_CREATE_IDS: frozenset[str] = frozenset({
+    *_PC_DRAWING_ONLY_FILL_FIELDS,
+    *_PC_YES_ONLY_FILL_FIELDS,
+    *_PC_SHARED_CONTRACT_FILL_FIELDS,
+    "contract_tech_review_sn",
+})
+
+
+def ensure_prod_card_contract_fill_on_create(defs: list) -> None:
+    """选合同带出字段在发起页可见（只读），对齐简道云选完合同后同区展示。"""
+    for f in defs:
+        if not isinstance(f, dict):
+            continue
+        fid = f.get("id")
+        if fid not in _PROD_CARD_CONTRACT_FILL_ON_CREATE_IDS:
+            continue
+        f["available_on_create"] = True
+        f["fill_stage"] = "initiator"
+        f["form_editable"] = False
+_PC_CONTRACT_FILL_VIS_RULE_IDS = frozenset(
+    [f"crm_vis_pc_contract_fill_{fid}" for fid in _PC_DRAWING_CONTRACT_FILL_FIELDS]
+    + [f"crm_vis_pc_yes_contract_fill_{fid}" for fid in _PC_YES_CONTRACT_FILL_FIELDS]
+    + ["crm_vis_pc_contract_fill_shared_yes_customer_name", "crm_vis_pc_contract_fill_shared_region_manager"]
+)
+_PC_CONTRACT_DISPLAY_FIELD_DEFS: tuple[dict[str, Any], ...] = (
+    {"id": "contract_delivery_date", "type": "text", "label": "合同交货期"},
+    {"id": "has_intelligence", "type": "text", "label": "是否含智能化"},
+    {"id": "is_export_equipment", "type": "text", "label": "设备是否出口"},
+)
+
+
+def ensure_prod_card_contract_display_fields(defs: list) -> None:
+    """补齐简道云 linkfield 同区展示字段（合同交货期 / 智能化 / 出口）。"""
+    by_id = {f.get("id") for f in defs if isinstance(f, dict)}
+    anchor = next(
+        (i for i, f in enumerate(defs) if isinstance(f, dict) and f.get("id") == "no_drawing_no"),
+        next((i for i, f in enumerate(defs) if isinstance(f, dict) and f.get("id") == "drawing_no_query"), len(defs)),
+    )
+    offset = 0
+    for extra in _PC_CONTRACT_DISPLAY_FIELD_DEFS:
+        if extra["id"] in by_id:
+            continue
+        defs.insert(anchor + 1 + offset, {
+            **extra,
+            "available_on_create": True,
+            "fill_stage": "initiator",
+        })
+        offset += 1
 
 
 def apply_prod_card_contract_pick_fields(defs: list) -> None:
@@ -179,6 +282,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
     补齐流程编号（简道云 sn：1.2.8 + 五位不重置；生成器曾跳过 sn 类型）。
     """
     ensure_prod_card_serial_no_field(defs)
+    ensure_prod_card_contract_display_fields(defs)
     for f in defs:
         if not isinstance(f, dict):
             continue
@@ -196,8 +300,8 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             f["props"] = props
         elif fid == "drawing_no_query":
             f["type"] = "contract"
-            f["label"] = "选择合同（图纸编号查询）"
-            f["description"] = "从合同管理选择；按所在部门过滤；选中后带出图纸号/明细等。"
+            f["label"] = "选择合同"
+            f["description"] = "从合同管理选择（对齐简道云图纸编号查询）；按所在部门过滤；选中后带出单位/图纸号/明细等。"
             props = dict(f.get("props") or {})
             props["filter_by_department_field"] = "department"
             props["contract_fill"] = "drawing_no_query"
@@ -211,13 +315,28 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props["contract_fill"] = "contract_no_select"
             f["props"] = props
         elif fid == "yes_customer_name":
+            f["label"] = "单位名称"
             f["form_editable"] = False
             props = dict(f.get("props") or {})
             props.pop("readonly", None)
             f["props"] = props
-            f["description"] = f.get("description") or "由所选合同自动带出单位名称，不可手改。"
-        elif fid in _CONTRACT_PICK_READONLY_IDS:
+            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+        elif fid == "yes_contract_no":
             f["form_editable"] = False
+            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+        elif fid == "yes_sales_person":
+            f["label"] = f.get("label") or "（是）业务人员"
+            f["form_editable"] = False
+            f["description"] = "由所选合同自动带出；如有不符请及时反馈。"
+        elif fid == "no_drawing_no":
+            f["label"] = "图纸编号"
+            f["form_editable"] = False
+            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+        elif fid == "no_sales_person":
+            f["label"] = "业务人员"
+            f["form_editable"] = False
+            f["description"] = "由所选合同自动带出；如有不符请及时反馈。"
+        elif fid in _CONTRACT_PICK_READONLY_IDS:
             f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
         elif fid == "select_contract_tech_review":
             # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
@@ -239,6 +358,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             f["description"] = f.get("description") or "由所选技术协议评审自动带出，不可手改。"
 
     apply_prod_card_approver_only_fields(defs)
+    ensure_prod_card_contract_fill_on_create(defs)
 
 
 # 圈选区：仅审批可填（创建页隐藏）；字段级必填下沉到节点 field_perms
@@ -541,6 +661,74 @@ _PROD_CARD_NOTICE_WHEN_NOT_SUPPLEMENT = {
 }
 
 
+def apply_prod_card_contract_fill_visibility(
+    rules: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """选合同后同区展示（对齐简道云）：否=整块合同信息；是=合同号/业务员/单位名称。"""
+    strip_ids = set(_PC_CONTRACT_FILL_VIS_RULE_IDS)
+    # 去掉简道云旧规则，避免「是/否」与「已选合同」条件冲突
+    for fid in _PC_DRAWING_ONLY_FILL_FIELDS:
+        strip_ids.add(f"jdy_vis_{fid}")
+        strip_ids.add(f"crm_vis_prod_notice_{fid}")
+    for fid in _PC_YES_ONLY_FILL_FIELDS + _PC_SHARED_CONTRACT_FILL_FIELDS:
+        strip_ids.add(f"jdy_vis_{fid}")
+    for prefix in ("jdy_vis_yes_contract_no", "jdy_vis_yes_sales_person", "jdy_vis_yes_customer_name"):
+        strip_ids.add(prefix)
+    out: list[dict[str, Any]] = [
+        r for r in (rules or [])
+        if isinstance(r, dict) and r.get("id") not in strip_ids
+    ]
+    when_drawing_picked = {
+        "rel": "and",
+        "cond": [
+            {"field": "is_supplement", "operator": "in", "value": ["否"]},
+            {"field": "drawing_no_query", "operator": "is_not_empty"},
+        ],
+    }
+    when_yes_contract_picked = {
+        "rel": "and",
+        "cond": [
+            {"field": "is_supplement", "operator": "in", "value": ["是"]},
+            {"field": "contract_no_select", "operator": "is_not_empty"},
+        ],
+    }
+    when_either_contract_picked = {
+        "rel": "or",
+        "cond": [dict(when_drawing_picked), dict(when_yes_contract_picked)],
+    }
+    for fid in _PC_DRAWING_ONLY_FILL_FIELDS:
+        out.append({
+            "id": f"crm_vis_pc_contract_fill_{fid}",
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": dict(when_drawing_picked),
+            "action": {"visible": True},
+            "enabled": True,
+        })
+    for fid in _PC_YES_ONLY_FILL_FIELDS:
+        out.append({
+            "id": f"crm_vis_pc_yes_contract_fill_{fid}",
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": dict(when_yes_contract_picked),
+            "action": {"visible": True},
+            "enabled": True,
+        })
+    for fid, rid in (
+        ("yes_customer_name", "crm_vis_pc_contract_fill_shared_yes_customer_name"),
+        ("region_manager", "crm_vis_pc_contract_fill_shared_region_manager"),
+    ):
+        out.append({
+            "id": rid,
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": dict(when_either_contract_picked),
+            "action": {"visible": True},
+            "enabled": True,
+        })
+    return out
+
+
 def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     """合并「是否为补充=否 → 显示生产卡通知单内容」显隐规则。"""
     out: list[dict[str, Any]] = [
@@ -556,4 +744,4 @@ def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list
             "action": {"visible": True},
             "enabled": True,
         })
-    return out
+    return apply_prod_card_contract_fill_visibility(out)

@@ -678,8 +678,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if not nodes:
         return None
     if form_code == "install_drawing_notice":
-        from app.domains.lowcode.biz_score import apply_biz_score_flow_nodes
-        apply_biz_score_flow_nodes(nodes)
+        from app.domains.lowcode.biz_score import strip_biz_score_flow_nodes
+        strip_biz_score_flow_nodes(nodes, extra_fields=frozenset({"remark"}))
     if form_code == "scheme_management":
         from app.domains.lowcode.biz_score import (
             apply_chief_gm_flow_nodes, strip_biz_score_flow_nodes,
@@ -777,6 +777,11 @@ def _flow_missing_biz_score_perms(nodes: list | None) -> bool:
     """方案/安装图「业务打分」未挂三项分数 → 需升级系统兜底流。"""
     from app.domains.lowcode.biz_score import flow_missing_biz_score_perms
     return flow_missing_biz_score_perms(nodes)
+
+
+def _flow_has_install_score_perms(nodes: list | None) -> bool:
+    from app.domains.lowcode.biz_score import flow_has_install_score_perms
+    return flow_has_install_score_perms(nodes)
 
 
 def _flow_missing_chief_gm_perm(nodes: list | None) -> bool:
@@ -2619,9 +2624,17 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_pricing_checklist(nodes)
     if form_code == "research_coop_card":
         return _flow_is_jdy_research_coop_card(nodes)
+    if form_code == "xunhan_contract_review":
+        return _flow_is_jdy_xunhan_contract_review(nodes)
     if form_code and form_code.startswith("cs_"):
         return _flow_is_jdy_customer_service(nodes)
     return False
+
+
+def _flow_is_jdy_xunhan_contract_review(nodes: list | None) -> bool:
+    """已对齐简道云迅焊合同评审：含法务审批等多节点（非单节点兜底）。"""
+    ids = {str(n.get("id") or "") for n in (nodes or []) if isinstance(n, dict)}
+    return "n3" in ids and len(nodes or []) >= 10
 
 
 def _flow_is_jdy_customer_service(nodes: list | None) -> bool:
@@ -4144,6 +4157,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_CS_DRAWING_REQUEST",
         "SYS_CS_SERVICE_DELAY",
         "SYS_CS_CORRESPONDENCE",
+        "SYS_SHIPMENT_NOTICE",
+        "SYS_XUNHAN_CONTRACT_REVIEW",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -4179,11 +4194,6 @@ async def _upgrade_drawing_form_flow_if_needed(
             and _flow_field_perms_sig(new_nodes)
             != _flow_field_perms_sig(version.node_definitions)
         )
-        and not (
-            form_code == "install_drawing_notice"
-            and _flow_missing_biz_score_perms(version.node_definitions)
-        )
-        # 条件被清成 null 后互斥组多 else：节点拓扑仍「对齐」，但连线已坏，须整图重发
         and not _flow_exclusive_group_multi_blank(version.route_definitions)
         # 报价：财务核价部门出边被 sanitize 删光后节点仍在，须整图重发
         and not (
@@ -4511,6 +4521,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"开票申请可下载改到发起人接收后({form_code})",
         )
         return
+    # 安装图设计通知：剥离业务打分（及打分备注）节点可填权限
+    if topology_ok and form_code == "install_drawing_notice":
+        from app.domains.lowcode.biz_score import (
+            flow_has_install_score_perms, strip_biz_score_flow_nodes,
+        )
+        if flow_has_install_score_perms(version.node_definitions):
+            import copy
+            patched = copy.deepcopy(version.node_definitions or [])
+            strip_biz_score_flow_nodes(patched, extra_fields=frozenset({"remark"}))
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched, version.route_definitions,
+                DRAWING_FORM_FLOW_DESC, f"安装图设计通知去掉业务打分字段权限({form_code})",
+            )
+            return
     # 方案管理：剥离业务打分三项（及总分/日期）节点可填权限
     if topology_ok and form_code == "scheme_management":
         from app.domains.lowcode.biz_score import (

@@ -37,6 +37,7 @@ def test_build_fill_drawing_no_query():
         assignee_id="u1",
         assignee_name="张三",
         customer_name="抚顺新钢铁",
+        delivery_date="2026-08-20",
         registration_json={
             "packaging": "木箱",
             "paint_req": "面漆",
@@ -46,6 +47,8 @@ def test_build_fill_drawing_no_query():
             "project_name": "项目A",
             "review_sn": "PS-1",
             "remark": "备注",
+            "has_intelligence": "否",
+            "is_export": "否",
         },
         key_clauses_json=[{"name": "筛", "qty": 2}],
         mode="drawing_no_query",
@@ -53,6 +56,9 @@ def test_build_fill_drawing_no_query():
     assert fill["no_drawing_no"] == "WMGF202504038"
     assert fill["no_sales_person"] == "u1"
     assert fill["yes_customer_name"] == "抚顺新钢铁"
+    assert fill["contract_delivery_date"] == "2026-08-20"
+    assert fill["has_intelligence"] == "否"
+    assert fill["is_export_equipment"] == "否"
     assert fill["packaging_req"] == "木箱"
     assert fill["prod_card_line_items"][0]["product_name_3"] == "筛"
     assert fill["contract_tech_review_sn"] == "PS-1"
@@ -86,16 +92,19 @@ def test_apply_prod_card_contract_pick_fields():
         {"id": "contract_tech_review_sn", "type": "text", "label": "合同技术协议评审流水号"},
         {"id": "submitter", "type": "person", "label": "提交人"},
         {"id": "department", "type": "department", "label": "所在部门"},
-        {"id": "yes_customer_name", "type": "text", "label": "（是）单位名称"},
+        {"id": "yes_customer_name", "type": "text", "label": "（是）单位名称", "available_on_create": False},
+        {"id": "no_drawing_no", "type": "text", "label": "图纸编号", "available_on_create": False},
+        {"id": "prod_card_line_items", "type": "detail_table", "label": "合同明细", "available_on_create": False},
         {"id": "no_sales_person", "type": "person", "label": "（否）业务人员"},
         {"id": "region_manager", "type": "person", "label": "区域经理/组长"},
+        {"id": "yes_contract_no", "type": "text", "label": "合同号", "available_on_create": False},
     ]
     apply_prod_card_contract_pick_fields(defs)
     by_id = {f["id"]: f for f in defs}
     assert by_id["serial_no"]["type"] == "auto_number"
     assert by_id["is_supplement"]["default_value"] == "否"
     assert by_id["drawing_no_query"]["type"] == "contract"
-    assert "选择合同" in by_id["drawing_no_query"]["label"]
+    assert by_id["drawing_no_query"]["label"] == "选择合同"
     assert by_id["drawing_no_query"]["props"]["contract_fill"] == "drawing_no_query"
     assert by_id["drawing_no_query"]["props"]["filter_by_department_field"] == "department"
     assert by_id["contract_no_select"]["type"] == "contract"
@@ -106,9 +115,13 @@ def test_apply_prod_card_contract_pick_fields():
     assert by_id["contract_tech_review_sn"]["props"]["readonly"] is True
     assert by_id["submitter"]["props"]["default_current_user"] is True
     assert by_id["department"]["props"]["default_current_dept"] is True
-    assert by_id["yes_customer_name"]["form_editable"] is False
-    assert by_id["no_sales_person"]["form_editable"] is False
-    assert by_id["region_manager"]["form_editable"] is False
+    for fid in (
+        "yes_customer_name", "no_drawing_no", "prod_card_line_items",
+        "no_sales_person", "region_manager", "yes_contract_no",
+    ):
+        assert by_id[fid]["available_on_create"] is True, fid
+        assert by_id[fid]["fill_stage"] == "initiator", fid
+        assert by_id[fid]["form_editable"] is False, fid
 
 
 def test_prod_card_approver_only_fields_hidden_on_create():
@@ -268,12 +281,28 @@ def test_apply_prod_card_supplement_rules_notice_when_not_supplement():
     ])
     by_id = {r["id"]: r for r in rules}
     assert "keep_me" in by_id
-    notice = by_id["crm_vis_prod_notice_packaging_req"]
-    assert notice["condition"] == {
-        "field": "is_supplement", "operator": "in", "value": ["否"],
-    }
-    assert notice["action"] == {"visible": True}
-    assert sum(1 for r in rules if str(r.get("id") or "").startswith("crm_vis_prod_notice_")) == 9
+    # 包装情况改由「否 + 已选图纸合同」显隐，不再单独走 notice 规则
+    fill_vis = by_id["crm_vis_pc_contract_fill_packaging_req"]
+    assert fill_vis["condition"]["rel"] == "and"
+    assert fill_vis["condition"]["cond"][0]["value"] == ["否"]
+    assert fill_vis["condition"]["cond"][1]["field"] == "drawing_no_query"
+    assert sum(1 for r in rules if str(r.get("id") or "").startswith("crm_vis_prod_notice_")) == 1
+    assert any(r.get("id") == "crm_vis_pc_contract_fill_shared_yes_customer_name" for r in rules)
+
+
+def test_apply_prod_card_contract_fill_visibility():
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_fill_visibility
+
+    rules = apply_prod_card_contract_fill_visibility([])
+    by_id = {r["id"]: r for r in rules}
+    vis = by_id["crm_vis_pc_contract_fill_prod_card_line_items"]
+    assert vis["condition"]["rel"] == "and"
+    assert vis["condition"]["cond"][1]["field"] == "drawing_no_query"
+    yes_vis = by_id["crm_vis_pc_yes_contract_fill_yes_contract_no"]
+    assert yes_vis["condition"]["cond"][0]["value"] == ["是"]
+    assert yes_vis["condition"]["cond"][1]["field"] == "contract_no_select"
+    shared = by_id["crm_vis_pc_contract_fill_shared_yes_customer_name"]
+    assert shared["condition"]["rel"] == "or"
 
 
 def test_ensure_prod_card_serial_no_field():

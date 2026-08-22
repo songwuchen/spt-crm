@@ -601,7 +601,11 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "drawing_requisition":
             drop_ids |= {"order_person_text", "designer_text", "need_decrypt_note"}
         if t["key"] == "install_drawing_notice":
-            drop_ids |= {"order_person_text"}
+            drop_ids |= {
+                "order_person_text",
+                "score_attitude", "score_progress", "score_skill",
+                "score_total", "score_date", "remark",
+            }
         if t["key"] == "scheme_management":
             drop_ids |= {
                 "score_attitude", "score_progress", "score_skill",

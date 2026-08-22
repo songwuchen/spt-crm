@@ -764,6 +764,16 @@ async def sync_builtin_form_fields(
         apply_design_card_serial_rules(want)
         apply_install_drawing_serial_no_field(want)
         apply_install_drawing_notice_fields(want)
+        want = [
+            fd for fd in want
+            if not (
+                isinstance(fd, dict)
+                and fd.get("id") in {
+                    "score_attitude", "score_progress", "score_skill",
+                    "score_total", "score_date", "remark",
+                }
+            )
+        ]
         want_rules = [
             r for r in want_rules
             if not (
@@ -771,6 +781,14 @@ async def sync_builtin_form_fields(
                 and (
                     r.get("target_field_id") == "order_person_text"
                     or "order_person_text" in set(r.get("target_field_ids") or [])
+                    or r.get("target_field_id") in {
+                        "score_attitude", "score_progress", "score_skill",
+                        "score_total", "score_date", "remark",
+                    }
+                    or bool(set(r.get("target_field_ids") or []) & {
+                        "score_attitude", "score_progress", "score_skill",
+                        "score_total", "score_date", "remark",
+                    })
                 )
             )
         ]

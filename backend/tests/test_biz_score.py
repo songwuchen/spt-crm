@@ -3,6 +3,7 @@ from app.domains.lowcode.biz_score import (
     apply_biz_score_field_defs,
     apply_biz_score_flow_nodes,
     flow_missing_biz_score_perms,
+    strip_biz_score_flow_nodes,
 )
 
 
@@ -30,6 +31,22 @@ def test_apply_biz_score_field_defs():
     assert remark["available_on_create"] is False
     assert remark["required"] is False
     assert fields[-1]["available_on_create"] is True  # untouched
+
+
+def test_strip_biz_score_flow_nodes_with_remark():
+    nodes = [{
+        "type": "approval",
+        "name": "业务反馈",
+        "field_perms": [
+            {"field": "score_attitude", "access": "required"},
+            {"field": "remark", "access": "required"},
+            {"field": "biz_feedback", "access": "required"},
+        ],
+    }]
+    changed = strip_biz_score_flow_nodes(nodes, extra_fields=frozenset({"remark"}))
+    assert changed is True
+    fps = {p["field"] for p in nodes[0]["field_perms"]}
+    assert fps == {"biz_feedback"}
 
 
 def test_apply_biz_score_flow_nodes_and_missing():

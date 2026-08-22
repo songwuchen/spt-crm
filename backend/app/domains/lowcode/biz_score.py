@@ -93,10 +93,16 @@ def apply_biz_score_flow_nodes(nodes: list[dict[str, Any]] | None) -> None:
 SCORE_DROP_FIELDS = frozenset(
     SCORE_REQUIRED_FIELDS + SCORE_OPTIONAL_FIELDS + (SCORE_TOTAL_FIELD,),
 )
+INSTALL_SCORE_STRIP_FIELDS = SCORE_DROP_FIELDS | frozenset({"remark"})
 
 
-def strip_biz_score_flow_nodes(nodes: list[dict[str, Any]] | None) -> bool:
+def strip_biz_score_flow_nodes(
+    nodes: list[dict[str, Any]] | None,
+    *,
+    extra_fields: frozenset[str] | None = None,
+) -> bool:
     """从节点 field_perms 去掉业务打分字段。返回是否有改动。"""
+    drop = SCORE_DROP_FIELDS | (extra_fields or frozenset())
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
@@ -106,12 +112,23 @@ def strip_biz_score_flow_nodes(nodes: list[dict[str, Any]] | None) -> bool:
             continue
         kept = [
             p for p in perms
-            if isinstance(p, dict) and p.get("field") not in SCORE_DROP_FIELDS
+            if isinstance(p, dict) and p.get("field") not in drop
         ]
         if len(kept) != len(perms):
             n["field_perms"] = kept
             changed = True
     return changed
+
+
+def flow_has_install_score_perms(nodes: list | None) -> bool:
+    """安装图：节点 field_perms 仍含打分或打分备注。"""
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") in INSTALL_SCORE_STRIP_FIELDS:
+                return True
+    return False
 
 
 def flow_has_biz_score_perms(nodes: list | None) -> bool:

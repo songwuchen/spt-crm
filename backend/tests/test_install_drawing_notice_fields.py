@@ -16,8 +16,6 @@ def test_apply_install_drawing_notice_fields_stages():
          "available_on_create": True, "fill_stage": "initiator"},
         {"id": "design_dispatch", "type": "radio", "label": "设计单分派", "required": True},
         {"id": "need_submit_drawing", "type": "radio", "label": "是否上交图纸", "required": True},
-        {"id": "remark", "type": "textarea", "label": "备注", "required": True},
-        {"id": "score_attitude", "type": "number", "label": "态度分数", "required": True},
         {"id": "change_scheme", "type": "detail_table", "label": "修改方案"},
         {"id": "offices_multi", "type": "department", "label": "科室多选",
          "available_on_create": False, "fill_stage": "approver"},
@@ -34,8 +32,8 @@ def test_apply_install_drawing_notice_fields_stages():
     assert by["design_dispatch"]["available_on_create"] is False
     assert by["need_submit_drawing"]["available_on_create"] is False
     assert by["need_submit_drawing"]["required"] is False
-    assert by["remark"]["available_on_create"] is False
-    assert by["score_attitude"]["available_on_create"] is False
+    assert "remark" not in by
+    assert "score_attitude" not in by
     assert by["change_scheme"]["available_on_create"] is False
     assert by["offices_multi"]["type"] == "department_multi"
     assert by["project_no"]["available_on_create"] is True

@@ -15,6 +15,10 @@ _APPROVER_ONLY = frozenset({
     "design_dispatch", "transfer_packaging_users", "design_assignees",
     "offices_multi", "order_date", "transfer_sw_lwt",
     "need_submit_drawing",
+})
+
+# 业务打分字段：安装图设计通知已废弃，ensure 时剔除
+INSTALL_SCORE_DROP_IDS = frozenset({
     "score_attitude", "score_progress", "score_skill",
     "score_total", "score_date", "remark",
 })
@@ -29,15 +33,15 @@ _DROP_IDS = frozenset({"order_person_text"})
 
 def apply_install_drawing_notice_fields(field_defs: list[dict[str, Any]]) -> None:
     """对齐简道云：创建可写 / 发起只读 / 审批才填；并补默认值。"""
-    from app.domains.lowcode.biz_score import apply_biz_score_field_defs
-
     if isinstance(field_defs, list):
         field_defs[:] = [
             fd for fd in field_defs
-            if not (isinstance(fd, dict) and fd.get("id") in _DROP_IDS)
+            if not (
+                isinstance(fd, dict)
+                and (fd.get("id") in _DROP_IDS or fd.get("id") in INSTALL_SCORE_DROP_IDS)
+            )
         ]
 
-    apply_biz_score_field_defs(field_defs)
     for fd in field_defs or []:
         if not isinstance(fd, dict):
             continue
@@ -110,11 +114,6 @@ def apply_install_drawing_notice_fields(field_defs: list[dict[str, Any]]) -> Non
             props = dict(fd.get("props") or {})
             props["ensure_min_rows"] = 1
             fd["props"] = props
-        elif fid == "remark":
-            # 打分备注：创建隐藏，业务反馈节点填写
-            fd["available_on_create"] = False
-            fd["fill_stage"] = "approver"
-            fd["required"] = False
 
     from app.domains.lowcode.pickable_scope import apply_transfer_packaging_role_scope
     apply_transfer_packaging_role_scope(field_defs)

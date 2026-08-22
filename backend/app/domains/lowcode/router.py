@@ -794,6 +794,7 @@ async def pickable_contract_prod_card_fill(
             assignee_id=c.assignee_id,
             assignee_name=c.assignee_name,
             customer_name=customer_name,
+            delivery_date=str(c.delivery_date) if c.delivery_date else None,
             registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
             key_clauses_json=ver.key_clauses_json if ver else None,
             mode=mode,
