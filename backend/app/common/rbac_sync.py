@@ -809,16 +809,17 @@ async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
     return result
 
 
-# 法务办理（简道云 role 法务办理 / 24.2.3合同评审-法务）：孔雪、张孟杰
+# 简道云「24.2.3合同/项目评审-法务审批多人」：杜习慧、孔雪、张孟杰
 LEGAL_MEMBER_USERNAMES: tuple[str, ...] = (
+    "543355140326074979",  # 杜习慧
     "4723152427763414",  # 孔雪
     "256932256424153873",  # 张孟杰
 )
-LEGAL_MEMBER_REAL_NAMES: tuple[str, ...] = ("孔雪", "张孟杰")
+LEGAL_MEMBER_REAL_NAMES: tuple[str, ...] = ("杜习慧", "孔雪", "张孟杰")
 
 
 async def ensure_legal_role_members(db, tenant_id: str) -> dict:
-    """确保 legal=法务办理，成员仅孔雪/张孟杰（对齐简道云导出）。"""
+    """确保 legal=24.2.3合同/项目评审-法务审批多人，成员杜习慧/孔雪/张孟杰。"""
     from app.domains.auth.models import User, UserRole
 
     result = await _ensure_role_members(

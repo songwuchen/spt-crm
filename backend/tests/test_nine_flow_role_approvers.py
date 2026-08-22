@@ -39,6 +39,16 @@ def test_room_leader_member_roster():
     }
 
 
+def test_legal_member_roster():
+    from app.common.rbac_catalog import STANDARD_ROLES
+    from app.common.rbac_sync import LEGAL_MEMBER_REAL_NAMES, LEGAL_MEMBER_USERNAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "legal")
+    assert role["name"] == "24.2.3合同/项目评审-法务审批多人"
+    assert set(LEGAL_MEMBER_REAL_NAMES) == {"杜习慧", "孔雪", "张孟杰"}
+    assert len(LEGAL_MEMBER_USERNAMES) == 3
+
+
 def test_charger_rule_maps_new_roles():
     cases = [
         ("5f69a16377e34d0006f13047", "24.1发货通知流程-销售出库", "ship_sales_outbound"),

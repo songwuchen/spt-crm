@@ -439,8 +439,8 @@ STANDARD_ROLES = [
         ],
     },
     {
-        "code": "legal", "name": "法务办理", "scope": "all",
-        "desc": "对齐简道云「法务办理」：生产卡法务审核 / 迅焊合同评审法务；成员孔雪、张孟杰",
+        "code": "legal", "name": "24.2.3合同/项目评审-法务审批多人", "scope": "all",
+        "desc": "对齐简道云「24.2.3合同/项目评审-法务审批多人」/生产卡法务审核；成员杜习慧、孔雪、张孟杰",
         "perms": [
             "contract_review:view",
             "approval:approve", "approval:decide",

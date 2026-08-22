@@ -13,7 +13,7 @@ def test_contract_review_legal_is_named_users():
     by_id = {n["id"]: n for n in nodes}
     rule = by_id["approval_legal"]["approver_rule"]
     assert rule["type"] == "specified_user"
-    assert rule["value"] == ["4723152427763414", "256932256424153873"]
+    assert rule["value"] == ["543355140326074979", "4723152427763414", "256932256424153873"]
     assert _contract_review_legal_users_aligned(nodes)
 
 
@@ -53,7 +53,7 @@ def test_apply_contract_review_named_legal_approvers():
     assert apply_contract_review_named_legal_approvers(nodes)
     assert nodes[0]["approver_rule"]["type"] == "specified_user"
     assert nodes[0]["approver_rule"]["value"] == [
-        "4723152427763414", "256932256424153873",
+        "543355140326074979", "4723152427763414", "256932256424153873",
     ]
     assert _contract_review_legal_users_aligned(nodes)
     assert not apply_contract_review_named_legal_approvers(nodes)
