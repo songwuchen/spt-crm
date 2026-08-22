@@ -45,7 +45,6 @@ export default function ContractList() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [refreshingDrawingNo, setRefreshingDrawingNo] = useState(false)
   const [createForm] = Form.useForm()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
@@ -115,45 +114,11 @@ export default function ContractList() {
   const syncAmountFromLines = (total: number) => {
     createForm.setFieldsValue({ amount_total: total || undefined })
   }
-  const refreshDrawingNoPreview = async (numberAttr?: unknown) => {
-    try {
-      const attr = String(numberAttr || createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
-      const r = await contractApi.peekDrawingNo({ number_attr: attr })
-      const no = (r.data?.drawing_no || '').trim()
-      if (no) createForm.setFieldsValue({ drawing_no: no })
-    } catch { /* ignore */ }
-  }
-  const refreshDrawingNoAllocate = async () => {
-    setRefreshingDrawingNo(true)
-    try {
-      const prev = String(createForm.getFieldValue('drawing_no') || '').trim()
-      const attr = String(createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
-      const r = await contractApi.allocateDrawingNo({
-        ...(prev ? { drawing_no: prev } : {}),
-        number_attr: attr,
-      })
-      const next = (r.data?.drawing_no || '').trim()
-      if (!next) {
-        message.error('重新取号失败，请稍后重试')
-        return
-      }
-      createForm.setFieldsValue({ drawing_no: next })
-      if (prev && prev === next) {
-        message.info(`当前编号仍可用：${next}`)
-      } else {
-        message.success(`已重新取号：${next}`)
-      }
-    } catch {
-      // 拦截器已 toast
-    } finally {
-      setRefreshingDrawingNo(false)
-    }
-  }
   const openCreate = () => {
     createForm.resetFields()
     createForm.setFieldsValue({
       change_type: 'new',
-      registration_json: { number_attr: 'WMGF' },
+      registration_json: {},
     })
     setCustomFields({})
     setCreateLines([{}])
@@ -162,7 +127,6 @@ export default function ContractList() {
     setProjOpts([])
     searchProjects()
     setCreateOpen(true)
-    void refreshDrawingNoPreview('WMGF')
   }
   const handleCreate = async (andSubmit: boolean) => {
     let v: Record<string, unknown>
@@ -192,7 +156,15 @@ export default function ContractList() {
       }
       v = createForm.getFieldsValue(true) as Record<string, unknown>
     }
-    const contractNo = String(v.contract_no || '').trim()
+    const drawingNo = String(v.drawing_no || '').trim()
+    // 合同号来自对应表「合同号」字段（选图纸号时已回填）
+    const contractNo = String(v.contract_no || '').trim() || drawingNo
+    if (andSubmit && !drawingNo) {
+      message.warning('请从合同图纸对应表选择图纸编号')
+      createForm.setFields([{ name: 'drawing_no', errors: ['请从合同图纸对应表选择图纸编号'] }])
+      createForm.scrollToField('drawing_no', { behavior: 'smooth', block: 'center' })
+      return
+    }
     const nativeDates: { name: string; label: string; value: unknown }[] = [
       { name: 'card_date', label: '下卡日期', value: v.card_date },
       { name: 'order_date', label: '订货日期', value: v.order_date },
@@ -241,8 +213,7 @@ export default function ContractList() {
         ...(orderDate ? { order_date: orderDate } : {}),
         ...(cardDate ? { card_date: cardDate } : {}),
         ...(contractNo ? { contract_no: contractNo } : {}),
-        // 打开表单时已 peek 自动编号，提交时沿用该号（后端冲突则另取）
-        ...((String(v.drawing_no || '').trim()) ? { drawing_no: String(v.drawing_no).trim() } : {}),
+        ...(drawingNo ? { drawing_no: drawingNo } : {}),
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
         ...(v.change_type ? { change_type: v.change_type } : {}),
@@ -296,20 +267,11 @@ export default function ContractList() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
       if (msg) {
-        if (msg.includes('合同号')) {
+        if (msg.includes('合同号') || /图纸编号/.test(msg)) {
           message.warning(msg)
-          createForm.setFields([{ name: 'contract_no', errors: [msg] }])
-          createForm.scrollToField('contract_no', { behavior: 'smooth', block: 'center' })
-        } else if (/图纸编号/.test(msg) && /已存在/.test(msg)) {
-          createForm.setFields([{ name: 'drawing_no', errors: [msg] }])
-          createForm.scrollToField('drawing_no', { behavior: 'smooth', block: 'center' })
-          Modal.confirm({
-            title: '图纸编号已存在',
-            content: msg.includes('刷新') ? msg : `${msg}，请刷新重新取号后再保存。`,
-            okText: '刷新取号',
-            cancelText: '取消',
-            onOk: () => refreshDrawingNoAllocate(),
-          })
+          const field = /图纸编号/.test(msg) ? 'drawing_no' : 'contract_no'
+          createForm.setFields([{ name: field, errors: [msg] }])
+          createForm.scrollToField(field, { behavior: 'smooth', block: 'center' })
         } else {
           message.warning(msg)
         }
@@ -469,15 +431,7 @@ export default function ContractList() {
         ]}
       >
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields} formMode="create">
-        <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError
-          onValuesChange={(changed) => {
-            // 图纸编号按取号当天，与订货日无关；仅编号属性变化时重预览
-            const regCh = changed.registration_json as Record<string, unknown> | undefined
-            if (regCh && Object.prototype.hasOwnProperty.call(regCh, 'number_attr')) {
-              void refreshDrawingNoPreview(regCh.number_attr)
-            }
-          }}
-        >
+        <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
           <Form.Item name="project_id" label="关联商机">
             <Select allowClear showSearch filterOption={false} placeholder="可选：搜索商机名称 / 编号"
               options={projOpts} loading={projLoading} onSearch={searchProjects}
@@ -490,8 +444,6 @@ export default function ContractList() {
             mode="create"
             customerSelect={customerSelect}
             onCustomerChange={fillFromCustomer}
-            onRefreshDrawingNo={refreshDrawingNoAllocate}
-            refreshingDrawingNo={refreshingDrawingNo}
             slots={{
               line_items: (
                 <div>

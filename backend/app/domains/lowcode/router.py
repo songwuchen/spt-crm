@@ -1126,7 +1126,7 @@ async def peek_form_serials(
 ):
     """填报页预览下一流水号（不消耗计数），对齐简道云「点添加即显示编号」。
 
-    合同图纸对应表图纸编号：与合同登记共用号池，预览时跳过两边已占用号。
+    合同图纸对应表图纸编号：跳过本表已占用号（可推进计数空洞），不跳历史合同登记号。
     """
     from app.domains.lowcode.models import FormTemplate
     from app.domains.lowcode.serial_number import peek_serials_for_form, peek_serial_value
@@ -1154,12 +1154,13 @@ async def peek_form_serials(
                 previews[str(fid)] = await peek_drawing_no_skipping_taken(
                     db, tenant_id, template_id, fd, form_data, field_defs,
                     map_template_id=template_id,
+                    map_only=True,
                 )
             else:
                 previews[str(fid)] = await peek_serial_value(
                     db, tenant_id, template_id, fd, form_data, field_defs,
                 )
-        await db.commit()  # 跳过已占用号时可能推进了计数空洞
+        await db.commit()  # 跳过本表已占用号时可能推进了计数空洞
         return ok(previews)
     previews = await peek_serials_for_form(
         db, tenant_id, template_id, field_defs, form_data,
@@ -1178,7 +1179,7 @@ async def allocate_form_serials(
     """填报页重新取号：当前号仍可用则原样返回；否则占计数并跳过已存在编号。"""
     from app.domains.lowcode.serial_number import allocate_unique_serials
     from app.domains.lowcode.models import FormTemplate
-    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken_in_map
     from sqlalchemy import select
 
     version = await service.get_published_version(db, tenant_id, template_id)
@@ -1198,7 +1199,8 @@ async def allocate_form_serials(
         if not v:
             return False
         if tpl_code == "contract_drawing_map" and field_id == "drawing_no":
-            return await is_drawing_no_taken(
+            # 对应表重新取号：只避开本表已占用号，不跳历史合同登记空洞
+            return await is_drawing_no_taken_in_map(
                 db, tenant_id, v, map_template_id=template_id,
             )
         from app.domains.lowcode.models import FormInstance

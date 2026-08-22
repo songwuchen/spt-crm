@@ -2,13 +2,12 @@
  * 合同登记表单分区（对齐简道云「合同登记表」字段顺序 + 控件类型 + 动态显隐）。
  * native → 表单顶层字段；reg → registration_json.*
  * 子表通过 slots 插在简道云 subform 对应位置。
- * 合同/项目评审流水号支持选数带出；合同号手填；图纸编号按编号属性（WMGF/SY）生成。
+ * 图纸编号从「合同图纸对应表」选数；登记页选用的图纸号即合同号。
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComplete, Button, Space, Tooltip } from 'antd'
+import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComplete } from 'antd'
 import type { FormInstance } from 'antd'
-import { ReloadOutlined } from '@ant-design/icons'
 import {
   CONTRACT_REGISTRATION_SECTIONS,
   type RegAfterSlot,
@@ -39,9 +38,8 @@ type Props = {
   mode?: 'create' | 'edit'
   regOnly?: boolean
   slots?: Partial<Record<RegAfterSlot, ReactNode>>
-  /** 新建：图纸编号旁「重新取号」 */
-  onRefreshDrawingNo?: () => void
-  refreshingDrawingNo?: boolean
+  /** 编辑时排除本单占用，使当前图纸号仍可选 */
+  excludeContractId?: string
   /** 与父级共用客户下拉（编辑回显 setInitialOption） */
   customerSelect?: CustomerSelectApi
   /** 选定客户后回填编号/部门/业务员 */
@@ -196,6 +194,112 @@ function ReviewSnPicker({
   )
 }
 
+/** 合同图纸对应表选数：图纸号落 drawing_no，合同号用对应表的合同号 */
+function DrawingMapPicker({
+  form,
+  value,
+  onChange,
+  excludeContractId,
+}: {
+  form: FormInstance
+  value?: string
+  onChange?: (v: string) => void
+  excludeContractId?: string
+}) {
+  type Opt = {
+    value: string
+    label: string
+    mapContractNo: string
+    departmentId?: string | null
+  }
+  const [opts, setOpts] = useState<Opt[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const search = async (kw?: string) => {
+    setLoading(true)
+    try {
+      const r = await contractApi.drawingMapLookups({
+        keyword: kw || undefined,
+        limit: 50,
+        exclude_contract_id: excludeContractId || undefined,
+      })
+      const next: Opt[] = []
+      const seen = new Set<string>()
+      for (const row of r.data || []) {
+        const no = (row.drawing_no || '').trim()
+        if (!no || seen.has(no)) continue
+        seen.add(no)
+        const mapCn = (row.contract_no || '').trim()
+        next.push({
+          value: no,
+          label: row.label || (mapCn ? `${no} · ${mapCn}` : no),
+          mapContractNo: mapCn,
+          departmentId: row.department_id,
+        })
+      }
+      // 编辑回显：当前值可能不在本页结果里，补一条以免 Select 只显示裸 value
+      const cur = (value || '').trim()
+      if (cur && !seen.has(cur)) {
+        next.unshift({ value: cur, label: cur, mapContractNo: '', departmentId: null })
+      }
+      setOpts(next)
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const cur = (value || '').trim()
+    if (!cur) return
+    setOpts((prev) => {
+      if (prev.some((o) => o.value === cur)) return prev
+      return [{ value: cur, label: cur, mapContractNo: '', departmentId: null }, ...prev]
+    })
+  }, [value])
+
+  const apply = (drawingNo: string) => {
+    const no = (drawingNo || '').trim()
+    onChange?.(no)
+    if (!no) {
+      form.setFieldsValue({ contract_no: undefined })
+      return
+    }
+    const hit = opts.find((o) => o.value === no)
+    // 合同号取对应表「合同号」；没有则回退图纸号
+    const mapCn = (hit?.mapContractNo || '').trim() || no
+    const reg = { ...(form.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+    // 编号属性不再展示，按图纸号前缀静默带上（兼容旧筛选）
+    const upper = no.toUpperCase()
+    if (upper.startsWith('SY')) reg.number_attr = 'SY'
+    else if (upper.startsWith('WMGF')) reg.number_attr = 'WMGF'
+    const patch: Record<string, unknown> = {
+      drawing_no: no,
+      contract_no: mapCn,
+      registration_json: reg,
+    }
+    if (hit?.departmentId && !form.getFieldValue('department_id')) {
+      patch.department_id = hit.departmentId
+    }
+    form.setFieldsValue(patch)
+  }
+
+  return (
+    <Select
+      allowClear
+      showSearch
+      filterOption={false}
+      value={value || undefined}
+      placeholder="从合同图纸对应表选择图纸编号"
+      loading={loading}
+      options={opts.map((o) => ({ value: o.value, label: o.label }))}
+      onSearch={(kw) => void search(kw)}
+      onDropdownVisibleChange={(open) => { if (open) void search() }}
+      onChange={(v) => apply(String(v || ''))}
+      notFoundContent={loading ? '加载中…' : '对应表暂无可用图纸编号，请先在「合同图纸对应表」新增'}
+    />
+  )
+}
+
 /** 应用领域 / 应用物料：从低代码基础表异步取选项 */
 function BaseFormLookupSelect({
   formCode,
@@ -287,8 +391,6 @@ function FieldControl({
   mode = 'edit',
   value,
   onChange,
-  onRefreshDrawingNo,
-  refreshingDrawingNo,
   customerSelect,
   onCustomerChange,
   ...rest
@@ -298,8 +400,6 @@ function FieldControl({
   mode?: 'create' | 'edit'
   value?: unknown
   onChange?: (...args: any[]) => void
-  onRefreshDrawingNo?: () => void
-  refreshingDrawingNo?: boolean
   customerSelect?: CustomerSelectApi
   onCustomerChange?: (customerId?: string) => void | Promise<void>
   [k: string]: unknown
@@ -319,22 +419,24 @@ function FieldControl({
     )
   }
 
-  if (field.key === 'drawing_no' && onRefreshDrawingNo) {
+  if (field.key === 'drawing_no') {
     return (
-      <Space.Compact className="w-full">
-        <Input
-          {...control}
-          allowClear
-          placeholder={field.placeholder}
-        />
-        <Tooltip title="重新取号">
-          <Button
-            icon={<ReloadOutlined />}
-            loading={!!refreshingDrawingNo}
-            onClick={() => onRefreshDrawingNo()}
-          />
-        </Tooltip>
-      </Space.Compact>
+      <DrawingMapPicker
+        form={form}
+        value={value as string | undefined}
+        onChange={onChange as ((v: string) => void) | undefined}
+        excludeContractId={typeof rest.excludeContractId === 'string' ? rest.excludeContractId : undefined}
+      />
+    )
+  }
+
+  if (field.key === 'contract_no' && field.readOnly) {
+    return (
+      <Input
+        {...control}
+        disabled
+        placeholder={field.placeholder || '选自图纸编号'}
+      />
     )
   }
 
@@ -487,19 +589,17 @@ function FieldGrid({
   mode,
   regOnly,
   form,
-  onRefreshDrawingNo,
-  refreshingDrawingNo,
   customerSelect,
   onCustomerChange,
+  excludeContractId,
 }: {
   fields: RegFieldDef[]
   mode: 'create' | 'edit'
   regOnly: boolean
   form: FormInstance
-  onRefreshDrawingNo?: () => void
-  refreshingDrawingNo?: boolean
   customerSelect?: CustomerSelectApi
   onCustomerChange?: (customerId?: string) => void | Promise<void>
+  excludeContractId?: string
 }) {
   const policy = useFieldPolicy()
   const catalogById = new Map(
@@ -577,10 +677,9 @@ function FieldGrid({
                       field={f}
                       form={form}
                       mode={mode}
-                      onRefreshDrawingNo={onRefreshDrawingNo}
-                      refreshingDrawingNo={refreshingDrawingNo}
                       customerSelect={customerSelect}
                       onCustomerChange={onCustomerChange}
+                      excludeContractId={excludeContractId}
                     />
                   </PolicyItem>
                 )
@@ -595,8 +694,7 @@ function FieldGrid({
                     field={f}
                     form={form}
                     mode={mode}
-                    onRefreshDrawingNo={onRefreshDrawingNo}
-                    refreshingDrawingNo={refreshingDrawingNo}
+                    excludeContractId={excludeContractId}
                   />
                 </Form.Item>
               )
@@ -613,17 +711,13 @@ export default function ContractRegistrationFields({
   mode = 'edit',
   regOnly = false,
   slots,
-  onRefreshDrawingNo,
-  refreshingDrawingNo,
+  excludeContractId,
   customerSelect: customerSelectProp,
   onCustomerChange,
 }: Props) {
   const internalCustomerSelect = useCustomerSelect()
   const customerSelect = customerSelectProp ?? internalCustomerSelect
-  const refreshProps = mode === 'create'
-    ? { onRefreshDrawingNo, refreshingDrawingNo }
-    : {}
-  const gridProps = { customerSelect, onCustomerChange, ...refreshProps }
+  const gridProps = { customerSelect, onCustomerChange, excludeContractId }
   return (
     <div className="space-y-5">
       {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}
@@ -648,7 +742,7 @@ export default function ContractRegistrationFields({
         )
       })}
       <div className="text-[12px] text-slate-400">
-        标 <span className="text-rose-500">*</span> 为必填。附件可直接在对应分区选择/上传。
+        标 <span className="text-rose-500">*</span> 为必填。图纸编号从「合同图纸对应表」选择，合同号自动带出对应表中的合同号。附件可直接在对应分区选择/上传。
       </div>
     </div>
   )

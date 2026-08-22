@@ -288,6 +288,10 @@ export default function FormFillPage({
     return () => { alive = false }
   }, [salesPersonId, fields, salesSourceField?.id, regionTargetField?.id])
 
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+  /** 用户手改过的流水号字段：不再被 peek 自动覆盖（推荐号仅作初值） */
+  const manualSerialRef = useRef<Set<string>>(new Set())
+
   useEffect(() => {
     if (!id || loading || !fields.some((f) => f.type === 'auto_number')) return
     if (peekTimer.current) clearTimeout(peekTimer.current)
@@ -295,7 +299,7 @@ export default function FormFillPage({
       lowcodeApi.peekSerials(id, value).then((res) => {
         const peeks = res.data || {}
         setSerialPreviews(peeks)
-        // 可编辑流水号：空值或仍等于上一预览时跟随新预览，手改后不覆盖
+        // 可编辑流水号：空值或仍等于上一预览时跟随新预览；手改后绝不覆盖
         const editableAuto = fields.filter(
           (f) => f.type === 'auto_number' && (
             f.form_editable === true
@@ -307,6 +311,7 @@ export default function FormFillPage({
           let changed = false
           const next = { ...prev }
           for (const f of editableAuto) {
+            if (manualSerialRef.current.has(f.id)) continue
             const peek = peeks[f.id]
             if (!peek) continue
             const cur = next[f.id]
@@ -327,8 +332,6 @@ export default function FormFillPage({
     }
   }, [id, loading, fields, depKey])
 
-  const userRoles = useAuthStore((s) => s.user?.roles) || []
-
   const refreshSerial = async (fieldId: string) => {
     if (!id || !fieldId) return
     setRefreshingSerialId(fieldId)
@@ -340,6 +343,8 @@ export default function FormFillPage({
         message.error('重新取号失败，请稍后重试')
         return
       }
+      // 刷新取号 = 重新接受系统推荐，之后可再跟随 peek
+      manualSerialRef.current.delete(fieldId)
       lastAutoPreviewRef.current[fieldId] = next
       setSerialPreviews((prev) => ({ ...prev, [fieldId]: next }))
       setValue((prev) => ({ ...prev, [fieldId]: next }))
@@ -385,12 +390,14 @@ export default function FormFillPage({
       if (isDrawingMap && /图纸编号/.test(msg) && /已存在/.test(msg)) {
         Modal.confirm({
           title: '图纸编号已存在',
-          content: msg.includes('刷新') ? msg : `${msg || '该编号已被占用'}，请刷新重新取号后再保存。`,
+          content: msg || '该编号已被占用。系统推荐号仅供参考，请点击刷新重新取号，或改成未使用的编号后再保存。',
           okText: '刷新取号',
-          cancelText: '取消',
+          cancelText: '我自己改',
           onOk: () => refreshSerial('drawing_no'),
         })
+        return
       }
+      if (msg) message.error(msg)
     } finally { setSubmitting(false) }
   }
 
@@ -417,7 +424,21 @@ export default function FormFillPage({
           rules={rules}
           mode="edit"
           value={value}
-          onChange={(next) => setValue((prev) => ({ ...prev, ...next }))}
+          onChange={(next) => {
+            setValue((prev) => {
+              for (const f of fields) {
+                if (f.type !== 'auto_number') continue
+                if (!(f.id in next)) continue
+                const editable = f.form_editable === true
+                  || !!(f.props as { manual_edit?: boolean } | undefined)?.manual_edit
+                if (!editable) continue
+                const nv = next[f.id] == null || next[f.id] === '' ? '' : String(next[f.id])
+                const ov = prev[f.id] == null || prev[f.id] === '' ? '' : String(prev[f.id])
+                if (nv !== ov) manualSerialRef.current.add(f.id)
+              }
+              return { ...prev, ...next }
+            })
+          }}
           serialPreviews={serialPreviews}
           onRefreshSerial={isDrawingMap ? refreshSerial : undefined}
           refreshingSerialId={refreshingSerialId}

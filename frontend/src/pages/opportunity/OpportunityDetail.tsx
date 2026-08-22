@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message, Radio } from 'antd'
+import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, UserSwitchOutlined, PaperClipOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -317,48 +317,67 @@ export default function OpportunityDetail() {
 
   // 新建合同（可直接录入条款）
   const [contractModal, setContractModal] = useState(false)
-  const [ctContractNo, setCtContractNo] = useState('')
   const [ctDrawingNo, setCtDrawingNo] = useState('')
-  const [ctNumberAttr, setCtNumberAttr] = useState<'WMGF' | 'SY'>('WMGF')
+  const [ctContractNo, setCtContractNo] = useState('')
   const [ctAmount, setCtAmount] = useState<number | null>(null)
   const [ctEndDate, setCtEndDate] = useState<dayjs.Dayjs | null>(null)
   const [ctPay, setCtPay] = useState<Record<string, unknown>[]>([])
   const [ctLines, setCtLines] = useState<Record<string, unknown>[]>([])
   const [ctSaving, setCtSaving] = useState(false)
+  const [ctMapOpts, setCtMapOpts] = useState<{ value: string; label: string; mapContractNo: string }[]>([])
+  const [ctMapLoading, setCtMapLoading] = useState(false)
 
-  const peekCtDrawingNo = (attr: 'WMGF' | 'SY') => {
-    void contractApi.peekDrawingNo({ number_attr: attr }).then((r) => {
-      const no = (r.data?.drawing_no || '').trim()
-      if (no) setCtDrawingNo(no)
-    }).catch(() => {})
+  const searchCtDrawingMap = async (kw?: string) => {
+    setCtMapLoading(true)
+    try {
+      const r = await contractApi.drawingMapLookups({ keyword: kw || undefined, limit: 50 })
+      const seen = new Set<string>()
+      const next: { value: string; label: string; mapContractNo: string }[] = []
+      for (const row of r.data || []) {
+        const no = (row.drawing_no || '').trim()
+        if (!no || seen.has(no)) continue
+        seen.add(no)
+        const mapCn = (row.contract_no || '').trim()
+        next.push({
+          value: no,
+          label: row.label || (mapCn ? `${no} · ${mapCn}` : no),
+          mapContractNo: mapCn,
+        })
+      }
+      setCtMapOpts(next)
+    } catch { /* ignore */ } finally {
+      setCtMapLoading(false)
+    }
   }
 
   const handleCreateContract = () => {
-    setCtContractNo('')
     setCtDrawingNo('')
-    setCtNumberAttr('WMGF')
+    setCtContractNo('')
     setCtAmount(null)
     setCtEndDate(null)
     setCtPay([])
     setCtLines([])
+    setCtMapOpts([])
     setContractModal(true)
-    peekCtDrawingNo('WMGF')
+    void searchCtDrawingMap()
   }
 
   const doCreateContract = async () => {
-    const no = ctContractNo.trim()
-    if (!no) {
-      message.error('请填写合同号')
+    const drawingNo = ctDrawingNo.trim()
+    if (!drawingNo) {
+      message.error('请从合同图纸对应表选择图纸编号')
       return
     }
+    const contractNo = ctContractNo.trim() || drawingNo
     setCtSaving(true)
     try {
-      const drawingNo = ctDrawingNo.trim()
+      const upper = drawingNo.toUpperCase()
+      const numberAttr = upper.startsWith('SY') ? 'SY' : 'WMGF'
       await contractApi.create(id!, {
         title: 'V1',
-        contract_no: no,
-        ...(drawingNo ? { drawing_no: drawingNo } : {}),
-        registration_json: { number_attr: ctNumberAttr },
+        contract_no: contractNo,
+        drawing_no: drawingNo,
+        registration_json: { number_attr: numberAttr },
         ...(ctAmount != null ? { amount_total: ctAmount } : {}),
         ...(ctEndDate ? { end_date: ctEndDate.format('YYYY-MM-DD') } : {}),
         ...(ctPay.length ? { payment_terms_json: ctPay } : {}),
@@ -1743,28 +1762,29 @@ export default function OpportunityDetail() {
         <div className="space-y-5 py-2">
           <div className="flex flex-wrap gap-6">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">合同号</label>
-              <Input value={ctContractNo} onChange={(e) => setCtContractNo(e.target.value)} style={{ width: 220 }} placeholder="请填写合同号" allowClear />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">编号属性</label>
-              <Radio.Group
-                value={ctNumberAttr}
-                options={[
-                  { value: 'WMGF', label: 'WMGF' },
-                  { value: 'SY', label: 'SY' },
-                ]}
-                onChange={(e) => {
-                  const next = e.target.value as 'WMGF' | 'SY'
-                  setCtNumberAttr(next)
-                  setCtDrawingNo('')
-                  peekCtDrawingNo(next)
+              <label className="text-sm font-medium text-slate-700 mb-1 block">图纸编号</label>
+              <Select
+                showSearch
+                allowClear
+                filterOption={false}
+                value={ctDrawingNo || undefined}
+                placeholder="从合同图纸对应表选择"
+                style={{ width: 280 }}
+                loading={ctMapLoading}
+                options={ctMapOpts}
+                onSearch={(kw) => void searchCtDrawingMap(kw)}
+                onDropdownVisibleChange={(o) => { if (o) void searchCtDrawingMap() }}
+                onChange={(v) => {
+                  const no = String(v || '').trim()
+                  setCtDrawingNo(no)
+                  const hit = ctMapOpts.find((o) => o.value === no)
+                  setCtContractNo((hit?.mapContractNo || '').trim() || no)
                 }}
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">图纸编号</label>
-              <Input value={ctDrawingNo} readOnly placeholder="自动生成中…" style={{ width: 220 }} />
+              <label className="text-sm font-medium text-slate-700 mb-1 block">合同号</label>
+              <Input value={ctContractNo} disabled style={{ width: 220 }} placeholder="对应表合同号" />
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
@@ -1775,7 +1795,7 @@ export default function OpportunityDetail() {
               <DatePicker value={ctEndDate} onChange={(d) => setCtEndDate(d)} style={{ width: 220 }} />
             </div>
           </div>
-          <p className="text-xs text-slate-400 -mt-2">图纸编号与合同图纸对应表同规则：WMGF+年月+月序 / SY+年+年序</p>
+          <p className="text-xs text-slate-400 -mt-2">从「合同图纸对应表」选择图纸编号，合同号自动带出对应表中的合同号。</p>
           <div>
             <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
             <PaymentTermsEditor

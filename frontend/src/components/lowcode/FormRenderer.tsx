@@ -705,7 +705,7 @@ function FieldWidget({
           <Space.Compact className="w-full max-w-full">
             <Input
               value={display}
-              placeholder={preview || '可修改自动编号'}
+              placeholder={preview || '可手改；若已占用请点右侧刷新重新取号'}
               onChange={(e) => onChange(e.target.value)}
             />
             {refreshBtn}
@@ -715,7 +715,7 @@ function FieldWidget({
       return (
         <Input
           value={display}
-          placeholder={preview || '可修改自动编号'}
+          placeholder={preview || '可手改；若已占用请点右侧刷新重新取号'}
           onChange={(e) => onChange(e.target.value)}
         />
       )

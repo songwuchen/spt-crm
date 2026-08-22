@@ -292,6 +292,7 @@ async def allocate_drawing_no(
 async def drawing_map_lookups(
     keyword: str | None = Query(None),
     limit: int = Query(50, ge=1, le=100),
+    exclude_contract_id: str | None = Query(None, description="编辑时排除本单已占用编号"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -302,6 +303,7 @@ async def drawing_map_lookups(
         raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:create")
     items = await service.list_drawing_map_lookups(
         db, tenant_id, current_user, keyword=keyword, limit=limit,
+        exclude_contract_id=exclude_contract_id,
     )
     return ok(items)
 

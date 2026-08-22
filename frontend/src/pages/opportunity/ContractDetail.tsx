@@ -232,13 +232,20 @@ export default function ContractDetail() {
         const s = formatFormDate(d)
         return s === undefined ? null : s
       }
-      const contractNo = String(v.contract_no || '').trim()
+      const drawingNo = String(v.drawing_no || '').trim()
+      // 合同号来自对应表「合同号」字段（选图纸号时已回填）
+      const contractNo = String(v.contract_no || '').trim() || drawingNo
+      if (andSubmit && !drawingNo) {
+        message.warning('请从合同图纸对应表选择图纸编号')
+        editForm.setFields([{ name: 'drawing_no', errors: ['请从合同图纸对应表选择图纸编号'] }])
+        editForm.scrollToField('drawing_no', { behavior: 'smooth', block: 'center' })
+        return
+      }
       const payload: Record<string, unknown> = {
         as_draft: !andSubmit,
         payment_terms_json: editPay,
         registration_json: regRaw,
-        // 图纸编号系统生成后不可在编辑里清空；有值才回写
-        ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
+        ...(drawingNo ? { drawing_no: drawingNo } : {}),
         ...(contractNo ? { contract_no: contractNo } : {}),
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
@@ -739,6 +746,7 @@ export default function ContractDetail() {
           <ContractRegistrationFields
             form={editForm}
             mode="edit"
+            excludeContractId={cid}
             customerSelect={customerSelect}
             onCustomerChange={fillFromCustomer}
             slots={{

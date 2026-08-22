@@ -7,7 +7,7 @@ export const contractApi = {
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ContractItem[]>>(`/api/v1/projects/${projectId}/contracts`),
   /** 编号查询：合同图纸对应表 */
-  drawingMapLookups: (params?: { keyword?: string; limit?: number }) =>
+  drawingMapLookups: (params?: { keyword?: string; limit?: number; exclude_contract_id?: string }) =>
     client.get<unknown, ApiResponse<Array<{
       id: string
       contract_no: string

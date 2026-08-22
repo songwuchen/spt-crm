@@ -59,20 +59,20 @@ async def _assert_drawing_no_unique(
     *,
     exclude_id: str | None = None,
 ) -> None:
-    """合同图纸对应表：图纸编号在对应表与合同登记两侧唯一。"""
-    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    """合同图纸对应表：图纸编号在对应表内唯一（可手改；撞号提示刷新取号）。"""
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken_in_map
 
     dn = (drawing_no or "").strip()
     if not dn:
         return
-    if await is_drawing_no_taken(
+    if await is_drawing_no_taken_in_map(
         db, tenant_id, dn,
         map_template_id=template_id,
         exclude_instance_id=exclude_id,
     ):
         raise BusinessException(
             code=DUPLICATE_ENTRY,
-            message=f"图纸编号「{dn}」已存在，请点击刷新重新取号",
+            message=f"图纸编号「{dn}」已存在，请点击刷新重新取号，或改成未使用的编号",
         )
 
 
@@ -85,26 +85,25 @@ async def _ensure_cdm_drawing_no(
     *,
     exclude_id: str | None = None,
 ) -> dict:
-    """合同图纸对应表取号后：若与合同登记撞号则继续占号跳过（共用号池）。"""
-    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    """合同图纸对应表取号：空则自动取号；已填则校验唯一（撞号不静默换号，提示刷新）。"""
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken_in_map
     from app.domains.lowcode.serial_number import allocate_unique_serials
 
     dn = str((form_data or {}).get("drawing_no") or "").strip()
-    if dn and not await is_drawing_no_taken(
-        db, tenant_id, dn,
-        map_template_id=template_id,
-        exclude_instance_id=exclude_id,
-    ):
+    if dn:
+        # 用户手改/预填：已占用则明确报错，引导点刷新重新取号（勿静默换号）
+        await _assert_drawing_no_unique(
+            db, tenant_id, template_id, dn, exclude_id=exclude_id,
+        )
         return form_data
 
     async def is_taken(_fid: str, value: str) -> bool:
-        return await is_drawing_no_taken(
+        return await is_drawing_no_taken_in_map(
             db, tenant_id, value,
             map_template_id=template_id,
             exclude_instance_id=exclude_id,
         )
 
-    # 当前空或已占用：走共用号池 allocate（会跳过合同侧占用）
     allocated = await allocate_unique_serials(
         db, tenant_id, template_id, field_defs, form_data or {},
         field_ids=["drawing_no"],
@@ -600,6 +599,15 @@ async def sync_builtin_form_fields(
     want = _merge_builtin_field_defs(want, current)
     from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
     want = strip_spt_scheme_pickable_scopes(tenant_id, want)
+    # 合同图纸对应表：图纸编号必须可手改（对齐简道云），勿被租户旧版 form_editable=false 盖住
+    if key == "contract_drawing_map":
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") == "drawing_no":
+                fd["form_editable"] = True
+                props = dict(fd.get("props") or {}) if isinstance(fd.get("props"), dict) else {}
+                props["manual_edit"] = True
+                fd["props"] = props
+                break
     # 客户服务部简道云副本：必填/只读/发起可见必须以 builtin 为准。
     # 否则租户首装旧版（仅客户名称必填）会经 _merge 永久盖住 allowBlank=false。
     if key.startswith("cs_"):

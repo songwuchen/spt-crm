@@ -6,11 +6,74 @@
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.contract.models import Contract
 from app.domains.lowcode.models import FormInstance
+
+
+async def drawing_no_exists_in_map(
+    db: AsyncSession,
+    tenant_id: str,
+    value: str,
+    *,
+    map_template_id: str,
+) -> bool:
+    """合同图纸对应表是否已有该图纸编号。"""
+    v = (value or "").strip()
+    if not v:
+        return False
+    fq = select(FormInstance.id).where(
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.template_id == map_template_id,
+        FormInstance.is_deleted == False,  # noqa: E712
+        FormInstance.form_data["drawing_no"].astext == v,
+    )
+    return (await db.execute(fq.limit(1))).scalar_one_or_none() is not None
+
+
+async def is_drawing_no_taken_by_contract(
+    db: AsyncSession,
+    tenant_id: str,
+    value: str,
+    *,
+    exclude_contract_id: str | None = None,
+) -> bool:
+    """合同登记是否已占用该图纸编号（或同值合同号）。"""
+    v = (value or "").strip()
+    if not v:
+        return False
+    cq = select(Contract.id).where(
+        Contract.tenant_id == tenant_id,
+        or_(Contract.drawing_no == v, Contract.contract_no == v),
+    )
+    if exclude_contract_id:
+        cq = cq.where(Contract.id != exclude_contract_id)
+    return (await db.execute(cq.limit(1))).scalar_one_or_none() is not None
+
+
+async def is_drawing_no_taken_in_map(
+    db: AsyncSession,
+    tenant_id: str,
+    value: str,
+    *,
+    map_template_id: str,
+    exclude_instance_id: str | None = None,
+) -> bool:
+    """仅合同图纸对应表是否已占用该图纸编号（草稿也算占用）。"""
+    v = (value or "").strip()
+    if not v:
+        return False
+    fq = select(FormInstance.id).where(
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.template_id == map_template_id,
+        FormInstance.is_deleted == False,  # noqa: E712
+        FormInstance.form_data["drawing_no"].astext == v,
+    )
+    if exclude_instance_id:
+        fq = fq.where(FormInstance.id != exclude_instance_id)
+    return (await db.execute(fq.limit(1))).scalar_one_or_none() is not None
 
 
 async def is_drawing_no_taken(
@@ -22,18 +85,14 @@ async def is_drawing_no_taken(
     exclude_instance_id: str | None = None,
     exclude_contract_id: str | None = None,
 ) -> bool:
-    """合同表或图纸对应表任一已占用即视为占用。"""
+    """合同表或图纸对应表任一已占用即视为占用（共用号池预览/占号用）。"""
+    if await is_drawing_no_taken_by_contract(
+        db, tenant_id, value, exclude_contract_id=exclude_contract_id,
+    ):
+        return True
     v = (value or "").strip()
     if not v:
         return False
-    cq = select(Contract.id).where(
-        Contract.tenant_id == tenant_id,
-        Contract.drawing_no == v,
-    )
-    if exclude_contract_id:
-        cq = cq.where(Contract.id != exclude_contract_id)
-    if (await db.execute(cq.limit(1))).scalar_one_or_none():
-        return True
     fq = select(FormInstance.id).where(
         FormInstance.tenant_id == tenant_id,
         FormInstance.template_id == map_template_id,
@@ -55,8 +114,12 @@ async def peek_drawing_no_skipping_taken(
     *,
     map_template_id: str | None = None,
     max_skip: int = 50,
+    map_only: bool = False,
 ) -> str:
-    """预览下一可用图纸号：若计数落后于已占用号，推进计数跳过空洞，不白白展示撞号。"""
+    """预览下一可用图纸号：若计数落后于已占用号，推进计数跳过空洞，不白白展示撞号。
+
+    map_only=True：仅跳过对应表已占用（合同图纸对应表填报预览用，避免被历史合同号拖飞）。
+    """
     from app.domains.lowcode.serial_number import generate_serial_value, peek_serial_value
 
     tpl = map_template_id or template_id
@@ -65,7 +128,13 @@ async def peek_drawing_no_skipping_taken(
         last = await peek_serial_value(
             db, tenant_id, template_id, field_def, form_data, field_defs,
         )
-        if not await is_drawing_no_taken(db, tenant_id, last, map_template_id=tpl):
+        if map_only:
+            taken = await is_drawing_no_taken_in_map(
+                db, tenant_id, last, map_template_id=tpl,
+            )
+        else:
+            taken = await is_drawing_no_taken(db, tenant_id, last, map_template_id=tpl)
+        if not taken:
             return last
         # 计数停在已占用号上：consume 掉该槽，再 peek 下一号
         await generate_serial_value(

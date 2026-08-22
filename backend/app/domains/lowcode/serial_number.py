@@ -292,7 +292,7 @@ async def generate_serials_for_submit(
     可手改流水号（``form_editable`` / ``props.manual_edit``）：
     - 值为空 → 取号占号；
     - 值等于当前预览号 → 仍占号（避免前端把 peek 写入后不推进计数导致撞号，对齐简道云）；
-    - 值与预览不同 → 视为手改，保留原值（唯一性由业务侧校验）。
+    - 值与预览不同 → 视为手改，**原样保留**（唯一性由业务侧校验；撞号须报错，禁止静默换号）。
     """
     for fd in field_defs or []:
         if fd.get("type") != "auto_number":

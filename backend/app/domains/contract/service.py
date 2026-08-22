@@ -91,42 +91,51 @@ async def _resolve_create_drawing_no(
     apply_date: str | date_type | None = None,
     number_attr: str | None = None,
     trust_requested: bool = False,
+    allow_empty: bool = False,
 ) -> str:
-    """图纸编号：与合同图纸对应表共用号池；传入值须两边均未占用，未传则 consume 新号。
+    """图纸编号：须从合同图纸对应表选用；不再按 WMGF/SY 规则自动生成。
 
-    trust_requested=True（开放平台）：传入号唯一即直接采用，不推进流水；撞号报错。
+    trust_requested=True（开放平台）：仍校验唯一，可不强制对应表存在。
+    allow_empty=True（存草稿）：允许暂不选号。
     """
     from app.domains.lowcode import service as lc_svc
-    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    from app.domains.lowcode.drawing_no_pool import (
+        drawing_no_exists_in_map,
+        is_drawing_no_taken_by_contract,
+    )
 
     attr = normalize_number_attr(number_attr)
     no = (requested or "").strip()
-    # 前缀与编号属性不一致时按新属性重新取号（切换 WMGF↔SY）
-    if no and not drawing_no_matches_attr(no, attr):
-        no = ""
-    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
-    if no:
-        if await is_drawing_no_taken(db, tenant_id, no, map_template_id=tpl.id):
-            raise BusinessException(
-                code=DUPLICATE_ENTRY,
-                message=f"图纸编号「{no}」已存在，请点击刷新重新取号",
-            )
-        if trust_requested:
-            return no
-        # 与当前下一可用预览号一致时 consume，保证流水与落库同步；否则直接采用（手改/已 allocate）
-        nxt = await peek_create_drawing_no(
-            db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=False,
+    if not no:
+        if allow_empty:
+            return ""
+        raise BusinessException(
+            code=BUSINESS_ERROR,
+            message="请从合同图纸对应表选择图纸编号",
         )
-        if no == nxt:
-            return await peek_create_drawing_no(
-                db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=True,
+    if not drawing_no_matches_attr(no, attr):
+        # 前缀与编号属性不一致时，按号前缀纠正属性（前端选号后会同步）
+        if no.upper().startswith("SY"):
+            attr = "SY"
+        elif no.upper().startswith("WMGF"):
+            attr = "WMGF"
+
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+    if not trust_requested:
+        if not await drawing_no_exists_in_map(db, tenant_id, no, map_template_id=tpl.id):
+            raise BusinessException(
+                code=BUSINESS_ERROR,
+                message=f"图纸编号「{no}」不在合同图纸对应表中，请从对应表选择",
             )
-        return no
-    return await peek_create_drawing_no(
-        db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=True,
-    )
+    if await is_drawing_no_taken_by_contract(db, tenant_id, no):
+        raise BusinessException(
+            code=DUPLICATE_ENTRY,
+            message=f"图纸编号「{no}」已用于其他合同登记，请更换",
+        )
+    return no
 
 
+# 保留 peek/allocate 供开放平台或运维脚本；合同登记 UI 不再调用自动取号
 async def peek_create_drawing_no(
     db: AsyncSession,
     tenant_id: str,
@@ -221,11 +230,48 @@ async def allocate_create_drawing_no(
     return out.get("drawing_no") or ""
 
 
-async def list_drawing_map_lookups(
-    db: AsyncSession, tenant_id: str, user: dict, keyword: str | None = None, limit: int = 50,
-) -> list[dict]:
-    """合同评审等选图纸编号：列出合同图纸对应表记录供选数。"""
+async def _lookup_map_contract_no(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    drawing_no: str,
+) -> str:
+    """按图纸编号取合同图纸对应表中的合同号。"""
     from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.models import FormInstance
+
+    no = (drawing_no or "").strip()
+    if not no:
+        return ""
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+    row = (
+        await db.execute(
+            select(FormInstance.form_data).where(
+                FormInstance.tenant_id == tenant_id,
+                FormInstance.template_id == tpl.id,
+                FormInstance.is_deleted == False,  # noqa: E712
+                FormInstance.form_data["drawing_no"].astext == no,
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not isinstance(row, dict):
+        return ""
+    return str(row.get("contract_no") or "").strip()
+
+
+async def list_drawing_map_lookups(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    keyword: str | None = None,
+    limit: int = 50,
+    *,
+    exclude_contract_id: str | None = None,
+) -> list[dict]:
+    """合同登记/评审等：从合同图纸对应表选图纸编号（可带合同号展示）。"""
+    from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken_by_contract
+
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     items, _ = await lc_svc.list_instances(
         db, tenant_id, tpl.id, 1, min(max(limit, 1), 100),
@@ -234,18 +280,21 @@ async def list_drawing_map_lookups(
     out: list[dict] = []
     q = (keyword or "").strip().lower()
     for inst in items:
-        if inst.status == "draft":
-            continue
+        # 草稿也占号，合同登记可选（对应表以图纸号为准，不要求先提交）
         fd = inst.form_data if isinstance(inst.form_data, dict) else {}
         contract_no = str(fd.get("contract_no") or "").strip()
         drawing_no = str(fd.get("drawing_no") or "").strip()
-        if not contract_no and not drawing_no:
+        if not drawing_no:
             continue
         if q and q not in contract_no.lower() and q not in drawing_no.lower():
-            # list_instances 已用 JSON 模糊搜；这里再兜底一次
             label_probe = f"{contract_no} {drawing_no}".lower()
             if q not in label_probe:
                 continue
+        # 已被其他合同登记占用的号不再出现在选数里（编辑本单时排除自身）
+        if await is_drawing_no_taken_by_contract(
+            db, tenant_id, drawing_no, exclude_contract_id=exclude_contract_id,
+        ):
+            continue
         dept = fd.get("department")
         department_id = None
         if isinstance(dept, str) and dept.strip():
@@ -257,7 +306,7 @@ async def list_drawing_map_lookups(
             "contract_no": contract_no,
             "drawing_no": drawing_no,
             "department_id": department_id,
-            "label": " · ".join(x for x in (contract_no, drawing_no) if x),
+            "label": " · ".join(x for x in (drawing_no, contract_no) if x),
         })
     return out
 
@@ -339,26 +388,38 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         skip_required=as_draft,
     )
 
-    contract_no = await _resolve_create_contract_no(
-        db, tenant_id, native.get("contract_no") or data.contract_no,
-        allow_draft=as_draft,
-    )
-
+    contract_no_requested = (native.get("contract_no") or data.contract_no or "").strip()
     reg = native.get("registration_json", data.registration_json) or {}
     if not isinstance(reg, dict):
         reg = {}
-    # number_lookup 为历史选数残留；编号属性 number_attr 需保留（驱动 WMGF/SY 规则）
+    # number_lookup 为历史选数残留；编号属性可按图纸号前缀静默带上（登记页已不再展示）
     reg = {k: v for k, v in reg.items() if k != "number_lookup"}
-    # 图纸编号年月按「取号当天」，与订货日无关（避免补录七月订货日出 WMGF202607xxx）
-    apply_date = drawing_no_apply_date_today()
-    number_attr = normalize_number_attr(reg.get("number_attr"))
-    reg["number_attr"] = number_attr
-    # 采用表单图纸编号（唯一则落库）；撞号报错，由前端提示刷新取号
+    # 图纸编号：从合同图纸对应表选用
     drawing_no = await _resolve_create_drawing_no(
         db, tenant_id, user,
         native.get("drawing_no") or data.drawing_no,
-        apply_date=apply_date,
-        number_attr=number_attr,
+        number_attr=reg.get("number_attr"),
+        allow_empty=as_draft,
+    )
+    if drawing_no:
+        map_cn = await _lookup_map_contract_no(db, tenant_id, user, drawing_no)
+        # 合同号优先用对应表「合同号」；前端已回填则沿用，否则用对应表或回退图纸号
+        if not contract_no_requested:
+            contract_no_requested = map_cn or drawing_no
+        elif map_cn and contract_no_requested == drawing_no and map_cn != drawing_no:
+            # 兼容旧前端把图纸号当合同号提交的情况
+            contract_no_requested = map_cn
+        if drawing_no.upper().startswith("SY"):
+            reg["number_attr"] = "SY"
+        elif drawing_no.upper().startswith("WMGF"):
+            reg["number_attr"] = "WMGF"
+        else:
+            reg["number_attr"] = normalize_number_attr(reg.get("number_attr"))
+    else:
+        reg["number_attr"] = normalize_number_attr(reg.get("number_attr"))
+    contract_no = await _resolve_create_contract_no(
+        db, tenant_id, contract_no_requested,
+        allow_draft=as_draft,
     )
 
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全
@@ -427,7 +488,57 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
             db, tenant_id, "contract", payload["custom_fields_json"], user.get("roles"),
             skip_required=as_draft,
         )
+    # 改图纸编号：须在对应表中，且未被其他合同占用；合同号取对应表「合同号」
+    if "drawing_no" in payload:
+        from app.domains.lowcode import service as lc_svc
+        from app.domains.lowcode.drawing_no_pool import (
+            drawing_no_exists_in_map,
+            is_drawing_no_taken_by_contract,
+        )
+        new_dn = (str(payload.get("drawing_no") or "")).strip()
+        if not new_dn:
+            if as_draft:
+                payload["drawing_no"] = ""
+            else:
+                raise BusinessException(
+                    code=BUSINESS_ERROR,
+                    message="请从合同图纸对应表选择图纸编号",
+                )
+        elif new_dn != (contract.drawing_no or ""):
+            tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+            if not await drawing_no_exists_in_map(db, tenant_id, new_dn, map_template_id=tpl.id):
+                raise BusinessException(
+                    code=BUSINESS_ERROR,
+                    message=f"图纸编号「{new_dn}」不在合同图纸对应表中，请从对应表选择",
+                )
+            if await is_drawing_no_taken_by_contract(
+                db, tenant_id, new_dn, exclude_contract_id=contract_id,
+            ):
+                raise BusinessException(
+                    code=DUPLICATE_ENTRY,
+                    message=f"图纸编号「{new_dn}」已用于其他合同登记，请更换",
+                )
+            payload["drawing_no"] = new_dn
+            map_cn = await _lookup_map_contract_no(db, tenant_id, user, new_dn)
+            requested_cn = (str(payload.get("contract_no") or "")).strip()
+            # 优先前端回填的对应表合同号；否则查表；再回退图纸号
+            payload["contract_no"] = requested_cn or map_cn or new_dn
+            if map_cn and requested_cn == new_dn and map_cn != new_dn:
+                payload["contract_no"] = map_cn
+            reg = payload.get("registration_json")
+            if not isinstance(reg, dict):
+                reg = dict(contract.registration_json or {}) if isinstance(contract.registration_json, dict) else {}
+            upper = new_dn.upper()
+            if upper.startswith("SY"):
+                reg["number_attr"] = "SY"
+            elif upper.startswith("WMGF"):
+                reg["number_attr"] = "WMGF"
+            payload["registration_json"] = reg
+        else:
+            payload.pop("drawing_no", None)
+
     # 改合同号：校验唯一（不含本条）；空串不允许覆盖正式号
+    # 合同登记合同号通常由上方 drawing_no 从对应表同步写入
     if "contract_no" in payload:
         new_no = (str(payload.get("contract_no") or "")).strip()
         if not new_no:
