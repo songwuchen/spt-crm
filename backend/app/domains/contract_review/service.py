@@ -11,6 +11,15 @@ from app.domains.contract_review.models import ContractReview
 from app.domains.contract_review.schemas import ContractReviewCreate, ContractReviewUpdate
 
 ALLOWED_STATUS = {"draft", "submitted", "approved", "rejected"}
+DEFAULT_REVIEW_TYPE = "合同评审"
+
+
+def _ensure_review_type(dump: dict) -> None:
+    """新建已取消「项目评审」切换：空值一律按合同评审（流程分支依赖该字段）。"""
+    rt = dump.get("review_type")
+    if rt is None or (isinstance(rt, str) and not rt.strip()):
+        dump["review_type"] = DEFAULT_REVIEW_TYPE
+
 
 
 async def _hydrate_display_names(
@@ -151,6 +160,7 @@ async def create_review(
     if status not in ALLOWED_STATUS:
         raise BusinessException(code=VALIDATION_ERROR, message="无效状态")
     dump["status"] = status
+    _ensure_review_type(dump)
     await _resolve_names_into_dump(db, tenant_id, dump)
     code = await generate_code(db, tenant_id, "contract_review")
     row = ContractReview(
@@ -180,6 +190,8 @@ async def update_review(
     dump = data.model_dump(exclude_unset=True)
     if "status" in dump and dump["status"] not in ALLOWED_STATUS:
         raise BusinessException(code=VALIDATION_ERROR, message="无效状态")
+    if "review_type" in dump:
+        _ensure_review_type(dump)
     from app.domains.lowcode.edit_lock import assert_content_update_allowed
     await assert_content_update_allowed(
         db, tenant_id, "contract_review", row.id, row.status, dump)
@@ -231,6 +243,10 @@ async def submit_for_approval(
             code=VALIDATION_ERROR,
             message=f"当前状态「{row.status}」不可提交审批（仅草稿/已驳回可提交）",
         )
+
+    # 评审类型已隐藏且仅合同评审：空值兜底，避免流程条件（法务/产采质等）全部 miss
+    if not (row.review_type or "").strip():
+        row.review_type = DEFAULT_REVIEW_TYPE
 
     from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
 

@@ -199,7 +199,7 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 context["owner_id"] = rv.owner_id
                 context["customer_type"] = rv.customer_type
                 context["payment_term"] = rv.payment_term
-                context["review_type"] = rv.review_type
+                context["review_type"] = rv.review_type or "合同评审"
                 context["region_manager_id"] = rv.region_manager_id
                 rj = rv.review_json if isinstance(rv.review_json, dict) else {}
                 context["industry"] = rj.get("industry")

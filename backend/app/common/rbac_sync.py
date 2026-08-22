@@ -574,34 +574,68 @@ async def ensure_cs_office_role_members(db, tenant_id: str) -> dict:
     )
 
 
-# 简道云「服务申请及反馈-客服安排」成员（历史客服安排1 处理人抽样 + 常见客服）
+# 简道云「服务申请及反馈-客服安排」：线上仅付加婧（勿再扩成客服抽样名单）
 CS_ARRANGE_MEMBER_USERNAMES: tuple[str, ...] = (
-    "1111346736487042",  # 郝明阳
-    "180140380732112364",  # 翟伟昌
-    "300937323129424490",  # 王祖贵
-    "085012640721291610",  # 史世举
-    "17592647441148729",  # 赵明
     "181359282120075679",  # 付加婧
-    "133368656824258919",  # 张梦昭
-    "024919520734523493",  # 裴文战
-    "01365441275338173441",  # 韩志鹏
-    "136563206826262570",  # 李昊锦
 )
 CS_ARRANGE_MEMBER_REAL_NAMES: tuple[str, ...] = (
-    "郝明阳", "翟伟昌", "王祖贵", "史世举", "赵明",
-    "付加婧", "张梦昭", "裴文战", "韩志鹏", "李昊锦", "孙法成",
+    "付加婧",
 )
 
 
 async def ensure_cs_arrange_role_members(db, tenant_id: str) -> dict:
-    """确保 cs_arrange 角色存在，并把简道云客服安排成员挂上。"""
-    return await _ensure_role_members(
+    """确保 cs_arrange 成员仅为付加婧（对齐 205 线上配置）。"""
+    from app.domains.auth.models import User, UserRole
+
+    result = await _ensure_role_members(
         db,
         tenant_id,
         "cs_arrange",
         CS_ARRANGE_MEMBER_USERNAMES,
         CS_ARRANGE_MEMBER_REAL_NAMES,
+        prefer_real_name="付加婧",
     )
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "cs_arrange")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return result
+
+    keep_users = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.username.in_(list(CS_ARRANGE_MEMBER_USERNAMES)),
+            )
+        )
+    ).scalars().all()
+    keep_ids = set(keep_users)
+    by_real = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.real_name.in_(list(CS_ARRANGE_MEMBER_REAL_NAMES)),
+                User.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    keep_ids.update(by_real)
+
+    if keep_ids:
+        pruned = await db.execute(
+            sa_delete(UserRole).where(
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == role.id,
+                UserRole.user_id.notin_(list(keep_ids)),
+            )
+        )
+        result["pruned"] = int(pruned.rowcount or 0)
+    else:
+        result["pruned"] = 0
+    result["role_name"] = role.name
+    return result
 
 
 # 延期「客服审批」：与客服内勤同班底（简道云未单独导出成员时按内勤挂载）

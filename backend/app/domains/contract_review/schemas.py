@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class ContractReviewCreate(BaseModel):
-    review_type: Optional[str] = Field(None, max_length=32)
+    review_type: Optional[str] = Field("合同评审", max_length=32, description="已取消项目评审切换，默认合同评审")
     status: Optional[str] = Field("draft", max_length=24)
     customer_id: Optional[str] = None
     company_name: Optional[str] = Field(None, max_length=300)

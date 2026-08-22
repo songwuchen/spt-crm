@@ -389,9 +389,9 @@ STANDARD_ROLES = [
         ],
     },
     {
-        # 对齐简道云「服务申请及反馈-客服安排」：客服安排1 等节点审批人（或签）
+        # 对齐简道云「服务申请及反馈-客服安排」：客服安排1 等节点审批人（线上仅付加婧）
         "code": "cs_arrange", "name": "服务申请及反馈-客服安排", "scope": "dept",
-        "desc": "简道云客服安排岗:客户服务申请及反馈「客服安排」节点审批",
+        "desc": "简道云客服安排岗:客户服务申请及反馈「客服安排」节点审批（仅付加婧）",
         "perms": [
             "customer:view", "service:view",
             "approval:approve", "approval:decide",

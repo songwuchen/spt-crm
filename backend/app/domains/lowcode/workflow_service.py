@@ -3382,9 +3382,13 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "id": "r_fin_cc_xunhan", "source": "approval_finance_opinion",
             "target": "cc_xunhan", "always": True, "condition": _and_cond(xunhan_dept),
         },
-        # 财务意见后主分支
+        # 财务意见后主分支（产采质+发起人须 fork=parallel；否则「多条件边+一条无条件
+        # end 兜底」会被引擎自动当成 if/else，只激活第一条生产审批）
         *[
-            {"id": f"r_fin_{tid}", "source": "approval_finance_opinion", "target": tid, "condition": cond}
+            {
+                "id": f"r_fin_{tid}", "source": "approval_finance_opinion", "target": tid,
+                "condition": cond, "fork": "parallel",
+            }
             for tid, cond in post_fin_ops
         ],
         {
@@ -4955,6 +4959,7 @@ def _flow_is_jdy_contract_review(nodes: list | None, routes: list | None = None)
         and post_fin_ops and has_feedback_route and has_design_fb_reentry
         and has_start_cc and export_not_intl
         and _contract_review_parallel_countersign_aligned(routes)
+        and _contract_review_post_finance_parallel_aligned(routes)
     )
 
 
@@ -4970,6 +4975,22 @@ def _contract_review_parallel_countersign_aligned(routes: list | None) -> bool:
         if tgt == "approval_legal" and r.get("fork") == "parallel":
             has_legal_fork = True
     return has_legal_fork
+
+
+def _contract_review_post_finance_parallel_aligned(routes: list | None) -> bool:
+    """财务意见→产采质+发起人须标 fork=parallel，避免与 end 兜底被当成 if/else。"""
+    need = {
+        "approval_production", "approval_procurement",
+        "approval_qc", "approval_initiator",
+    }
+    found: set[str] = set()
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("source") != "approval_finance_opinion":
+            continue
+        tgt = r.get("target")
+        if tgt in need and r.get("fork") == "parallel":
+            found.add(str(tgt))
+    return found == need
 
 
 async def _publish_system_default_upgrade(

@@ -72,3 +72,45 @@ def test_contract_review_biz_fork_is_parallel():
         and r.get("target") == "merge_review"
         for r in routes
     )
+
+
+def test_contract_review_post_finance_ops_fork_parallel():
+    """财务意见后产采质+发起人须并行，不能被 end 兜底吞成 if/else 只开生产。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfProcessDefinitionVersion
+    from app.domains.lowcode.workflow_service import (
+        _contract_review_post_finance_parallel_aligned,
+    )
+
+    nodes, routes = _contract_review_flow_graph()
+    assert _contract_review_post_finance_parallel_aligned(routes)
+    for tid in (
+        "approval_production", "approval_procurement",
+        "approval_qc", "approval_initiator",
+    ):
+        r = next(
+            x for x in routes
+            if x.get("source") == "approval_finance_opinion" and x.get("target") == tid
+        )
+        assert r.get("fork") == "parallel", tid
+
+    ver = WfProcessDefinitionVersion()
+    ver.node_definitions = nodes
+    ver.route_definitions = routes
+    eng = WorkflowEngine(None, "t")
+    fd = {"review_type": "合同评审", "need_feedback": "否"}
+    assert set(eng._next_targets(ver, "approval_finance_opinion", fd)) == {
+        "cc_related",
+        "approval_production",
+        "approval_procurement",
+        "approval_qc",
+        "approval_initiator",
+    }
+    assert eng._next_targets(
+        ver, "approval_finance_opinion",
+        {"review_type": "项目评审", "need_feedback": "否"},
+    ) == ["cc_related", "end"]
+    assert eng._next_targets(
+        ver, "approval_finance_opinion", {"need_feedback": "是"},
+    ) == ["cc_related", "approval_info_feedback"]
+    assert eng._next_targets(ver, "approval_finance_opinion", {}) == ["cc_related", "end"]

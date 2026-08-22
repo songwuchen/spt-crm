@@ -226,6 +226,8 @@ export default function ContractReviewForm() {
     const payload: Record<string, unknown> = {
       review_json,
       custom_fields_json: customFields,
+      // 评审类型 UI 已隐藏；新建固定合同评审，保证流程条件能命中
+      review_type: (merged.review_type as string) || '合同评审',
     }
     for (const k of REVIEW_NATIVE_KEYS) {
       if (k === 'review_json') continue
