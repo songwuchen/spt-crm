@@ -1658,6 +1658,12 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     if inst.initiator_id:
         names = await user_display_names(db, tenant_id, [inst.initiator_id])
         out["initiator_name"] = names.get(inst.initiator_id)
+    if not out.get("initiator_name"):
+        fd = out.get("form_data") or {}
+        if isinstance(fd, dict):
+            fallback = (fd.get("_jdy_creator_name") or "").strip()
+            if fallback:
+                out["initiator_name"] = fallback
     return out
 
 
@@ -1674,6 +1680,7 @@ _FILTER_OPS = frozenset({
 })
 _EMPTY_OPS = frozenset({"is_empty", "is_not_empty"})
 _MAX_FILTER_RULES = 10
+_SYS_INITIATOR_FIELD = "__sys_initiator"
 
 
 def _parse_filters_payload(filters: list | dict | str | None) -> tuple[str, list]:
@@ -2038,6 +2045,61 @@ def _instance_list_conds(
     return conds
 
 
+async def _initiator_filter_clause(
+    db: AsyncSession, tenant_id: str, rule: dict,
+):
+    """系统字段「提交人」：initiator_id + JDY 同步姓名兜底。"""
+    op = rule["op"]
+    jdy_name = FormInstance.form_data.op("->>")("_jdy_creator_name")
+    initiator_empty = or_(
+        FormInstance.initiator_id.is_(None), FormInstance.initiator_id == "",
+    )
+    jdy_empty = or_(jdy_name.is_(None), jdy_name == "")
+
+    if op == "is_empty":
+        return and_(initiator_empty, jdy_empty)
+    if op == "is_not_empty":
+        return or_(not_(initiator_empty), not_(jdy_empty))
+
+    values = _flatten_filter_values(rule.get("value"))
+    if not values:
+        return False
+
+    exact = op in ("eq", "ne", "in")
+    resolved: list[str] = []
+    for v in values:
+        if _UUID_RE.match(v):
+            resolved.append(v)
+        else:
+            resolved.extend(
+                await _lookup_ref_ids_by_name(
+                    db, tenant_id, kind="person", value=v, exact=exact,
+                )
+            )
+    seen: set[str] = set()
+    user_ids: list[str] = []
+    for uid in resolved:
+        if uid not in seen:
+            seen.add(uid)
+            user_ids.append(uid)
+
+    id_hit = FormInstance.initiator_id.in_(user_ids) if user_ids else False
+    name_hits = []
+    for v in values:
+        if exact:
+            name_hits.append(jdy_name == v)
+        else:
+            name_hits.append(jdy_name.ilike(f"%{v}%"))
+    name_hit = or_(*name_hits) if name_hits else False
+    hit = or_(id_hit, name_hit)
+
+    if op in ("contains", "eq", "in"):
+        return hit
+    if op in ("ne", "not_contains"):
+        return not_(hit)
+    return hit
+
+
 async def _instance_list_filter_bundle(
     db: AsyncSession, tenant_id: str, template_id: str,
     filters: list | dict | str | None,
@@ -2047,12 +2109,16 @@ async def _instance_list_filter_bundle(
     if not rules:
         return None
     field_types = await _template_field_type_map(db, tenant_id, template_id)
-    clauses = [
-        await _form_data_filter_clause_resolved(
-            db, tenant_id, r, field_types.get(r["field"]),
-        )
-        for r in rules
-    ]
+    clauses = []
+    for r in rules:
+        if r["field"] == _SYS_INITIATOR_FIELD:
+            clauses.append(await _initiator_filter_clause(db, tenant_id, r))
+        else:
+            clauses.append(
+                await _form_data_filter_clause_resolved(
+                    db, tenant_id, r, field_types.get(r["field"]),
+                )
+            )
     combined = or_(*clauses) if match == "any" else and_(*clauses)
     return [combined]
 
@@ -2099,6 +2165,31 @@ _FORM_DEPT_PRIMARY_TEMPLATES: frozenset[str] = frozenset({
     "payment_registration",
     "xunhan_contract_review",
 })
+
+# 主数据/号池类表单：有 form_data:view 即可看全表（与选号 API 一致）
+_FORM_LIST_ALL_SCOPE_TEMPLATES: frozenset[str] = frozenset({
+    "contract_drawing_map",
+})
+
+
+async def _resolve_form_list_owner_ids(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict | None,
+    template_code: str | None,
+    owner_ids: list[str] | None,
+) -> list[str] | None:
+    """表单列表数据范围：主数据全表；客服岗对 cs_* 表单看全部。"""
+    if owner_ids is None:
+        return None
+    if template_code in _FORM_LIST_ALL_SCOPE_TEMPLATES:
+        return None
+    if template_code and template_code.startswith("cs_") and user:
+        from app.common.data_scope import resolve_module_scope
+
+        if await resolve_module_scope(db, user, tenant_id, biz_type="form_data") == "all":
+            return None
+    return owner_ids
 
 # 部门档：业务部门等文本字段按部门名称匹配
 _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
@@ -2202,6 +2293,9 @@ async def list_instances(
     user: dict | None = None,
 ) -> tuple[list[FormInstance], int]:
     template_code = await _template_code_for(db, tenant_id, template_id)
+    owner_ids = await _resolve_form_list_owner_ids(
+        db, tenant_id, user, template_code, owner_ids,
+    )
     owner_person_fields: list[str] = []
     form_dept_scope_ids: list[str] | None = None
     form_dept_name_literals: list[str] | None = None
@@ -2259,6 +2353,9 @@ async def export_instances(
 
     template_code = (tpl.code if tpl else None) or await _template_code_for(
         db, tenant_id, template_id,
+    )
+    owner_ids = await _resolve_form_list_owner_ids(
+        db, tenant_id, user, template_code, owner_ids,
     )
     owner_person_fields: list[str] = []
     form_dept_scope_ids: list[str] | None = None

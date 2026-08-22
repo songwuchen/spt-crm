@@ -160,6 +160,22 @@ LOWCODE_DESIGN = [
     "dashboard:manage", "form_data:delete",
 ]
 
+# 客服相关：默认仍 dept/self；客户/选合同/客服类表单列表需看全部
+_CS_MODULE_SCOPE_ALL = {"customer": "all", "contract": "all", "form_data": "all"}
+
+CS_CUSTOMER_ALL_ROLE_CODES = frozenset({
+    "service_engineer",
+    "service_manager",
+    "cs_office",
+    "cs_arrange",
+    "cs_delay_approve",
+    "cs_named_fjj_zdd_jw",
+    "cs_service_cc",
+    "cs_replace_trace",
+    "cs_special_release",
+    "cs_service_record",
+})
+
 # The standard roles. ``perms`` = role-specific perms only (CORE is added by
 # role_perm_codes). ``scope`` -> data_scope: self / dept / all.
 STANDARD_ROLES = [
@@ -364,7 +380,8 @@ STANDARD_ROLES = [
     },
     {
         "code": "service_engineer", "name": "售后工程师", "scope": "self",
-        "desc": "客户服务部:工单 + 实测 + 设备档案",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "客户服务部:工单 + 实测 + 设备档案;客户可看全部",
         "perms": [
             "customer:view", "contract:view", "product:view",
             "service:view", "service:create", "service:edit",
@@ -372,7 +389,8 @@ STANDARD_ROLES = [
     },
     {
         "code": "service_manager", "name": "售后主管", "scope": "dept", "lowcode_admin": True,
-        "desc": "售后负责人:工单全权 + 审批",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "售后负责人:工单全权 + 审批;客户可看全部",
         "perms": [
             "customer:view", "contract:view", "product:view",
             "service:view", "service:create", "service:edit", "service:delete",
@@ -382,7 +400,8 @@ STANDARD_ROLES = [
     {
         # 对齐简道云「230902客服内勤」：客服落实/客服补登等节点审批人（或签）
         "code": "cs_office", "name": "230902客服内勤", "scope": "dept",
-        "desc": "简道云客服内勤岗:客户服务申请落实、产品更换客服补登等流程审批",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云客服内勤岗:客户服务申请落实、产品更换客服补登等流程审批;客户可看全部",
         "perms": [
             "customer:view", "service:view",
             "approval:approve", "approval:decide",
@@ -391,7 +410,8 @@ STANDARD_ROLES = [
     {
         # 对齐简道云「服务申请及反馈-客服安排」：客服安排1 等节点审批人（线上仅付加婧）
         "code": "cs_arrange", "name": "服务申请及反馈-客服安排", "scope": "dept",
-        "desc": "简道云客服安排岗:客户服务申请及反馈「客服安排」节点审批（仅付加婧）",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云客服安排岗:客户服务申请及反馈「客服安排」节点审批（仅付加婧）;客户可看全部",
         "perms": [
             "customer:view", "service:view",
             "approval:approve", "approval:decide",
@@ -399,7 +419,8 @@ STANDARD_ROLES = [
     },
     {
         "code": "cs_delay_approve", "name": "7.5客户服务延期申请-客服审批", "scope": "dept",
-        "desc": "简道云客服延期审批岗:客户服务延期申请「客服审批」节点",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云客服延期审批岗:客户服务延期申请「客服审批」节点;客户可看全部",
         "perms": [
             "customer:view", "service:view",
             "approval:approve", "approval:decide",
@@ -444,6 +465,81 @@ STANDARD_ROLES = [
         "perms": [
             "contract_review:view",
             "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "cs_named_fjj_zdd_jw", "name": "付加靖-张丹丹  姜婉", "scope": "dept",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云具名客服组:付加婧、张丹丹、段尉利;客户可看全部",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "cs_service_cc", "name": "7.1.1售后服务申请及反馈-客服安排抄送", "scope": "dept",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云客服安排抄送岗;客户可看全部",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "cs_replace_trace", "name": "7.1.2售出产品更换（补发）流程-发起追溯", "scope": "dept",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云售出产品更换发起追溯;客户可看全部",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "cs_special_release", "name": "27.10特殊放行申请-客服备案", "scope": "dept",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云特殊放行客服备案;客户可看全部",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "cs_service_record", "name": "7.3客户服务记录-审核登记", "scope": "dept",
+        "scope_by_resource": _CS_MODULE_SCOPE_ALL,
+        "desc": "简道云客户服务记录审核登记;客户可看全部",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "trip_overtime_init15", "name": "22.13出差加班申请流程-15人发起", "scope": "dept",
+        "desc": "简道云出差加班 15 人发起组",
+        "perms": [
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "loan_eng_mgmt", "name": "1.1.2借款流程-工程管理中心", "scope": "dept",
+        "desc": "简道云借款流程工程管理中心",
+        "perms": [
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "biz_backoffice", "name": "业务内勤", "scope": "dept",
+        "desc": "简道云业务内勤岗",
+        "perms": [
+            "customer:view", "contract:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "jdy_sub_admin", "name": "子管理员", "scope": "all", "lowcode_admin": True,
+        "desc": "简道云子管理员:扩展平台设计/管理 + 全数据范围",
+        "perms": [
+            "customer:view", "contract:view", "service:view",
+            "approval:approve", "approval:decide", "approval:delegate",
         ],
     },
     {

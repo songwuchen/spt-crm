@@ -5,7 +5,9 @@ from app.domains.lowcode.pickable_scope import (
 )
 from app.domains.lowcode.workflow_service import (
     apply_cs_product_return_approvers,
+    apply_cs_product_return_logistics_field_perms,
     _flow_cs_product_return_needs_approver_fix,
+    _flow_cs_product_return_needs_logistics_field_fix,
     _cs_return_want_for_node,
 )
 from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
@@ -58,3 +60,25 @@ def test_cs_return_cs_users_match_replace_cs_register():
     replace = JDY_ROLE_TO_SPECIFIED_USERS["62e9bfe0527ea90008320fab"]
     ret = JDY_ROLE_TO_SPECIFIED_USERS["64f2a247187194000af416be"]
     assert sorted(replace) == sorted(ret)
+
+
+def test_cs_product_return_logistics_drops_detail_perm():
+    """物流中心本节点可填区不含退回明细（避免误卡仓库判定）。"""
+    n17 = next(
+        n for n in CUSTOMER_SERVICE_JDY["cs_product_return"]["flow_nodes"]
+        if n.get("id") == "n17"
+    )
+    assert all(p.get("field") != "field_7" for p in (n17.get("field_perms") or []))
+    assert any(p.get("field") == "field_25" for p in (n17.get("field_perms") or []))
+
+    nodes = [{
+        "id": "n17", "type": "approval", "name": "物流中心",
+        "field_perms": [
+            {"field": "field_7", "access": "editable"},
+            {"field": "field_25", "access": "required"},
+        ],
+    }]
+    assert _flow_cs_product_return_needs_logistics_field_fix(nodes)
+    assert apply_cs_product_return_logistics_field_perms(nodes)
+    assert nodes[0]["field_perms"] == [{"field": "field_25", "access": "required"}]
+    assert not _flow_cs_product_return_needs_logistics_field_fix(nodes)

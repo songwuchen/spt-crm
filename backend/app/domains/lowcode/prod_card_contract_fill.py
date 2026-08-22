@@ -96,12 +96,12 @@ def build_prod_card_fill_from_contract(
 
 def prod_card_fill_clear_keys(mode: str) -> list[str]:
     if mode == "contract_no_select":
-        return ["yes_contract_no", "yes_sales_person", "yes_customer_name", "contract_tech_review_sn"]
+        return ["yes_contract_no", "yes_sales_person", "yes_customer_name", "contract_tech_review_sn", "region_manager"]
     return [
         "no_drawing_no", "no_sales_person", "yes_customer_name", "prod_card_line_items",
         "tech_params", "packaging_req", "remark_prod_card", "paint_req",
         "special_reminder", "no_warranty_period", "project_name",
-        "contract_tech_review_sn",
+        "contract_tech_review_sn", "region_manager",
     ]
 
 
@@ -150,6 +150,25 @@ def ensure_prod_card_serial_no_field(defs: list) -> None:
         serial["jdy_widget"] = "_widget_1617693684982"
 
 
+# 选合同后自动带出、发起页不可手改的字段
+_CONTRACT_PICK_READONLY_IDS = frozenset({
+    "no_sales_person",
+    "yes_sales_person",
+    "no_drawing_no",
+    "yes_contract_no",
+    "yes_customer_name",
+    "region_manager",
+    "tech_params",
+    "packaging_req",
+    "remark_prod_card",
+    "paint_req",
+    "special_reminder",
+    "no_warranty_period",
+    "project_name",
+    "prod_card_line_items",
+})
+
+
 def apply_prod_card_contract_pick_fields(defs: list) -> None:
     """把图纸编号查询/合同号选择改为 contract 类型，并挂部门过滤 + 带出模式。
 
@@ -192,11 +211,14 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props["contract_fill"] = "contract_no_select"
             f["props"] = props
         elif fid == "yes_customer_name":
-            # 与「(否)图纸编号」同排：用普通输入框展示（选合同自动带出），勿 props.readonly（会变纯文本）
+            f["form_editable"] = False
             props = dict(f.get("props") or {})
             props.pop("readonly", None)
             f["props"] = props
-            f["description"] = f.get("description") or "由所选合同自动带出单位名称。"
+            f["description"] = f.get("description") or "由所选合同自动带出单位名称，不可手改。"
+        elif fid in _CONTRACT_PICK_READONLY_IDS:
+            f["form_editable"] = False
+            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
         elif fid == "select_contract_tech_review":
             # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
             f["type"] = "tech_agreement_review"
@@ -474,6 +496,27 @@ def build_prod_card_fill_from_tar(*, review_code: str | None) -> dict[str, Any]:
 
 def prod_card_tar_fill_clear_keys() -> list[str]:
     return ["contract_tech_review_sn"]
+
+
+async def enrich_prod_card_fill_with_region_manager(
+    db,
+    tenant_id: str,
+    fill: dict[str, Any],
+    user: dict | None = None,
+) -> dict[str, Any]:
+    """选合同带出业务员后，按对照表补区域经理/组长。"""
+    sp = fill.get("no_sales_person") or fill.get("yes_sales_person")
+    if not sp:
+        return fill
+    from app.domains.lowcode.salesperson_region import resolve_region_manager
+
+    rm = await resolve_region_manager(db, tenant_id, str(sp), user)
+    rm_id = rm.get("region_manager_id")
+    if not rm_id:
+        return fill
+    out = dict(fill)
+    out["region_manager"] = rm_id
+    return out
 
 
 # 「生产卡通知单上的内容」：仅「是否为补充=否」时展示（补充单不填生产卡正文）

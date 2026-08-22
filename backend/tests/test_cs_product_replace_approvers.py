@@ -136,7 +136,7 @@ def test_cs_product_replace_cs_register_requires_fault_class():
     from app.domains.lowcode.wf_field_writeback import validate_field_updates
 
     fields = CUSTOMER_SERVICE_JDY["cs_product_replace"]["field_definitions"]
-    perms = [{"field": "field_12", "access": "editable"}]
+    perms = [{"field": "field_12", "access": "required"}]
     form_data = {"field_12": [{"field_18": "说明"}]}
     with pytest.raises(BusinessException):
         validate_field_updates(

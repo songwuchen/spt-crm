@@ -40,6 +40,7 @@ import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } fro
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
 import { buildFormFieldLabels } from '@/utils/dataLogLabels'
+import { isRegionManagerField, isSalespersonField, parsePersonFieldId } from '@/utils/salespersonRegion'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
@@ -551,6 +552,15 @@ export default function FormDataListPage({
   const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
+
+  /** 列表筛选：业务字段 + 系统字段（提交人） */
+  const filterFields = useMemo<FieldDefinition[]>(
+    () => [
+      { id: '__sys_initiator', type: 'person', label: '提交人' },
+      ...schemaFields,
+    ],
+    [schemaFields],
+  )
   /** 列配置可选的全部可列表字段 */
   const [allColFields, setAllColFields] = useState<FieldDefinition[]>([])
   /** 默认可见列 id（listColumns / 启发式）；其余为 optIn */
@@ -919,21 +929,10 @@ export default function FormDataListPage({
   // 编辑弹窗：选业务员 → 回填区域经理/组长
   useEffect(() => {
     if (!viewRec || viewRec.readonly) return
-    const salesField = viewRec.fields.find((f) =>
-      f.type === 'person' && (f.id === 'sales_person' || f.id === 'salesperson' || f.id === 'owner_id'
-        || f.label === '业务员'),
-    )
-    const regionField = viewRec.fields.find((f) =>
-      f.type === 'person' && (f.id === 'region_manager' || f.id === 'region_manager_id'
-        || (f.label || '').includes('区域经理')),
-    )
+    const salesField = viewRec.fields.find(isSalespersonField)
+    const regionField = viewRec.fields.find(isRegionManagerField)
     if (!salesField || !regionField) return
-    const raw = viewRec.value?.[salesField.id]
-    const sid = raw == null || raw === ''
-      ? ''
-      : (typeof raw === 'object' && raw !== null && 'id' in (raw as object)
-        ? String((raw as { id?: string }).id || '')
-        : String(raw))
+    const sid = parsePersonFieldId(viewRec.value?.[salesField.id])
     if (!sid) return
     let alive = true
     ;(async () => {
@@ -948,7 +947,15 @@ export default function FormDataListPage({
       } catch { /* ignore */ }
     })()
     return () => { alive = false }
-  }, [viewRec?.readonly, viewRec?.fields, viewRec?.value?.sales_person, viewRec?.value?.salesperson, viewRec?.value?.owner_id])
+  }, [
+    viewRec?.readonly,
+    viewRec?.fields,
+    viewRec?.value?.sales_person,
+    viewRec?.value?.salesperson,
+    viewRec?.value?.owner_id,
+    viewRec?.value?.no_sales_person,
+    viewRec?.value?.yes_sales_person,
+  ])
 
   // 编辑弹窗：流水号预览
   useEffect(() => {
@@ -1177,6 +1184,30 @@ export default function FormDataListPage({
           },
         },
         {
+          // 明细 rowSpan 时禁用 fixed：Ant Design 固定列与合并单元格行高不同步
+          title: '提交时间', key: 'created_at', width: listFullText ? 178 : 160,
+          ellipsis: { showTitle: true } as const,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) => {
+            const v = (row as DetailFlatRow).record.created_at
+            return v ? formatCellDateTime(v, true) : '—'
+          },
+        },
+        ...(listFullText ? [{
+          title: '更新时间',
+          key: 'updated_at',
+          width: 178,
+          ellipsis: { showTitle: true } as const,
+          onCell: (row: FormInstance | DetailFlatRow) => ({
+            rowSpan: (row as DetailFlatRow).rowSpan,
+          }),
+          render: (_: unknown, row: FormInstance | DetailFlatRow) => {
+            const r = (row as DetailFlatRow).record
+            const v = r.updated_at || r.created_at
+            return v ? formatCellDateTime(v, true) : '—'
+          },
+        }] : []),
+        {
           // 明细 rowSpan 时禁用 fixed：Ant Design 固定列与合并单元格行高不同步，会叠字/错位
           title: '流程状态', key: 'status', width: 100,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
@@ -1310,7 +1341,7 @@ export default function FormDataListPage({
             onChange={(v) => { setStatusFilter(v); setPageNo(1) }}
           />
           <FormInstanceFilterPopover
-            fields={schemaFields}
+            fields={filterFields}
             value={fieldFilters}
             onApply={applyFieldFilters}
             storageKey={filterMemoryKey}

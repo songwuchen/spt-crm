@@ -316,52 +316,65 @@ def _cond_summary(cond: dict) -> str:
 def patch_sales_confirm_node(
     nodes: list[dict], routes: list[dict], notes: list[str],
 ) -> tuple[list[dict], list[dict], list[str]]:
-    """补齐简道云画布 V43 的「业务员确认」。
+    """补齐简道云画布 V43 的「业务员确认」，并校正区域经理串行。
 
-    data-hub ``workflow_config`` 缓存（约 2026-07-01）未包含该节点，但线上画布为：
-      生产卡发起 --else--> 业务员确认 --> 部门审批
-      生产卡发起 --区域经理不为空--> 区域经理/组长 --> 部门审批
-    审批人对齐表单「（是）/（否）业务人员」。
+    线上画布（V43）正确拓扑：
+      生产卡发起 --else--> 业务员确认
+      业务员确认 --区域经理不为空--> 区域经理/组长 --> 部门审批
+      业务员确认 --else--> 部门审批
+
+    data-hub ``workflow_config`` 缓存（约 2026-07-01）无「业务员确认」，且把
+    「区域不为空」挂在发起上；补节点后须把该边挪到业务员确认之后。
     """
-    if any(n.get("name") == "业务员确认" for n in nodes):
-        return nodes, routes, notes
-    dept = next((n for n in nodes if n.get("name") == "部门审批"), None)
-    if not dept:
-        notes.append("无法补齐「业务员确认」：未找到部门审批节点")
-        return nodes, routes, notes
-
-    sales_id = "n_sales_confirm"
-    sales_node = {
-        "id": sales_id,
-        "type": "approval",
-        "name": "业务员确认",
-        "approver_rule": {
-            "type": "form_field_person",
-            "value": ["yes_sales_person", "no_sales_person"],
-        },
-        "multi_mode": "or_sign",
-        "empty_strategy": "auto_approve",
-    }
-    end_idx = next((i for i, n in enumerate(nodes) if n.get("id") == "end"), len(nodes))
-    nodes.insert(end_idx, sales_node)
-
-    retargeted = False
-    for r in routes:
-        if (
-            r.get("source") == "start"
-            and r.get("target") == dept["id"]
-            and not r.get("condition")
-            and not r.get("always")
-        ):
-            r["target"] = sales_id
-            retargeted = True
-    if not retargeted:
-        routes.append({"id": "r_start_sales", "source": "start", "target": sales_id})
-    routes.append({"id": "r_sales_to_dept", "source": sales_id, "target": dept["id"]})
-    notes.append(
-        "补齐「业务员确认」（JDY 画布 V43 有；data-hub 流程缓存无此节点；"
-        "审批人=表单（是）/（否）业务人员）"
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_sales_before_region,
     )
+
+    if not any(n.get("name") == "业务员确认" for n in nodes):
+        dept = next((n for n in nodes if n.get("name") == "部门审批"), None)
+        if not dept:
+            notes.append("无法补齐「业务员确认」：未找到部门审批节点")
+            return nodes, routes, notes
+
+        sales_id = "n_sales_confirm"
+        sales_node = {
+            "id": sales_id,
+            "type": "approval",
+            "name": "业务员确认",
+            "approver_rule": {
+                "type": "form_field_person",
+                "value": ["yes_sales_person", "no_sales_person"],
+            },
+            "multi_mode": "or_sign",
+            "empty_strategy": "auto_approve",
+            "field_perms": [
+                {"field": "confirm_agreement", "access": "required"},
+            ],
+        }
+        end_idx = next((i for i, n in enumerate(nodes) if n.get("id") == "end"), len(nodes))
+        nodes.insert(end_idx, sales_node)
+
+        retargeted = False
+        for r in routes:
+            if (
+                r.get("source") == "start"
+                and r.get("target") == dept["id"]
+                and not r.get("condition")
+                and not r.get("always")
+            ):
+                r["target"] = sales_id
+                retargeted = True
+        if not retargeted:
+            routes.append({"id": "r_start_sales", "source": "start", "target": sales_id})
+        notes.append(
+            "补齐「业务员确认」（JDY 画布 V43；审批人=（是）/（否）业务人员；"
+            "其后按区域经理/组长是否为空分支）"
+        )
+
+    if apply_prod_card_sales_before_region(nodes, routes):
+        notes.append(
+            "校正：区域经理/组长挂在业务员确认之后（先确认再区域）"
+        )
     return nodes, routes, notes
 
 
@@ -374,6 +387,9 @@ def main():
     rules = build_rule_definitions(linkage, fields)
     nodes, routes, notes = build_flow(wf_raw, fields, TITLE)
     nodes, routes, notes = patch_sales_confirm_node(nodes, routes, notes)
+    from app.domains.lowcode.workflow_service import apply_prod_card_notify_production_cc
+    if apply_prod_card_notify_production_cc(nodes):
+        notes.append("通知生产启用抄送：吕英萍、雷贤、吴超（对齐简道云）")
 
     result = {
         KEY: {

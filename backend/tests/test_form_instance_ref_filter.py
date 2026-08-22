@@ -42,6 +42,15 @@ def test_flatten_filter_values():
     assert _flatten_filter_values(None) == []
 
 
+def test_normalize_initiator_filter_rule():
+    match, rules = _normalize_instance_filters({
+        "match": "all",
+        "rules": [{"field": "__sys_initiator", "op": "contains", "value": "岳毅"}],
+    })
+    assert match == "all"
+    assert rules == [{"field": "__sys_initiator", "op": "contains", "value": "岳毅"}]
+
+
 def test_normalize_contains_rule():
     match, rules = _normalize_instance_filters({
         "match": "all",

@@ -553,7 +553,7 @@ async def pickable_contracts(
 
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
     dept_id_list = [x.strip() for x in (department_ids or "").split(",") if x.strip()]
-    scope = await resolve_module_scope(db, current_user, tenant_id)
+    scope = await resolve_module_scope(db, current_user, tenant_id, biz_type="contract")
     user_depts = await org_department_subtree_ids(db, tenant_id, current_user.get("sub"))
     pick_depts = resolve_pick_department_ids(
         scope_all=(scope == "all"),
@@ -798,6 +798,8 @@ async def pickable_contract_prod_card_fill(
             key_clauses_json=ver.key_clauses_json if ver else None,
             mode=mode,
         )
+        from app.domains.lowcode.prod_card_contract_fill import enrich_prod_card_fill_with_region_manager
+        fill = await enrich_prod_card_fill_with_region_manager(db, tenant_id, fill, _user)
     return ok({
         "contract_id": c.id,
         "contract_no": c.contract_no,
@@ -916,6 +918,12 @@ def _inst_list_dict(i, name_map: dict[str, str] | None = None) -> dict:
     d = schemas.FormInstanceListItem.model_validate(i).model_dump(mode="json")
     if name_map is not None and getattr(i, "initiator_id", None):
         d["initiator_name"] = name_map.get(i.initiator_id)
+    if not d.get("initiator_name"):
+        fd = d.get("form_data") or getattr(i, "form_data", None) or {}
+        if isinstance(fd, dict):
+            fallback = (fd.get("_jdy_creator_name") or "").strip()
+            if fallback:
+                d["initiator_name"] = fallback
     return d
 
 

@@ -222,10 +222,11 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
     'no_drawing_no', 'no_sales_person', 'yes_customer_name', 'prod_card_line_items',
     'tech_params', 'packaging_req', 'remark_prod_card', 'paint_req',
     'special_reminder', 'no_warranty_period', 'project_name',
-    'contract_tech_review_sn',
+    'contract_tech_review_sn', 'region_manager',
   ],
   contract_no_select: [
     'yes_contract_no', 'yes_sales_person', 'yes_customer_name', 'contract_tech_review_sn',
+    'region_manager',
   ],
   invoice_application: [
     'drawing_no', 'customer_name', 'dept_contract_no', 'customer_no', 'customer_code',

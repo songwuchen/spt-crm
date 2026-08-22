@@ -87,6 +87,8 @@ def test_apply_prod_card_contract_pick_fields():
         {"id": "submitter", "type": "person", "label": "提交人"},
         {"id": "department", "type": "department", "label": "所在部门"},
         {"id": "yes_customer_name", "type": "text", "label": "（是）单位名称"},
+        {"id": "no_sales_person", "type": "person", "label": "（否）业务人员"},
+        {"id": "region_manager", "type": "person", "label": "区域经理/组长"},
     ]
     apply_prod_card_contract_pick_fields(defs)
     by_id = {f["id"]: f for f in defs}
@@ -104,7 +106,9 @@ def test_apply_prod_card_contract_pick_fields():
     assert by_id["contract_tech_review_sn"]["props"]["readonly"] is True
     assert by_id["submitter"]["props"]["default_current_user"] is True
     assert by_id["department"]["props"]["default_current_dept"] is True
-    assert not (by_id["yes_customer_name"].get("props") or {}).get("readonly")
+    assert by_id["yes_customer_name"]["form_editable"] is False
+    assert by_id["no_sales_person"]["form_editable"] is False
+    assert by_id["region_manager"]["form_editable"] is False
 
 
 def test_prod_card_approver_only_fields_hidden_on_create():

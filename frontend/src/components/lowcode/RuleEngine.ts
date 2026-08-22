@@ -135,7 +135,7 @@ function isEmptyValue(v: unknown): boolean {
   return false
 }
 
-/** 审批节点：明细表 fill_stage=approver 的必填列逐行校验。 */
+/** 审批节点：明细表 fill_stage=approver 的必填列逐行校验（由调用方在节点 access=required 时触发）。 */
 export function validateApproverDetailRows(
   fields: FieldDefinition[],
   fieldId: string,

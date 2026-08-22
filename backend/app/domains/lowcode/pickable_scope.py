@@ -62,6 +62,16 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     "5f6c3e539a4cbe0006b74d65": "cs_office",  # 7.5客户服务延期申请-客服反馈
     # 服务申请及反馈-客服安排（客服安排1）
     "5f6597fda1d94000063f43ee": "cs_arrange",
+    "5f65969a249b6e0006a83f45": "cs_office",  # 7.1.1售后服务申请及反馈-客服落实
+    "5f45f6f2c7f5e200078bcb22": "cs_named_fjj_zdd_jw",
+    "5f6598499e0e650006774753": "cs_service_cc",
+    "5f659a0faa901c000655dda2": "cs_replace_trace",
+    "5f6c3bcdfc9e3e000637117b": "cs_special_release",
+    "5f9641ee2173ad0007eb86c0": "cs_service_record",
+    "5fa4e2aff285920006f2030d": "trip_overtime_init15",
+    "61c664f6c6a1c5000885e84f": "loan_eng_mgmt",
+    "5c6d03cbeb6c6b3b26370880": "biz_backoffice",
+    "5e0e2fd56dd054f091330426": "jdy_sub_admin",
     # 7.5客户服务延期申请-客服审批
     "5f6c3e74bb221e00067d4f39": "cs_delay_approve",
     # 发货通知
@@ -127,6 +137,11 @@ JDY_ROLE_TO_SPECIFIED_USERS: dict[str, list[str]] = {
         "113236314224043072",  # 张丹丹
         "01364955133227249077",  # 段尉利
     ],
+    "5f45f6f2c7f5e200078bcb22": [
+        "181359282120075679",  # 付加婧
+        "113236314224043072",  # 张丹丹
+        "01364955133227249077",  # 段尉利
+    ],
 }
 JDY_ROLE_NAME_TO_SPECIFIED_USERS: dict[str, list[str]] = {
     "7.1.2售出产品更换（补发）流程-客服补登": [
@@ -137,6 +152,11 @@ JDY_ROLE_NAME_TO_SPECIFIED_USERS: dict[str, list[str]] = {
     ],
     "230902客服内勤": [
         "0236446249514",
+        "181359282120075679",
+        "113236314224043072",
+        "01364955133227249077",
+    ],
+    "付加靖-张丹丹  姜婉": [
         "181359282120075679",
         "113236314224043072",
         "01364955133227249077",

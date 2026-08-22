@@ -422,7 +422,7 @@ def apply_cs_product_return_initiator_defaults(fields: list[dict], notes: list[s
 
 
 def apply_cs_product_return_warehouse_judge_policy(fields: list[dict], notes: list[str]) -> None:
-    """明细「仓库判定*」：发起不可见/不可填，仓库/物流审批节点填写（简道云 optAuth 发起列不含此 widget）。"""
+    """明细「仓库判定*」：发起不可见/不可填；仅明细节点 access=required 时强制（物流 editable 不卡）。"""
     for fd in fields:
         if fd.get("id") != "field_7":
             continue
@@ -476,6 +476,24 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
 
     nodes, routes, notes_flow = build_flow(wf_raw, fields, title)
     notes.extend(notes_flow)
+    if key == "cs_product_return":
+        try:
+            from app.domains.lowcode.workflow_service import (
+                apply_cs_product_return_logistics_field_perms,
+            )
+            if apply_cs_product_return_logistics_field_perms(nodes):
+                notes.append("物流中心：本节点可填区去掉退回明细（仅填物流情况）")
+        except Exception as ex:  # pragma: no cover
+            notes.append(f"物流节点 field_perms 补丁跳过: {ex}")
+    if key == "cs_product_replace":
+        try:
+            from app.domains.lowcode.workflow_service import (
+                apply_cs_product_replace_approvers,
+            )
+            if apply_cs_product_replace_approvers(nodes):
+                notes.append("客服补登：换货明细 field_12 标 required（故障分类）")
+        except Exception as ex:  # pragma: no cover
+            notes.append(f"客服补登 field_perms 补丁跳过: {ex}")
     if key in ("cs_service_request", "cs_product_replace"):
         try:
             from app.domains.lowcode.workflow_service import (

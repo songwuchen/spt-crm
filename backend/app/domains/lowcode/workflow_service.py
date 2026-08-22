@@ -692,6 +692,9 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_invoice_sales_cc(nodes, routes)
     if form_code == "cs_product_return":
         apply_cs_product_return_approvers(nodes)
+        apply_cs_product_return_logistics_field_perms(nodes)
+    if form_code == "cs_product_replace":
+        apply_cs_product_replace_approvers(nodes)
     if form_code == "cs_drawing_request":
         apply_cs_drawing_approvers(nodes)
     if form_code == "shipment_notice":
@@ -1285,7 +1288,7 @@ def _flow_cs_product_replace_needs_approver_fix(nodes: list | None) -> bool:
         rule = n.get("approver_rule") or {}
         if not _approver_rule_matches(rule, want):
             return True
-    return False
+    return _cs_product_replace_field_12_needs_required(nodes)
 
 
 def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
@@ -1306,14 +1309,78 @@ def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
         if not isinstance(n, dict):
             continue
         want = want_by_id.get(str(n.get("id") or ""))
-        if not want:
-            continue
-        cur = n.get("approver_rule") or {}
-        if _approver_rule_matches(cur, want):
-            continue
-        n["approver_rule"] = dict(want)
-        changed = True
+        if want:
+            cur = n.get("approver_rule") or {}
+            if not _approver_rule_matches(cur, want):
+                n["approver_rule"] = dict(want)
+                changed = True
+        # 客服补登：换货明细须填故障分类 → field_12 标 required（明细审批列仅 required 时校验）
+        nid = str(n.get("id") or "")
+        name = (n.get("name") or "").strip()
+        if nid == "n9" or name == "客服补登":
+            perms = n.get("field_perms")
+            if isinstance(perms, list):
+                new_perms: list = []
+                touched = False
+                for p in perms:
+                    if isinstance(p, dict) and p.get("field") == "field_12" and p.get("access") != "required":
+                        new_perms.append({**p, "access": "required"})
+                        touched = True
+                    else:
+                        new_perms.append(p)
+                if touched:
+                    n["field_perms"] = new_perms
+                    changed = True
     return changed
+
+
+def _cs_product_replace_field_12_needs_required(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if str(n.get("id") or "") != "n9" and (n.get("name") or "").strip() != "客服补登":
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") == "field_12" and p.get("access") != "required":
+                return True
+    return False
+
+
+def apply_cs_product_return_logistics_field_perms(nodes: list[dict]) -> bool:
+    """物流中心：不把退回明细放进本节点可填区（避免误强制「仓库判定」）；只填物流情况。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        nid = str(n.get("id") or "")
+        name = (n.get("name") or "").strip()
+        if nid != "n17" and "物流" not in name:
+            continue
+        perms = n.get("field_perms")
+        if not isinstance(perms, list):
+            continue
+        new_perms = [
+            p for p in perms
+            if not (isinstance(p, dict) and p.get("field") == "field_7")
+        ]
+        if len(new_perms) != len(perms):
+            n["field_perms"] = new_perms
+            changed = True
+    return changed
+
+
+def _flow_cs_product_return_needs_logistics_field_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        nid = str(n.get("id") or "")
+        name = (n.get("name") or "").strip()
+        if nid != "n17" and "物流" not in name:
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") == "field_7":
+                return True
+    return False
 
 
 # 简道云「客户服务申请及反馈」客服落实 ← 角色 230902客服内勤（CRM: cs_office）
@@ -3368,7 +3435,11 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         *[{"id": f"r_{tid}_merge", "source": tid, "target": "merge_review"} for tid, _ in peer_to_merge],
         # 主干
         {"id": "r_merge_gm", "source": "merge_review", "target": "approval_gm"},
-        {"id": "r_gm_fin", "source": "approval_gm", "target": "approval_finance_opinion"},
+        # reenter：反馈回路设计审批1 再入总经理后，须能再次激活已完成的财务意见
+        {
+            "id": "r_gm_fin", "source": "approval_gm",
+            "target": "approval_finance_opinion", "reenter": True,
+        },
         # 财务意见旁路抄送
         {
             "id": "r_fin_cc_related", "source": "approval_finance_opinion",
@@ -3421,9 +3492,16 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "condition": _and_cond(feedback_yes),
         },
         # 反馈过程中若已改为不反馈，直接再入总经理（避免卡在反馈业务部门）
-        {"id": "r_fb_biz_gm", "source": "approval_feedback_biz", "target": "approval_gm"},
+        # reenter：总经理首轮已完成，反馈回路须允许再次激活（对齐简道云）
+        {
+            "id": "r_fb_biz_gm", "source": "approval_feedback_biz",
+            "target": "approval_gm", "reenter": True,
+        },
         # 设计审批1 再入总经理
-        {"id": "r_design_fb_gm", "source": "approval_design_fb", "target": "approval_gm"},
+        {
+            "id": "r_design_fb_gm", "source": "approval_design_fb",
+            "target": "approval_gm", "reenter": True,
+        },
     ]
     return nodes, routes
 
@@ -4190,7 +4268,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"售出产品更换客服节点改为cs_office({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"售出产品更换客服节点/补登明细必填({form_code})",
         )
         return
     # 客户服务申请及反馈：客服落实→cs_office；客服安排1→cs_arrange
@@ -4215,20 +4293,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             f"客服落实/客服安排改为指定角色cs_office+cs_arrange({form_code})",
         )
         return
-    # 售出产品/工具退回：客服办理 → cs_office
-    if (
-        form_code == "cs_product_return"
-        and _flow_cs_product_return_needs_approver_fix(version.node_definitions)
+    # 售出产品/工具退回：客服办理 → cs_office；物流节点去掉误挂的明细可填
+    if form_code == "cs_product_return" and (
+        _flow_cs_product_return_needs_approver_fix(version.node_definitions)
+        or _flow_cs_product_return_needs_logistics_field_fix(version.node_definitions)
     ):
         import copy
         from app.common.rbac_sync import ensure_cs_office_role_members
         await ensure_cs_office_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
         apply_cs_product_return_approvers(patched)
+        apply_cs_product_return_logistics_field_perms(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"售出产品退回客服节点改为cs_office({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"售出产品退回客服/物流节点修正({form_code})",
         )
         return
     # 客户服务延期申请：客服反馈/备案→cs_office；客服审批→cs_delay_approve
@@ -4993,6 +5072,45 @@ def _contract_review_post_finance_parallel_aligned(routes: list | None) -> bool:
     return found == need
 
 
+def _contract_review_feedback_reenter_aligned(routes: list | None) -> bool:
+    """反馈回路再入总经理/财务意见的边须标 reenter，否则 skip_reactivate 直接结束。"""
+    need = {
+        ("approval_design_fb", "approval_gm"),
+        ("approval_feedback_biz", "approval_gm"),
+        ("approval_gm", "approval_finance_opinion"),
+    }
+    found: set[tuple[str, str]] = set()
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if not (r.get("reenter") or r.get("allow_reenter")):
+            continue
+        key = (str(r.get("source") or ""), str(r.get("target") or ""))
+        if key in need:
+            found.add(key)
+    return found == need
+
+
+def apply_contract_review_feedback_reenter(routes: list | None) -> bool:
+    """给反馈回路再入总经理/财务意见的边打 reenter（对齐简道云二次审批）。"""
+    want = {
+        ("approval_design_fb", "approval_gm"),
+        ("approval_feedback_biz", "approval_gm"),
+        ("approval_gm", "approval_finance_opinion"),
+    }
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        key = (str(r.get("source") or ""), str(r.get("target") or ""))
+        if key not in want:
+            continue
+        if not (r.get("reenter") or r.get("allow_reenter")):
+            r["reenter"] = True
+            changed = True
+    return changed
+
+
 async def _publish_system_default_upgrade(
     db, tenant_id: str, d: WfProcessDefinition,
     version: WfProcessDefinitionVersion,
@@ -5684,7 +5802,13 @@ async def _upgrade_contract_review_jdy_if_needed(
     )
     need_legal = not _contract_review_legal_users_aligned(version.node_definitions)
     need_fin_dir = not _contract_review_finance_dir_aligned(version.node_definitions)
-    if not need_fp and not need_legal_sup and not need_legal and not need_fin_dir:
+    need_fb_reenter = not _contract_review_feedback_reenter_aligned(
+        version.route_definitions,
+    )
+    if (
+        not need_fp and not need_legal_sup and not need_legal
+        and not need_fin_dir and not need_fb_reenter
+    ):
         await _finish_contract_review_runtime_fix(db, tenant_id)
         return
 
@@ -5695,8 +5819,12 @@ async def _upgrade_contract_review_jdy_if_needed(
         if isinstance(n, dict) and n.get("id") and n.get("type") == "approval"
     }
     patched = copy.deepcopy(version.node_definitions or [])
+    patched_routes = copy.deepcopy(version.route_definitions or [])
     changed = False
     tags: list[str] = []
+    if need_fb_reenter and apply_contract_review_feedback_reenter(patched_routes):
+        changed = True
+        tags.append("反馈回路reenter")
     for n in patched:
         if not isinstance(n, dict) or n.get("type") != "approval":
             continue
@@ -5743,7 +5871,7 @@ async def _upgrade_contract_review_jdy_if_needed(
         tags.append("财务总监→仅张光")
     if changed:
         await _publish_system_default_upgrade(
-            db, tenant_id, d, version, patched, list(version.route_definitions or []),
+            db, tenant_id, d, version, patched, patched_routes,
             CONTRACT_REVIEW_DEFAULT_DESC,
             "合同评审" + "+".join(tags) if tags else "合同评审局部对齐",
         )
@@ -7565,15 +7693,9 @@ async def _resolve_current_task_for_viewer(
                 }
                 latest_node = by_id.get(node_def_id or "") or by_name.get(node.get("name") or "")
                 if latest_node:
-                    latest_req = {
-                        p["field"] for p in parse_field_perms(latest_node)
-                        if p.get("access") == "required"
-                    }
-                    if latest_req:
-                        field_perms = [
-                            {**p, "access": "required"} if p.get("field") in latest_req else p
-                            for p in field_perms
-                        ]
+                    # 在途单冻结旧版 field_perms 时，以最新发布版本节点可填区为准
+                    # （否则物流等节点仍会带上已下线的明细可填/误强制列）
+                    field_perms = parse_field_perms(latest_node)
         except Exception:
             pass
 

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Row, Col, Input, InputNumber, DatePicker, Select, Radio, Checkbox, Switch,
-  Button, Typography, Tag, Empty, Space, Tooltip,
+  Button, Typography, Tag, Empty, Space, Tooltip, message,
 } from 'antd'
 import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -98,8 +98,6 @@ interface Props {
   includeApproverFields?: boolean
 }
 
-// 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
-// 空/缺省 = 不限制；不可见→hidden；可见但不可编辑→readonly。
 export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]): FieldPermission[] {
   const roles = new Set(userRoles || [])
   const out: FieldPermission[] = []
@@ -123,8 +121,17 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
+/** 后端/简道云同步可能把 form_editable 落成字符串 "false"。 */
+export function isFieldFormReadonly(field: FieldDefinition): boolean {
+  if (field.readonly) return true
+  const fe = field.form_editable as boolean | string | number | undefined
+  return fe === false || fe === 'false' || fe === 0
+}
+
 export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const valueRef = useRef(value)
+  valueRef.current = value
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
     [applyFieldPerms, fields, userRoles],
@@ -140,10 +147,10 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   )
 
   const setField = (id: string, v: unknown) => {
-    onChange?.(applySimpleFormulas(fields, { ...value, [id]: v }))
+    onChange?.(applySimpleFormulas(fields, { ...valueRef.current, [id]: v }))
   }
   const patchFields = (patch: Record<string, unknown>) => {
-    onChange?.(applySimpleFormulas(fields, { ...value, ...patch }))
+    onChange?.(applySimpleFormulas(fields, { ...valueRef.current, ...patch }))
   }
 
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
@@ -237,8 +244,7 @@ function FieldItem({
 }) {
   const readonly = mode === 'readonly' || state?.readonly
     || !!(field.props as { read_only?: boolean } | undefined)?.read_only
-    || !!field.readonly
-    || field.form_editable === false
+    || isFieldFormReadonly(field)
   const required = state?.required
   // 脱敏字段一律不渲染真实控件：后端已把值换成 "***"，但若值恰好没被裁到（如设计器预览），
   // 这里也不能把明文渲染出去。
@@ -438,7 +444,11 @@ function FieldWidget({
             void fetchProdCardContractFill(v, fillMode).then((pack) => {
               onPatch({ [field.id]: v, ...pack.fill })
               warnPriorInvoicesAfterFill(fillMode, pack)
-            }).catch(() => onChange(v))
+            }).catch((err: unknown) => {
+              onChange(v)
+              const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+              message.warning(msg || '合同信息带出失败，请刷新后重试或联系管理员')
+            })
           }}
         />
       )

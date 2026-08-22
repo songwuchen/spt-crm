@@ -91,14 +91,24 @@ export function missingRequiredFields(
 ): string[] {
   const perms = fieldPerms || []
   if (!perms.length) return []
-  const rules = opts?.rules || []
-  if (!rules.length) {
-    return perms
-      .filter((p) => p.access === 'required' && isEmpty(values[p.field]))
-      .map((p) => p.field)
-  }
   const fields = buildApproveFields(opts?.fieldMeta, perms, opts?.formFields)
   const merged = { ...(opts?.formData || {}), ...values }
+  const rules = opts?.rules || []
+
+  const detailRequiredMissing = (fieldId: string): boolean => {
+    // 仅节点把明细标为 required 时强制审批列（editable 可改但不卡仓库判定等）
+    return !!validateApproverDetailRows(fields, fieldId, merged[fieldId])
+  }
+
+  if (!rules.length) {
+    return perms
+      .filter((p) => {
+        if (p.access !== 'required') return false
+        if (isEmpty(merged[p.field])) return true
+        return detailRequiredMissing(p.field)
+      })
+      .map((p) => p.field)
+  }
   const permissions: FieldPermission[] = perms.map((p) => ({
     fieldId: p.field,
     access: p.access === 'required' ? 'required'
@@ -111,9 +121,9 @@ export function missingRequiredFields(
       // 被显隐规则藏掉的字段不校验（如设计单分派=总部单时「转新乡」）
       if (st && !st.visible) return false
       const req = st ? st.required : p.access === 'required'
-      if (req && isEmpty(values[p.field])) return true
-      const detailErr = validateApproverDetailRows(fields, p.field, values[p.field])
-      return !!detailErr
+      if (!req) return false
+      if (isEmpty(merged[p.field])) return true
+      return detailRequiredMissing(p.field)
     })
     .map((p) => p.field)
 }

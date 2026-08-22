@@ -140,9 +140,10 @@ def validate_field_updates(
                 code=VALIDATION_ERROR,
                 message=f"请填写必填项: {', '.join(missing)}",
             )
-        # 明细表：审批节点可填列（fill_stage=approver）逐行校验
+        # 明细表审批列：仅当本节点把明细标为 required 时强制
+        # （editable 只表示可改行，如物流中心可看/改退回明细，但不强制「仓库判定」）
         for fid, acc in allowed.items():
-            if acc not in ("editable", "required"):
+            if acc != "required":
                 continue
             fd = field_by_id.get(fid)
             if not fd or fd.get("type") != "detail_table":

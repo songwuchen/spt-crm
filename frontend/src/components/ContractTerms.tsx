@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Table, Input, InputNumber, DatePicker, Button, Select, Radio } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Input, InputNumber, DatePicker, Button, Select, Radio, Space } from 'antd'
+import { PlusOutlined, DeleteOutlined, TableOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import DataView, { formatMoney, formatScalar } from './DataView'
 import ContractSectionTitle from './ContractSectionTitle'
+import DetailQuickFillModal from './DetailQuickFillModal'
 import { useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition } from '@/types/lowcode'
@@ -422,6 +423,7 @@ function EditableTermsTable({
   onTotalChange,
   recompute = false,
   contractTotal,
+  quickFill = false,
 }: {
   fields: FieldSpec[]
   rows: Row[]
@@ -431,7 +433,10 @@ function EditableTermsTable({
   recompute?: boolean
   /** 收款计划：传入合同总金额后按比例重算付款金额 */
   contractTotal?: number
+  /** 显示「快速填报」入口（合同明细） */
+  quickFill?: boolean
 }) {
+  const [qfOpen, setQfOpen] = useState(false)
   const emit = (next: Row[]) => {
     onChange(next)
     onTotalChange?.(sumLineAmounts(next))
@@ -453,6 +458,13 @@ function EditableTermsTable({
   }
   const addRow = () => emit([...rows, {}])
   const delRow = (i: number) => emit(rows.filter((_, j) => j !== i))
+  const applyQuickFill = (incoming: Row[], mode: 'append' | 'replace') => {
+    const normalized = recompute
+      ? incoming.map((r) => recomputeLineRow(r))
+      : incoming
+    const base = mode === 'replace' ? [] : rows
+    emit([...base, ...normalized])
+  }
 
   const anyFx = rows.some((r) => String(r.is_fx || '') === '是')
   const visibleFields = fields.filter((f) => {
@@ -503,7 +515,23 @@ function EditableTermsTable({
         scroll={{ x: 'max-content' }}
         locale={{ emptyText: '暂无明细，点击下方「添加一行」' }}
       />
-      <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addRow} className="mt-2">添加一行</Button>
+      <Space className="mt-2">
+        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addRow}>添加一行</Button>
+        {quickFill && (
+          <Button size="small" type="link" icon={<TableOutlined />} onClick={() => setQfOpen(true)}>
+            快速填报
+          </Button>
+        )}
+      </Space>
+      {quickFill && (
+        <DetailQuickFillModal
+          open={qfOpen}
+          fields={fields}
+          existingRows={rows}
+          onClose={() => setQfOpen(false)}
+          onConfirm={applyQuickFill}
+        />
+      )}
     </div>
   )
 }
@@ -569,6 +597,7 @@ export function LineItemsEditor({
       onChange={onChange}
       onTotalChange={onTotalChange}
       recompute
+      quickFill
     />
   )
 }

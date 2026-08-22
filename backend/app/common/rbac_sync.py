@@ -258,6 +258,15 @@ BUSINESS_ROLE_CODES = (
     "cs_office",
     "cs_arrange",
     "cs_delay_approve",
+    "cs_named_fjj_zdd_jw",
+    "cs_service_cc",
+    "cs_replace_trace",
+    "cs_special_release",
+    "cs_service_record",
+    "trip_overtime_init15",
+    "loan_eng_mgmt",
+    "biz_backoffice",
+    "jdy_sub_admin",
     "ship_sales_outbound",
     "gate_guard",
     "prod_material_code",
@@ -887,3 +896,69 @@ async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:
         "prod_material_code": await ensure_prod_material_code_role_members(db, tenant_id),
         "legal": await ensure_legal_role_members(db, tenant_id),
     }
+
+
+FUJIAJING_JDY_ROLE_CODES = (
+    "cs_office",
+    "cs_arrange",
+    "cs_named_fjj_zdd_jw",
+    "cs_service_cc",
+    "cs_replace_trace",
+    "cs_special_release",
+    "cs_service_record",
+    "trip_overtime_init15",
+    "loan_eng_mgmt",
+    "biz_backoffice",
+    "jdy_sub_admin",
+)
+
+
+async def ensure_cs_customer_scope_roles(db, tenant_id: str) -> list[str]:
+    """客服相关角色：补 scope_by_resource.customer=all（客户列表看全部）。"""
+    from app.common.rbac_catalog import CS_CUSTOMER_ALL_ROLE_CODES
+
+    return await ensure_business_roles(db, tenant_id, sorted(CS_CUSTOMER_ALL_ROLE_CODES))
+
+
+async def ensure_fujiajing_jdy_role_members(
+    db,
+    tenant_id: str,
+    by_crm_code: dict[str, dict],
+) -> dict:
+    """按简道云成员 JSON（by_crm_code）创建缺失角色并挂成员（仅 additive）。"""
+    codes = [c for c in FUJIAJING_JDY_ROLE_CODES if c in by_crm_code]
+    created_roles = await ensure_business_roles(db, tenant_id, codes)
+    out: dict = {"created_roles": created_roles, "roles": {}}
+    for code in codes:
+        info = by_crm_code.get(code) or {}
+        members = info.get("members") or []
+        usernames = tuple(
+            str(m.get("username") or "").strip()
+            for m in members
+            if str(m.get("username") or "").strip()
+        )
+        real_names = tuple(
+            str(m.get("name") or "").strip()
+            for m in members
+            if str(m.get("name") or "").strip()
+        )
+        if code == "cs_arrange":
+            out["roles"][code] = await ensure_cs_arrange_role_members(db, tenant_id)
+            continue
+        if code == "cs_office":
+            out["roles"][code] = await _ensure_role_members(
+                db,
+                tenant_id,
+                code,
+                usernames,
+                real_names,
+            )
+            continue
+        out["roles"][code] = await _ensure_role_members(
+            db,
+            tenant_id,
+            code,
+            usernames,
+            real_names,
+        )
+    return out

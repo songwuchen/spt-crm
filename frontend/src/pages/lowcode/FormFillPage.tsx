@@ -12,6 +12,7 @@ import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawing
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import { buildLowcodeInitialValues } from '@/utils/lowcodeFormDefaults'
+import { isRegionManagerField, isSalespersonField, parsePersonFieldId } from '@/utils/salespersonRegion'
 import ContractDrawingMapExtras from '@/components/ContractDrawingMapExtras'
 
 const { Title, Text } = Typography
@@ -231,20 +232,11 @@ export default function FormFillPage({
   }, [departmentId, fields])
 
   // 选业务员 → 回填区域经理/组长（对齐简道云「业务员区域经理对照」）
-  const salesSourceField = fields.find((f) =>
-    f.type === 'person' && (f.id === 'sales_person' || f.id === 'salesperson' || f.id === 'owner_id'
-      || f.label === '业务员'),
-  )
-  const regionTargetField = fields.find((f) =>
-    f.type === 'person' && (f.id === 'region_manager' || f.id === 'region_manager_id'
-      || (f.label || '').includes('区域经理')),
-  )
-  const salesPersonRaw = salesSourceField ? value[salesSourceField.id] : undefined
-  const salesPersonId = salesPersonRaw == null || salesPersonRaw === ''
-    ? ''
-    : (typeof salesPersonRaw === 'object' && salesPersonRaw !== null && 'id' in (salesPersonRaw as object)
-      ? String((salesPersonRaw as { id?: string }).id || '')
-      : String(salesPersonRaw))
+  const salesSourceField = fields.find(isSalespersonField)
+  const regionTargetField = fields.find(isRegionManagerField)
+  const salesPersonId = salesSourceField
+    ? parsePersonFieldId(value[salesSourceField.id])
+    : ''
 
   const prevSalesPersonRef = useRef<string | undefined>(undefined)
   useEffect(() => {
