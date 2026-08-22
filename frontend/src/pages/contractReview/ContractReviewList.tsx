@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import ListToolbar from '@/components/list/ListToolbar'
 import { useListView } from '@/hooks/useListView'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import {
   CONTRACT_REVIEW_STATUS,
@@ -131,9 +132,11 @@ export default function ContractReviewList() {
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<string | undefined>()
   const [reviewType, setReviewType] = useState<string | undefined>()
+  const [createdById, setCreatedById] = useState<string | undefined>()
   const [reload, setReload] = useState(0)
   const kwRef = useRef(keyword)
   kwRef.current = keyword
+  const submitterSelect = useUserSelect()
 
   const openDetail = useCallback((rid: string) => {
     rememberSiblingNav('contract_review', {
@@ -145,10 +148,11 @@ export default function ContractReviewList() {
         keyword: kwRef.current || undefined,
         status,
         review_type: reviewType,
+        created_by_id: createdById,
       },
     })
     navigate(`/contract-reviews/${rid}`)
-  }, [data, total, page, pageSize, status, reviewType, navigate])
+  }, [data, total, page, pageSize, status, reviewType, createdById, navigate])
 
   const baseColumns: ColumnsType<ContractReview> = useMemo(() => {
     const cols: ColumnsType<ContractReview> = CONTRACT_REVIEW_LIST_COLUMNS.map((col) => ({
@@ -210,6 +214,7 @@ export default function ContractReviewList() {
         keyword: kwRef.current || undefined,
         status,
         review_type: reviewType,
+        created_by_id: createdById,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -222,7 +227,7 @@ export default function ContractReviewList() {
   useEffect(() => {
     fetchData(1)
     setPage(1)
-  }, [status, reviewType, reload]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, reviewType, createdById, reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -240,12 +245,25 @@ export default function ContractReviewList() {
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <Input
           allowClear
-          placeholder="编号/公司/项目/业务员"
+          placeholder="编号/公司/项目/业务员/提交人"
           prefix={<SearchOutlined />}
           className="w-64"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onPressEnter={() => { setPage(1); fetchData(1) }}
+        />
+        <Select
+          allowClear
+          showSearch
+          placeholder="提交人"
+          className="w-44"
+          filterOption={false}
+          value={createdById}
+          options={submitterSelect.options}
+          loading={submitterSelect.loading}
+          onSearch={submitterSelect.onSearch}
+          onDropdownVisibleChange={submitterSelect.onDropdownVisibleChange}
+          onChange={setCreatedById}
         />
         <Select
           allowClear

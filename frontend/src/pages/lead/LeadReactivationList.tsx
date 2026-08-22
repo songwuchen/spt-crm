@@ -210,15 +210,6 @@ export default function LeadReactivationList() {
       render: (v: number) => (v != null ? `第${v}轮` : '-'),
     },
     {
-      title: '流程状态',
-      key: 'flow_status',
-      width: 108,
-      render: (_, row) => {
-        const cfg = leadReactivationFlowLabel(row)
-        return <JdyTag text={cfg.label} tone={cfg.tone} />
-      },
-    },
-    {
       title: '提交时间',
       dataIndex: 'submitted_at',
       width: 160,
@@ -229,6 +220,16 @@ export default function LeadReactivationList() {
       dataIndex: 'created_at',
       width: 160,
       render: (v: string | null) => (v ? new Date(v).toLocaleString('zh-CN') : '-'),
+    },
+    {
+      title: '流程状态',
+      key: 'flow_status',
+      width: 108,
+      fixed: 'right',
+      render: (_, row) => {
+        const cfg = leadReactivationFlowLabel(row)
+        return <JdyTag text={cfg.label} tone={cfg.tone} />
+      },
     },
     {
       title: '',

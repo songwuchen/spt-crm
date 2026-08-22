@@ -100,6 +100,7 @@ async def list_reviews(
     status: str | None = None,
     review_type: str | None = None,
     keyword: str | None = None,
+    created_by_id: str | None = None,
     current_user: dict | None = None,
     filter: str | None = None,
     sort_by: str | None = None,
@@ -114,6 +115,8 @@ async def list_reviews(
         base = base.where(ContractReview.status == status)
     if review_type:
         base = base.where(ContractReview.review_type == review_type)
+    if created_by_id:
+        base = base.where(ContractReview.created_by_id == created_by_id)
     if keyword:
         kw = f"%{keyword}%"
         base = base.where(or_(
@@ -121,6 +124,7 @@ async def list_reviews(
             ContractReview.company_name.ilike(kw),
             ContractReview.project_title.ilike(kw),
             ContractReview.owner_name.ilike(kw),
+            ContractReview.created_by_name.ilike(kw),
         ))
 
     search_schema = await entity_search_context("contract_review", db, tenant_id)

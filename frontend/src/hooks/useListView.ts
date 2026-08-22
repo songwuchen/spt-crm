@@ -137,7 +137,7 @@ export function useListView<T = any>(
       const k = colKey(c)
       if (!seen.has(k)) ordered.push(c)
     }
-    return ordered
+    const sized = ordered
       .filter((c) => {
         const k = colKey(c)
         if (!k) return true
@@ -178,6 +178,17 @@ export function useListView<T = any>(
           },
         }
       }) as ColumnsType<T>
+    // 列配置重排后仍把 fixed 列钉在两侧，避免「流程状态/操作」夹在中间导致 antd 冻结失效
+    const left: ColumnsType<T> = []
+    const mid: ColumnsType<T> = []
+    const right: ColumnsType<T> = []
+    for (const c of sized) {
+      const f = (c as ColumnType<T>).fixed
+      if (f === 'left') left.push(c)
+      else if (f === 'right') right.push(c)
+      else mid.push(c)
+    }
+    return [...left, ...mid, ...right]
   }, [allColumns, colState, setColState])
 
   // 合并进列表请求的参数

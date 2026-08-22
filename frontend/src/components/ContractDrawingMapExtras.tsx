@@ -191,6 +191,7 @@ export default function ContractDrawingMapExtras({
               title: '流程状态',
               key: 'flow_status',
               width: 110,
+              fixed: 'right',
               render: (_: unknown, row: ContractItem) => {
                 const ds = resolveContractDisplayStatus(row.status, row.current_version_status)
                 return (
@@ -201,6 +202,7 @@ export default function ContractDrawingMapExtras({
               },
             },
           ]}
+          scroll={{ x: 720 }}
         />
       </div>
     </div>

@@ -37,7 +37,7 @@ import {
 import { loadTechAgreementWf } from '@/pages/techAgreementReview/TechAgreementReviewViewBody'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useCustomerSelect } from '@/hooks/useSelectOptions'
+import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { formatRegion } from '@/utils/address'
 
 const { Text } = Typography
@@ -115,6 +115,7 @@ export default function TechAgreementReviewList() {
   const [pageSize] = useState(20)
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<string | undefined>()
+  const [createdById, setCreatedById] = useState<string | undefined>()
   const [reload, setReload] = useState(0)
   const kwRef = useRef(keyword)
   kwRef.current = keyword
@@ -128,6 +129,7 @@ export default function TechAgreementReviewList() {
   const [fillingCustomer, setFillingCustomer] = useState(false)
   const [form] = Form.useForm()
   const customerSelect = useCustomerSelect()
+  const submitterSelect = useUserSelect()
 
   const openView = async (id: string, startEdit = false) => {
     rememberSiblingNav('tech_agreement_review', {
@@ -138,6 +140,7 @@ export default function TechAgreementReviewList() {
       listQuery: {
         keyword: kwRef.current || undefined,
         status,
+        created_by_id: createdById,
       },
     })
     setViewLoading(true)
@@ -351,6 +354,7 @@ export default function TechAgreementReviewList() {
         pageSize,
         keyword: kwRef.current || undefined,
         status,
+        created_by_id: createdById,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -397,7 +401,7 @@ export default function TechAgreementReviewList() {
   useEffect(() => {
     fetchData(1)
     setPage(1)
-  }, [status, reload]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, createdById, reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const showFlowPane = !!wfDetail || (
     !!viewRec && ['submitted', 'approved', 'rejected'].includes(viewRec.row.status || '')
@@ -424,12 +428,25 @@ export default function TechAgreementReviewList() {
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <Input
           allowClear
-          placeholder="流水号/公司/项目/业务员"
+          placeholder="流水号/公司/项目/业务员/提交人"
           prefix={<SearchOutlined />}
           className="w-64"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onPressEnter={() => { setPage(1); fetchData(1) }}
+        />
+        <Select
+          allowClear
+          showSearch
+          placeholder="提交人"
+          className="w-44"
+          filterOption={false}
+          value={createdById}
+          options={submitterSelect.options}
+          loading={submitterSelect.loading}
+          onSearch={submitterSelect.onSearch}
+          onDropdownVisibleChange={submitterSelect.onDropdownVisibleChange}
+          onChange={setCreatedById}
         />
         <Select
           allowClear

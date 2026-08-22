@@ -191,6 +191,8 @@ def _build_registry() -> dict:
         TextField("delivery_period", "交货期", ContractReview.delivery_period),
         TextField("payment_term", "账期", ContractReview.payment_term),
         DateField("reported_at", "报备时间", ContractReview.reported_at, is_datetime=True),
+        PeopleField("created_by_id", "提交人", ContractReview.created_by_id, option_source="users"),
+        TextField("created_by_name", "提交人姓名", ContractReview.created_by_name),
         DateField("created_at", "创建时间", ContractReview.created_at, is_datetime=True),
     ])
 
@@ -223,6 +225,8 @@ def _build_registry() -> dict:
         EnumField("has_objection", "是否有异议", TechAgreementReview.has_objection,
                   options=[("是", "是"), ("否", "否")]),
         DateField("apply_at", "日期时间", TechAgreementReview.apply_at, is_datetime=True),
+        PeopleField("created_by_id", "提交人", TechAgreementReview.created_by_id, option_source="users"),
+        TextField("created_by_name", "提交人姓名", TechAgreementReview.created_by_name),
         DateField("created_at", "创建时间", TechAgreementReview.created_at, is_datetime=True),
     ])
 

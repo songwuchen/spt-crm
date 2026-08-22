@@ -219,8 +219,9 @@ export const TECH_AGREEMENT_LIST_COLUMNS: TarListColumnDef[] = [
   { key: 'pre_contact', title: '前期沟通人', width: 120, source: 'native' },
   { key: 'remark', title: '备注', width: 160, source: 'native' },
   { key: 'has_objection', title: '是否有异议', width: 110, source: 'native', kind: 'tag' },
-  { key: 'status', title: '流程状态', width: 100, source: 'native', kind: 'status' },
   { key: 'created_by_name', title: '提交人', width: 100, source: 'system' },
   { key: 'created_at', title: '提交时间', width: 160, source: 'system', kind: 'date' },
   { key: 'updated_at', title: '更新时间', width: 160, source: 'system', kind: 'date' },
+  // 贴右侧冻结，与操作列一并固定（操作列在列表页追加于其后）
+  { key: 'status', title: '流程状态', width: 100, source: 'native', kind: 'status', fixed: 'right' },
 ]

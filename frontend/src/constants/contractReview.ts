@@ -587,5 +587,6 @@ export const CONTRACT_REVIEW_LIST_COLUMNS: ReviewListColumnDef[] = [
   { key: 'created_by_name', title: '提交人', width: 90, source: 'system' },
   { key: 'created_at', title: '创建时间', width: 120, source: 'system', kind: 'date' },
   { key: 'updated_at', title: '更新时间', width: 120, source: 'system', kind: 'date', defaultHidden: true },
-  { key: 'status', title: '流程状态', width: 100, source: 'native', kind: 'status' },
+  // 贴右侧冻结，与操作列一并固定（操作列在列表页追加于其后）
+  { key: 'status', title: '流程状态', width: 100, source: 'native', kind: 'status', fixed: 'right' },
 ]

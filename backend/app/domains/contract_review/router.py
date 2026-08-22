@@ -50,6 +50,7 @@ async def list_reviews(
     status: str | None = Query(None),
     review_type: str | None = Query(None),
     keyword: str | None = Query(None),
+    created_by_id: str | None = Query(None, description="提交人用户 ID"),
     filter: str | None = Query(None, description="高级筛选 FilterDsl(JSON)"),
     sort_by: str | None = Query(None),
     sort_order: str | None = Query(None),
@@ -59,6 +60,7 @@ async def list_reviews(
 ):
     items, total = await service.list_reviews(
         db, tenant_id, pageNo, pageSize, status, review_type, keyword,
+        created_by_id=created_by_id,
         current_user=u, filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
     return ok({

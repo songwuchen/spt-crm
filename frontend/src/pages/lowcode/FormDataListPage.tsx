@@ -1216,13 +1216,6 @@ export default function FormDataListPage({
           render: (v: string | null | undefined) => v || '—',
         },
         {
-          title: '流程状态', dataIndex: 'status', key: 'status', width: 100, fixed: 'right' as const,
-          render: (s: string) => {
-            const t = STATUS_TAG[s] || { color: 'default', text: s }
-            return <Tag color={t.color}>{t.text}</Tag>
-          },
-        },
-        {
           title: '提交时间', dataIndex: 'created_at', key: 'created_at',
           width: listFullText ? 178 : 160,
           ellipsis: { showTitle: true } as const,
@@ -1240,6 +1233,13 @@ export default function FormDataListPage({
             return v ? formatCellDateTime(v, true) : '—'
           },
         }] : []),
+        {
+          title: '流程状态', dataIndex: 'status', key: 'status', width: 100, fixed: 'right' as const,
+          render: (s: string) => {
+            const t = STATUS_TAG[s] || { color: 'default', text: s }
+            return <Tag color={t.color}>{t.text}</Tag>
+          },
+        },
         {
           title: '操作', key: 'op', width: 72, fixed: 'right' as const,
           render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),

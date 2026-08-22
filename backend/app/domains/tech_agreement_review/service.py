@@ -89,6 +89,7 @@ async def list_reviews(
     page_size: int = 20,
     status: str | None = None,
     keyword: str | None = None,
+    created_by_id: str | None = None,
     current_user: dict | None = None,
     filter: str | None = None,
     sort_by: str | None = None,
@@ -101,6 +102,8 @@ async def list_reviews(
     base = select(TechAgreementReview).where(TechAgreementReview.tenant_id == tenant_id)
     if status:
         base = base.where(TechAgreementReview.status == status)
+    if created_by_id:
+        base = base.where(TechAgreementReview.created_by_id == created_by_id)
     if keyword:
         kw = f"%{keyword}%"
         base = base.where(or_(
@@ -109,6 +112,7 @@ async def list_reviews(
             TechAgreementReview.project_title.ilike(kw),
             TechAgreementReview.owner_name.ilike(kw),
             TechAgreementReview.applicant_name.ilike(kw),
+            TechAgreementReview.created_by_name.ilike(kw),
         ))
 
     search_schema = await entity_search_context("tech_agreement_review", db, tenant_id)
