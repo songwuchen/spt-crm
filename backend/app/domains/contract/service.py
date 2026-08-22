@@ -471,9 +471,10 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     )
     if drawing_no:
         map_cn = await _lookup_map_contract_no(db, tenant_id, user, drawing_no)
-        # 合同号优先用对应表「合同号」；前端已回填则沿用，否则用对应表或回退图纸号
+        # 正式提交：合同号优先用对应表「合同号」；草稿未填合同号时仍生成 DRAFT- 占位
         if not contract_no_requested:
-            contract_no_requested = map_cn or drawing_no
+            if not as_draft:
+                contract_no_requested = map_cn or drawing_no
         elif map_cn and contract_no_requested == drawing_no and map_cn != drawing_no:
             # 兼容旧前端把图纸号当合同号提交的情况
             contract_no_requested = map_cn
