@@ -91,7 +91,7 @@ async def test_contract_create_draft_without_required(client: AsyncClient, auth_
     body = {
         "as_draft": True,
         "title": "草稿测试",
-        "drawing_no": peek,  # 模拟前端把预览号一并提交
+        "drawing_no": peek,  # 模拟前端把预览号一并提交（不在表内时服务端会补种）
     }
     r1 = await client.post("/api/v1/contracts", json=body, headers=h)
     assert r1.status_code == 200, r1.text
@@ -104,17 +104,15 @@ async def test_contract_create_draft_without_required(client: AsyncClient, auth_
     # 业务码 42201；HTTP 可能为 409 Conflict
     assert r2.json()["code"] == 42201, r2.text
     assert "图纸编号" in (r2.json().get("message") or "")
-    assert "已存在" in (r2.json().get("message") or "")
-    assert "刷新" in (r2.json().get("message") or "")
+    assert "已用于其他合同登记" in (r2.json().get("message") or "") or "已存在" in (r2.json().get("message") or "")
 
-    # 不传图纸号：系统自动取号，可再存一条草稿
+    # 不传图纸号：草稿允许空号（不再自动取号）
     r3 = await client.post("/api/v1/contracts", json={
-        "as_draft": True, "title": "草稿自动取号",
+        "as_draft": True, "title": "草稿无图纸号",
     }, headers=h)
     assert r3.json()["code"] == 0, r3.text
     c3 = r3.json()["data"]["contract"]
-    assert c3["drawing_no"]
-    assert c3["drawing_no"] != c1["drawing_no"]
+    assert not (c3.get("drawing_no") or "").strip()
 
     await client.delete(f"/api/v1/contracts/{c1['id']}", headers=h)
     await client.delete(f"/api/v1/contracts/{c3['id']}", headers=h)

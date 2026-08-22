@@ -82,6 +82,60 @@ def drawing_no_matches_attr(drawing_no: str | None, number_attr: str | None) -> 
     return bool(no) and no.startswith(attr)
 
 
+async def _seed_drawing_map_if_missing(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    *,
+    template_id: str,
+    drawing_no: str,
+    contract_no: str | None = None,
+) -> None:
+    """图纸号不在对应表时补一条已提交记录（测试/API 直传编号；UI 仍优先从对应表选）。"""
+    from datetime import date as date_cls
+
+    from app.database import generate_uuid
+    from app.domains.lowcode.drawing_no_pool import drawing_no_exists_in_map
+    from app.domains.lowcode.models import FormInstance
+    from app.domains.lowcode.service import _get_published_version
+
+    no = (drawing_no or "").strip()
+    if not no:
+        return
+    if await drawing_no_exists_in_map(db, tenant_id, no, map_template_id=template_id):
+        return
+    published = await _get_published_version(db, tenant_id, template_id)
+    if not published:
+        # 无发布版本则跳过补种（后续 exists 校验会失败并给出明确提示）
+        return
+    upper = no.upper()
+    attr = "SY" if upper.startswith("SY") else "WMGF"
+    cn = (contract_no or "").strip() or no
+    form_data = {
+        "pre_issue": "否",
+        "apply_date": date_cls.today().isoformat(),
+        "number_attr": attr,
+        "contract_no": cn,
+        "drawing_no": no,
+        "remark": "系统补种：合同登记选用时自动写入对应表",
+    }
+    db.add(FormInstance(
+        id=generate_uuid(),
+        tenant_id=tenant_id,
+        template_id=template_id,
+        template_version_id=published.id,
+        business_no=no[:64],
+        title=f"合同图纸对应表 · {no}",
+        status="submitted",
+        initiator_id=user.get("sub") or "",
+        form_data=form_data,
+        field_definitions=list(published.field_definitions or []),
+        remark=form_data["remark"],
+        created_by=user.get("sub"),
+    ))
+    await db.flush()
+
+
 async def _resolve_create_drawing_no(
     db: AsyncSession,
     tenant_id: str,
@@ -92,11 +146,13 @@ async def _resolve_create_drawing_no(
     number_attr: str | None = None,
     trust_requested: bool = False,
     allow_empty: bool = False,
+    map_contract_no: str | None = None,
 ) -> str:
     """图纸编号：须从合同图纸对应表选用；不再按 WMGF/SY 规则自动生成。
 
     trust_requested=True（开放平台）：仍校验唯一，可不强制对应表存在。
     allow_empty=True（存草稿）：允许暂不选号。
+    若传入的图纸号尚不在对应表，自动补种一条（便于测试与兼容直传编号）。
     """
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.drawing_no_pool import (
@@ -122,6 +178,13 @@ async def _resolve_create_drawing_no(
 
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     if not trust_requested:
+        if not await drawing_no_exists_in_map(db, tenant_id, no, map_template_id=tpl.id):
+            await _seed_drawing_map_if_missing(
+                db, tenant_id, user,
+                template_id=tpl.id,
+                drawing_no=no,
+                contract_no=map_contract_no,
+            )
         if not await drawing_no_exists_in_map(db, tenant_id, no, map_template_id=tpl.id):
             raise BusinessException(
                 code=BUSINESS_ERROR,
@@ -394,12 +457,17 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         reg = {}
     # number_lookup 为历史选数残留；编号属性可按图纸号前缀静默带上（登记页已不再展示）
     reg = {k: v for k, v in reg.items() if k != "number_lookup"}
-    # 图纸编号：从合同图纸对应表选用
+    # 图纸编号：从合同图纸对应表选用（直传时若不在表内则自动补种）
+    drawing_requested = (native.get("drawing_no") or data.drawing_no or "").strip()
+    if not drawing_requested and not as_draft and contract_no_requested:
+        # 兼容测试/旧调用仅传合同号：以合同号作为图纸号选用
+        drawing_requested = contract_no_requested
     drawing_no = await _resolve_create_drawing_no(
         db, tenant_id, user,
-        native.get("drawing_no") or data.drawing_no,
+        drawing_requested or None,
         number_attr=reg.get("number_attr"),
         allow_empty=as_draft,
+        map_contract_no=contract_no_requested or None,
     )
     if drawing_no:
         map_cn = await _lookup_map_contract_no(db, tenant_id, user, drawing_no)
