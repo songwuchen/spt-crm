@@ -514,6 +514,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
 
     apply_prod_card_approver_only_fields(defs)
     ensure_prod_card_contract_fill_on_create(defs)
+    apply_prod_card_install_pick_fields(defs)
 
 
 # 圈选区：仅审批可填（创建页隐藏）；字段级必填下沉到节点 field_perms
@@ -890,6 +891,78 @@ def apply_prod_card_contract_fill_visibility(
             "enabled": True,
         })
     return out
+
+
+PROD_CARD_INSTALL_LINK_FIELD = "prod_card_install"
+_PROD_CARD_INSTALL_DETAIL_ID = "f_251128"
+_PROD_CARD_INSTALL_COL_ID = "field_2"
+
+
+def _install_pick_as_id(val: Any) -> str | None:
+    if val is None or val == "":
+        return None
+    if isinstance(val, list):
+        return _install_pick_as_id(val[0] if val else None)
+    if isinstance(val, dict):
+        rid = val.get("id") or val.get("value")
+        return str(rid).strip() if rid not in (None, "") else None
+    s = str(val).strip()
+    return s or None
+
+
+def build_prod_card_install_fill(
+    *,
+    business_no: str | None,
+    form_data: dict | None,
+    project_codes: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """生产卡明细「选择数据」→ 安装图设计通知；带出安装图项目号（对齐简道云 linkDataMaps）。"""
+    data = form_data if isinstance(form_data, dict) else {}
+    pn = str(data.get("project_no_print") or "").strip()
+    if not pn:
+        pid = _install_pick_as_id(data.get("project_no"))
+        if pid and project_codes and pid in project_codes:
+            pn = project_codes[pid]
+    if not pn:
+        pn = str(data.get("matter") or "").strip()
+    if not pn:
+        pn = str(data.get("design_card_no") or "").strip()
+    if not pn:
+        pn = (business_no or "").strip()
+    return {"install_project_no": pn}
+
+
+def prod_card_install_fill_clear_keys() -> list[str]:
+    return ["install_project_no"]
+
+
+def apply_prod_card_install_pick_fields(defs: list) -> None:
+    """项目号选择251128 → 选择数据：关联安装图设计通知实例。"""
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") != _PROD_CARD_INSTALL_DETAIL_ID:
+            continue
+        for col in f.get("detail_table_columns") or []:
+            if not isinstance(col, dict) or col.get("id") != _PROD_CARD_INSTALL_COL_ID:
+                continue
+            col["type"] = "select_data"
+            col["label"] = col.get("label") or "选择数据"
+            col["description"] = (
+                col.get("description")
+                or "从安装图设计通知中选择；选中后自动带出安装图项目号。"
+            )
+            props = dict(col.get("props") or {})
+            props["source_form_code"] = "install_drawing_notice"
+            props["link_fill"] = "prod_card_install"
+            props["link_field"] = PROD_CARD_INSTALL_LINK_FIELD
+            col["props"] = props
+        break
+    for f in defs:
+        if isinstance(f, dict) and f.get("id") == "install_project_no":
+            f["form_editable"] = False
+            f["description"] = (
+                f.get("description")
+                or "由项目号选择中的安装图设计通知自动带出，不可手改。"
+            )
 
 
 def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list[dict[str, Any]]:

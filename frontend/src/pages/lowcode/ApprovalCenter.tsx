@@ -10,9 +10,9 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfAgent } from '@/api/lowcodeWorkflow'
 import type { WfTodoItem } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
-import { bizEntityPath, useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
+import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
-import { isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { isReviseWorkflowTask, resolveWorkflowBizPath } from '@/utils/workflowBizPath'
 
 const { Title, Text } = Typography
 
@@ -69,10 +69,27 @@ function TodoTab({ active, autoOpen }: {
     { title: '节点', dataIndex: 'node_name', width: 120, render: (v: string) => v || '—' },
     { title: '来源', key: 'src', width: 130, render: (_: unknown, r: WfTodoItem) => (r.on_behalf_of ? <Tag color="purple">代 {r.delegator_name || '委托人'} 审批</Tag> : <Tag>指派给我</Tag>) },
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => fmtTime(v) },
-    { title: '操作', key: 'op', width: 160, render: (_: unknown, r: WfTodoItem) => {
-      const path = bizEntityPath(r.biz_type, r.biz_id, r.biz_ref_id)
-      const reviseLead = r.biz_type === 'lead' && r.biz_id && isLeadReviseTodo({
+    { title: '操作', key: 'op', width: 200, render: (_: unknown, r: WfTodoItem) => {
+      const revise = isReviseWorkflowTask({
         taskKind: r.task_kind, nodeType: r.node_type, nodeName: r.node_name,
+      })
+      const docPath = resolveWorkflowBizPath({
+        bizType: r.biz_type,
+        bizId: r.biz_id,
+        bizRefId: r.biz_ref_id,
+        formInstanceId: r.form_instance_id,
+        formCode: r.form_code,
+        taskKind: r.task_kind,
+        nodeType: r.node_type,
+        nodeName: r.node_name,
+        taskId: r.task_id,
+      })
+      const viewPath = resolveWorkflowBizPath({
+        bizType: r.biz_type,
+        bizId: r.biz_id,
+        bizRefId: r.biz_ref_id,
+        formInstanceId: r.form_instance_id,
+        formCode: r.form_code,
       })
       return (
         <Space size={4}>
@@ -80,13 +97,15 @@ function TodoTab({ active, autoOpen }: {
             size="small"
             type="primary"
             onClick={() => {
-              if (reviseLead) navigate(leadReviseEditPath(r.biz_id!, r.task_id))
+              if (revise && docPath) navigate(docPath)
               else openWith(r.process_instance_id, r.task_id)
             }}
           >
-            {reviseLead ? '去修改' : '处理'}
+            {revise ? '去修改' : '处理'}
           </Button>
-          {path && !reviseLead && <Button size="small" type="link" onClick={() => navigate(path)}>单据</Button>}
+          {viewPath && (!revise || viewPath !== docPath) && (
+            <Button size="small" type="link" onClick={() => navigate(viewPath)}>原单据</Button>
+          )}
         </Space>
       )
     } },
@@ -188,7 +207,18 @@ function AgentTab({ active }: { active: boolean }) {
 }
 
 function MineTab({ active }: { active: boolean }) {
-  const [items, setItems] = useState<Array<{ id: string; title?: string; status: string; created_at?: string }>>([])
+  const navigate = useNavigate()
+  type MineRow = {
+    id: string
+    title?: string
+    status: string
+    created_at?: string
+    biz_type?: string | null
+    biz_id?: string | null
+    form_instance_id?: string | null
+    form_code?: string | null
+  }
+  const [items, setItems] = useState<MineRow[]>([])
   const [loading, setLoading] = useState(false)
   const load = useCallback(async () => {
     setLoading(true)
@@ -211,13 +241,24 @@ function MineTab({ active }: { active: boolean }) {
     { title: '状态', dataIndex: 'status', render: (s: string) => { const t = PSTATUS[s] || { color: 'default', text: s }; return <Tag color={t.color}>{t.text}</Tag> } },
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => fmtTime(v) },
     {
-      title: '操作', key: 'op', width: 200, render: (_: unknown, r: { id: string; status: string }) => (
+      title: '操作', key: 'op', width: 260, render: (_: unknown, r: MineRow) => {
+        const docPath = resolveWorkflowBizPath({
+          bizType: r.biz_type,
+          bizId: r.biz_id,
+          formInstanceId: r.form_instance_id,
+          formCode: r.form_code,
+        })
+        return (
         <Space size="small">
           <Button size="small" onClick={() => openWith(r.id)}>查看</Button>
+          {docPath && (r.status === 'withdrawn' || r.status === 'rejected') && (
+            <Button size="small" type="link" onClick={() => navigate(docPath)}>原单据</Button>
+          )}
           {r.status === 'running' && <Button size="small" type="link" onClick={() => urge(r.id)}>催办</Button>}
           {r.status === 'running' && <Popconfirm title="确认撤回?" onConfirm={() => withdraw(r.id)}><Button size="small" type="link" danger>撤回</Button></Popconfirm>}
         </Space>
-      ),
+        )
+      },
     },
   ]
   return (<>

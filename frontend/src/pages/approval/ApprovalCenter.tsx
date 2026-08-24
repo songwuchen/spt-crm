@@ -12,7 +12,7 @@ import { workflowApi, type WfAgent } from '@/api/lowcodeWorkflow'
 import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
-import { leadReviseEditPath } from '@/utils/leadWorkflow'
+import { resolveWorkflowBizPath } from '@/utils/workflowBizPath'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { ApprovalFlowItem } from '@/api/types'
@@ -212,16 +212,45 @@ export default function ApprovalCenter() {
   }, [location.state, searchParams])
 
   const openWfHandle = (item: UnifiedPendingItem) => {
-    // 线索撤回修订：进申报编辑页（与第一次报项目同页），不进审批抽屉
-    if (item.engine === 'wf' && item.taskKind === 'revise' && item.bizType === 'lead' && item.bizId) {
-      navigate(leadReviseEditPath(item.bizId, item.taskId))
-      return
+    if (item.engine === 'wf' && item.taskKind === 'revise') {
+      const path = resolveWorkflowBizPath({
+        bizType: item.bizType,
+        bizId: item.bizId,
+        formInstanceId: item.formInstanceId,
+        formCode: item.formCode,
+        taskKind: item.taskKind,
+        taskId: item.taskId,
+      })
+      if (path) {
+        navigate(path)
+        return
+      }
     }
     if (!item.instanceId) {
       message.warning('缺少流程实例，无法打开')
       return
     }
     openWfDrawer(item.instanceId, item.taskId)
+  }
+
+  const openOriginalDoc = (opts: {
+    bizType?: string | null
+    bizId?: string | null
+    formInstanceId?: string | null
+    formCode?: string | null
+    taskKind?: string | null
+    taskId?: string | null
+  }) => {
+    const path = resolveWorkflowBizPath({
+      bizType: opts.bizType,
+      bizId: opts.bizId,
+      formInstanceId: opts.formInstanceId,
+      formCode: opts.formCode,
+      taskKind: opts.taskKind,
+      taskId: opts.taskId,
+    })
+    if (path) navigate(path)
+    else message.info('暂无关联原单据')
   }
 
   const openDecide = (task: UnifiedPendingItem, action: 'approve' | 'reject') => {
@@ -546,7 +575,16 @@ export default function ApprovalCenter() {
       render: (_, r) => (
         <Space>
           {r.engine === 'wf' ? (
-            <Button type="primary" size="small" onClick={() => openWfHandle(r)}>处理</Button>
+            <>
+              <Button type="primary" size="small" onClick={() => openWfHandle(r)}>
+                {r.taskKind === 'revise' ? '去修改' : '处理'}
+              </Button>
+              {(r.taskKind === 'revise' || r.bizId || r.formInstanceId) && (
+                <Button size="small" type="link" onClick={() => openOriginalDoc(r)}>
+                  原单据
+                </Button>
+              )}
+            </>
           ) : (
             <>
               <Button type="primary" size="small" icon={<CheckCircleOutlined />}
@@ -659,6 +697,19 @@ export default function ApprovalCenter() {
           {((r.engine === 'wf' && (r.status === 'withdrawn' || r.status === 'rejected'))
             || (r.engine === 'legacy' && (r.status === 'rejected' || r.status === 'withdrawn'))) && (
             <>
+              {(r.formInstanceId || r.bizId) && (
+                <Button
+                  size="small"
+                  onClick={() => openOriginalDoc({
+                    bizType: r.bizType,
+                    bizId: r.bizId,
+                    formInstanceId: r.formInstanceId,
+                    formCode: r.formCode,
+                  })}
+                >
+                  打开原单据
+                </Button>
+              )}
               <Button
                 size="small"
                 type="primary"

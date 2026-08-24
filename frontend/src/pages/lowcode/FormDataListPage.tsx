@@ -1,7 +1,7 @@
 // 扩展平台 → 表单数据列表: 某模板的填报记录(看/改/删 + 去填报)。
 // 支持通用「明细展开」：主表字段 rowSpan 合并 + 明细子列分组表头（对齐简道云列表）。
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
   Input, Select, Dropdown,
@@ -552,6 +552,10 @@ export default function FormDataListPage({
   const id = propId || paramId
   const nav = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepInstanceId = searchParams.get('instance')
+  const reviseTaskId = searchParams.get('reviseTask')
+  const deepOpenedRef = useRef<string | null>(null)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
@@ -749,6 +753,16 @@ export default function FormDataListPage({
 
   useEffect(() => { load() }, [load])
 
+  // 审批修订待办深链：/shipment-notices?instance=...&reviseTask=...&edit=1
+  useEffect(() => {
+    if (!id || !deepInstanceId) return
+    if (deepOpenedRef.current === deepInstanceId) return
+    deepOpenedRef.current = deepInstanceId
+    const editMode = searchParams.get('edit') === '1' || !!reviseTaskId
+    void openView(deepInstanceId, !editMode)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, deepInstanceId, reviseTaskId])
+
   const applyFieldFilters = (dsl: FormFilterDsl | null) => {
     setFieldFilters(dsl)
     saveAppliedFilters(filterMemoryKey, dsl)
@@ -882,6 +896,14 @@ export default function FormDataListPage({
     setWfDetail(null)
     setSerialPreviews({})
     setModalFullscreen(false)
+    if (searchParams.has('instance') || searchParams.has('reviseTask') || searchParams.has('edit')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('instance')
+      next.delete('reviseTask')
+      next.delete('edit')
+      setSearchParams(next, { replace: true })
+      deepOpenedRef.current = null
+    }
   }
 
   const [navBusy, setNavBusy] = useState(false)
@@ -1034,6 +1056,49 @@ export default function FormDataListPage({
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       message.error(msg || '提交失败')
     }
+  }
+
+  const resubmitRevise = async () => {
+    if (!viewRec || !reviseTaskId) return
+    const displayFields = drawingLayout
+      ? applyDrawingFormLayout(templateCode, viewRec.fields)
+      : viewRec.fields
+    const states = computeFieldStates(
+      displayFields, viewRec.value, viewRec.rules,
+      deriveRolePerms(displayFields, userRoles),
+    )
+    const e = findRequiredError(displayFields, states, viewRec.value, viewRec.rules)
+    if (e) {
+      message.error(e.message)
+      scrollToLcField(e.fieldId)
+      return
+    }
+    try {
+      await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
+      await workflowApi.act(reviseTaskId, { action: 'resubmit' })
+      message.success('已重新提交')
+      closeView()
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '重新提交失败')
+    }
+  }
+
+  const handleEndReviseProcess = () => {
+    if (!reviseTaskId) return
+    Modal.confirm({
+      title: '确认手动结束？',
+      content: '结束后将取消「修改并重新提交」待办。如需再走审批，请重新发起。',
+      okText: '结束流程',
+      okType: 'danger',
+      onOk: async () => {
+        await workflowApi.endProcessByTask(reviseTaskId)
+        message.success('已手动结束流程')
+        closeView()
+        load()
+      },
+    })
   }
 
   const handleWfComment = async (content: string) => {
@@ -1429,24 +1494,31 @@ export default function FormDataListPage({
         styles={fsProps.styles}
         onCancel={closeView}
         footer={
-          viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
-            ? [
-                <Button key="c" onClick={closeView}>取消</Button>,
-                <Button
-                  key="s"
-                  type={canResubmitRecord(viewRec.status) ? 'default' : 'primary'}
-                  onClick={saveEdit}
-                >
-                  {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
-                </Button>,
-                ...(canResubmitRecord(viewRec.status)
-                  ? [
-                      <Button key="sub" type="primary" onClick={submitDraft}>
-                        提交审批
-                      </Button>,
-                    ]
-                  : []),
-              ]
+          viewRec && !viewRec.readonly && (canEditRecord(viewRec.status) || reviseTaskId)
+            ? reviseTaskId
+              ? [
+                  <Button key="c" onClick={closeView}>取消</Button>,
+                  <Button key="s" onClick={saveEdit}>存草稿</Button>,
+                  <Button key="rs" type="primary" onClick={resubmitRevise}>保存并重新提交</Button>,
+                  <Button key="end" danger onClick={handleEndReviseProcess}>手动结束</Button>,
+                ]
+              : [
+                  <Button key="c" onClick={closeView}>取消</Button>,
+                  <Button
+                    key="s"
+                    type={canResubmitRecord(viewRec.status) ? 'default' : 'primary'}
+                    onClick={saveEdit}
+                  >
+                    {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
+                  </Button>,
+                  ...(canResubmitRecord(viewRec.status)
+                    ? [
+                        <Button key="sub" type="primary" onClick={submitDraft}>
+                          提交审批
+                        </Button>,
+                      ]
+                    : []),
+                ]
             : [<Button key="c" onClick={closeView}>关闭</Button>]
         }
         destroyOnClose

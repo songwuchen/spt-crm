@@ -70,31 +70,13 @@ function BizDetailGrid({ entries }: { entries: [string, unknown][] }) {
   )
 }
 
-/** 业务单据审批 → 完整详情页路径 */
-export function bizEntityPath(
-  bizType?: string | null,
-  bizId?: string | null,
-  bizRefId?: string | null,
-  mobile = false,
-): string | null {
-  if (!bizType || !bizId) return null
-  const p = mobile ? '/m' : ''
-  const map: Record<string, string> = {
-    lead: `${p}/leads/${bizId}`,
-    lead_reactivation: `${p}/leads/${bizId}?react=1`,
-    customer: `${p}/customers/${bizId}`,
-    order: `${p}/orders/${bizId}`,
-    service_ticket: `${p}/service-tickets/${bizId}`,
-    contract_review: `${p}/contract-reviews/${bizId}`,
-    tech_agreement_review: `${p}/tech-agreement-reviews/${bizId}`,
-  }
-  if (map[bizType]) return map[bizType]
-  if (bizType === 'contract_version') {
-    const cid = bizRefId || null
-    return cid ? `${p}/contracts/${cid}` : null
-  }
-  return null
-}
+import {
+  bizEntityPath,
+  resolveWorkflowBizPath,
+  workflowDocOpenLabel,
+} from '@/utils/workflowBizPath'
+
+export { bizEntityPath } from '@/utils/workflowBizPath'
 
 export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   open: boolean
@@ -439,7 +421,22 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     }
   }
 
-  const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id, detail.biz_ref_id) : null
+  const docPath = detail ? resolveWorkflowBizPath({
+    bizType: detail.biz_type,
+    bizId: detail.biz_id,
+    bizRefId: detail.biz_ref_id,
+    formInstanceId: detail.form_instance_id,
+    formCode: detail.form_code,
+    taskKind: detail.current_task?.task_kind,
+    nodeType: detail.current_task?.node_type,
+    nodeName: detail.current_task?.node_name,
+    taskId: effectiveTaskId,
+  }) : null
+  const docOpenLabel = workflowDocOpenLabel({
+    isRevise: isReviseTask,
+    bizType: detail?.biz_type,
+    formCode: detail?.form_code,
+  })
   const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
   const isLeadReactivation = detail?.biz_type === 'lead_reactivation'
   const originalBizEntries = bizEntries.filter(([k]) => !REACT_BIZ_LABELS.has(k))
@@ -597,7 +594,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         ) : bizEntries.length ? (
           <BizDetailGrid entries={bizEntries} />
         ) : (
-          <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+          <Text type="secondary">暂无业务明细{docPath ? '，可点击上方「打开原单据」' : ''}</Text>
         )
       ) : detail?.biz_type === 'contract_review' ? (
         contractReviewLoading ? (
@@ -607,12 +604,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         ) : bizEntries.length ? (
           <BizDetailGrid entries={bizEntries} />
         ) : (
-          <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+          <Text type="secondary">暂无业务明细{docPath ? '，可点击上方「打开原单据」' : ''}</Text>
         )
       ) : bizEntries.length ? (
         <BizDetailGrid entries={bizEntries} />
       ) : (
-        <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+        <Text type="secondary">暂无业务明细{docPath ? '，可点击上方「打开原单据」' : ''}</Text>
       )}
       {detail?.biz_type === 'customer' && detail.biz_id && (
         <div className="mt-4">
@@ -722,13 +719,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       激活流程
                     </Button>
                   )}
-                  {bizPath && (
+                  {docPath && (
                     <Button
                       size="small"
                       icon={<FileTextOutlined />}
-                      onClick={() => { onClose(); navigate(bizPath) }}
+                      onClick={() => { onClose(); navigate(docPath) }}
                     >
-                      {contract ? '打开合同页' : isReviseTask ? '去修改单据' : '查看完整单据'}
+                      {contract ? '打开合同页' : docOpenLabel}
                     </Button>
                   )}
                 </Space>

@@ -393,3 +393,56 @@ def test_prod_card_design_dispatch_hides_transfer_on_hq():
     assert st_xx["transfer_packaging_users"]["required"] is True
     assert st_xx["design_assignees"]["visible"] is False
     assert st_xx["design_assignees"]["required"] is False
+
+
+def test_apply_prod_card_install_pick_fields():
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_install_pick_fields
+    defs = [
+        {
+            "id": "f_251128",
+            "type": "detail_table",
+            "label": "项目号选择251128",
+            "detail_table_columns": [
+                {"id": "field_2", "type": "text", "label": "选择数据"},
+            ],
+        },
+        {"id": "install_project_no", "type": "text", "label": "安装图项目号"},
+    ]
+    apply_prod_card_install_pick_fields(defs)
+    col = defs[0]["detail_table_columns"][0]
+    assert col["type"] == "select_data"
+    assert col["props"]["source_form_code"] == "install_drawing_notice"
+    assert col["props"]["link_fill"] == "prod_card_install"
+    assert col["props"]["link_field"] == "prod_card_install"
+    assert defs[1]["form_editable"] is False
+
+
+def test_build_prod_card_install_fill():
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_install_fill
+    pid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    fill = build_prod_card_install_fill(
+        business_no="AZ20260817001",
+        form_data={
+            "project_no": pid,
+            "design_card_no": "YY-01",
+            "matter": "事项A",
+        },
+        project_codes={pid: "PRJ-2026-001"},
+    )
+    assert fill == {"install_project_no": "PRJ-2026-001"}
+    fill2 = build_prod_card_install_fill(
+        business_no="AZ20260817001",
+        form_data={"matter": "事项B", "design_card_no": "YY-02"},
+    )
+    assert fill2 == {"install_project_no": "事项B"}
+
+
+def test_builtin_prod_card_install_detail_select_data():
+    from app.domains.lowcode.builtin_templates import get_builtin
+    bt = get_builtin("prod_card_supplement")
+    assert bt
+    by = {f["id"]: f for f in (bt.get("field_definitions") or [])}
+    detail = by.get("f_251128") or {}
+    cols = {c["id"]: c for c in (detail.get("detail_table_columns") or []) if isinstance(c, dict)}
+    assert cols["field_2"]["type"] == "select_data"
+    assert cols["field_2"]["props"]["source_form_code"] == "install_drawing_notice"

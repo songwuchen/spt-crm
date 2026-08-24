@@ -413,6 +413,7 @@ async def list_pickable_form_instances(
     user_ids: list[str] = []
     dept_ids: list[str] = []
     contract_ids: list[str] = []
+    project_ids: list[str] = []
     for inst in rows:
         data = inst.form_data if isinstance(inst.form_data, dict) else {}
         user_ids.extend(_collect_ref_ids(
@@ -425,6 +426,10 @@ async def list_pickable_form_instances(
             rid = _as_id(raw)
             if rid and _is_uuid(rid):
                 contract_ids.append(rid)
+        if link_field == "prod_card_install":
+            pid = _as_id(data.get("project_no"))
+            if pid and _is_uuid(pid):
+                project_ids.append(pid)
 
     user_names: dict[str, str] = {}
     if user_ids:
@@ -461,6 +466,20 @@ async def list_pickable_form_instances(
             if label:
                 contract_names[str(cid)] = label
 
+    project_codes: dict[str, str] = {}
+    if project_ids:
+        from app.domains.project.models import OpportunityProject
+        prows = (await db.execute(
+            select(OpportunityProject.id, OpportunityProject.project_code, OpportunityProject.name).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.id.in_(list(dict.fromkeys(project_ids))),
+            )
+        )).all()
+        for pid, code, name in prows:
+            label = (code or "").strip() or (name or "").strip()
+            if label:
+                project_codes[str(pid)] = label
+
     out: list[dict[str, Any]] = []
     col_keys = [c["key"] for c in columns]
     for inst in rows:
@@ -479,7 +498,14 @@ async def list_pickable_form_instances(
             "business_no": inst.business_no,
             "cols": cols,
         }
-        if link_field and link_field in PRICING_CHECKLIST_LINKS:
+        if link_field == "prod_card_install":
+            from app.domains.lowcode.prod_card_contract_fill import build_prod_card_install_fill
+            item["fill"] = build_prod_card_install_fill(
+                business_no=inst.business_no,
+                form_data=data,
+                project_codes=project_codes,
+            )
+        elif link_field and link_field in PRICING_CHECKLIST_LINKS:
             item["fill"] = build_pricing_checklist_fill(
                 link_field,
                 business_no=inst.business_no,

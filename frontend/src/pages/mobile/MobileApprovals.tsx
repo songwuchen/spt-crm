@@ -16,7 +16,7 @@ import {
 import type { ApprovalFlowItem } from '@/api/types'
 import { approvalBizTypeLabels, approvalStatusLabels } from '@/constants/labels'
 import { WF_STATUS } from '@/utils/lowcodeWorkflowLabels'
-import { leadReviseEditPath } from '@/utils/leadWorkflow'
+import { resolveWorkflowBizPath } from '@/utils/workflowBizPath'
 
 type TabKey = 'pending' | 'mine' | 'done' | 'cc' | 'agents' | 'all' | 'stats'
 
@@ -114,9 +114,20 @@ export default function MobileApprovals() {
   const [agentNote, setAgentNote] = useState('')
 
   const openDetail = useCallback((engine: 'legacy' | 'wf', instanceId: string, taskId?: string, item?: UnifiedPendingItem) => {
-    if (item?.engine === 'wf' && item.taskKind === 'revise' && item.bizType === 'lead' && item.bizId) {
-      navigate(leadReviseEditPath(item.bizId, item.taskId, true))
-      return
+    if (item?.engine === 'wf' && item.taskKind === 'revise') {
+      const path = resolveWorkflowBizPath({
+        bizType: item.bizType,
+        bizId: item.bizId,
+        formInstanceId: item.formInstanceId,
+        formCode: item.formCode,
+        taskKind: item.taskKind,
+        taskId: item.taskId,
+        mobile: true,
+      })
+      if (path) {
+        navigate(path)
+        return
+      }
     }
     if (!instanceId) {
       message.warning('缺少流程实例，无法打开')
@@ -504,6 +515,19 @@ export default function MobileApprovals() {
                           setWithdrawReason('')
                           setWithdrawOpen(true)
                         }}>撤回</button>
+                    )}
+                    {(item.formInstanceId || item.bizId) && (item.status === 'withdrawn' || item.status === 'rejected') && (
+                      <button type="button" className="text-sm font-bold text-slate-600 bg-transparent border-0 p-0"
+                        onClick={() => {
+                          const path = resolveWorkflowBizPath({
+                            bizType: item.bizType,
+                            bizId: item.bizId,
+                            formInstanceId: item.formInstanceId,
+                            formCode: item.formCode,
+                            mobile: true,
+                          })
+                          if (path) navigate(path)
+                        }}>原单据</button>
                     )}
                     {canResubmit && (
                       <button type="button" disabled={busy} className="text-sm font-bold text-emerald-600 bg-transparent border-0 p-0 disabled:opacity-40"

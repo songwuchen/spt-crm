@@ -26,6 +26,7 @@ import {
   applyProdCardOrderTypeMerged,
   applySimpleFormulas,
 } from '@/utils/lowcodeSimpleFormulas'
+import { prodCardInstallClearKeys } from '@/constants/prodCardInstallLinks'
 
 const { Text } = Typography
 
@@ -301,13 +302,21 @@ export default function ApproveFieldForm({
               detail_table_columns: detailCols,
               available_on_create: true,
             }
+            const parentFillKeys = prodCardInstallClearKeys()
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FormRenderer
                   fields={[fd]}
                   mode="edit"
-                  value={{ [p.field]: val }}
-                  onChange={(next) => setField(p.field, next[p.field])}
+                  value={{ ...formData, ...values, [p.field]: val }}
+                  onChange={(next) => {
+                    const patch: Record<string, unknown> = { ...values }
+                    if (p.field in next) patch[p.field] = next[p.field]
+                    for (const k of parentFillKeys) {
+                      if (k in next) patch[k] = next[k]
+                    }
+                    emitValues(patch)
+                  }}
                   rules={[]}
                   detailCreateFill={false}
                 />

@@ -35,6 +35,7 @@ export interface UnifiedPendingItem {
   /** 发起人修订待办（撤回/驳回/退回后修改再提交） */
   taskKind?: 'approve' | 'revise'
   formInstanceId?: string | null
+  formCode?: string | null
 }
 
 export interface UnifiedPendingResult {
@@ -110,6 +111,7 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
         createdAt: it.created_at,
         taskKind: it.task_kind === 'revise' ? 'revise' : 'approve',
         formInstanceId: it.form_instance_id || null,
+        formCode: it.form_code || null,
       })
     }
   }
@@ -147,6 +149,8 @@ export interface UnifiedMineItem {
   status: string
   bizType?: string | null
   bizId?: string | null
+  formInstanceId?: string | null
+  formCode?: string | null
   subtitle?: string
   createdAt?: string
 }
@@ -189,6 +193,8 @@ export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem
         status: it.status,
         bizType: it.biz_type || it.process_name || null,
         bizId: it.biz_id,
+        formInstanceId: it.form_instance_id || null,
+        formCode: it.form_code || null,
         subtitle: it.current_node_name ? `当前：${it.current_node_name}` : undefined,
         createdAt: it.created_at,
       })

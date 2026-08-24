@@ -34,6 +34,7 @@ export const workflowApi = {
       business_no?: string
       status: string
       form_instance_id?: string
+      form_code?: string | null
       biz_type?: string
       biz_id?: string
       biz_ref_id?: string

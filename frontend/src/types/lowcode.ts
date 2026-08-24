@@ -322,6 +322,7 @@ export interface WfTodoItem {
   /** 合同版本等：指向父单据 id（如 contract_id），便于跳转详情 */
   biz_ref_id?: string | null
   form_instance_id?: string | null
+  form_code?: string | null
   created_at?: string
   action_at?: string
   on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理
@@ -366,6 +367,7 @@ export interface WfInstanceDetail {
   initiator_id: string
   initiator_name?: string | null
   form_instance_id?: string | null
+  form_code?: string | null
   biz_type?: string | null
   biz_id?: string | null
   biz_ref_id?: string | null

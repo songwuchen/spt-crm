@@ -34,7 +34,8 @@ import CascadeField, { type CascadeOption } from './fields/CascadeField'
 import RichTextField from './fields/RichTextField'
 import SignatureField from './fields/SignatureField'
 import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLookupField'
-import FormInstanceLookupField, { pricingChecklistClearKeys } from './fields/FormInstanceLookupField'
+import FormInstanceLookupField from './fields/FormInstanceLookupField'
+import { linkFillClearKeys } from '@/constants/prodCardInstallLinks'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
@@ -522,16 +523,18 @@ function FieldWidget({
       const props = (field.props || {}) as {
         source_form_code?: string
         link_fill?: string
+        link_field?: string
       }
       const formCode = String(props.source_form_code || '').trim()
       if (!formCode) {
         return <Input value={(value as string) || ''} onChange={(e) => onChange(e.target.value)} placeholder={ph} disabled={readonly} />
       }
       const fillMode = props.link_fill
+      const apiLinkField = String(props.link_field || '').trim() || field.id
       return (
         <FormInstanceLookupField
           formCode={formCode}
-          linkField={field.id}
+          linkField={apiLinkField}
           value={value}
           readonly={readonly}
           placeholder={ph || '请选择'}
@@ -542,9 +545,12 @@ function FieldWidget({
             }
             const id = v != null && v !== '' ? String(v) : undefined
             if (!id) {
-              const cleared: Record<string, unknown> = { [field.id]: undefined }
-              for (const k of pricingChecklistClearKeys(field.id)) cleared[k] = undefined
-              onPatch(cleared)
+              onChange(undefined)
+              const cleared: Record<string, unknown> = inlineCell
+                ? {}
+                : { [field.id]: undefined }
+              for (const k of linkFillClearKeys(field.id, fillMode)) cleared[k] = undefined
+              if (Object.keys(cleared).length) onPatch(cleared)
               return
             }
             onChange(v)
@@ -552,7 +558,11 @@ function FieldWidget({
           onFill={(id, fill) => {
             if (!fillMode || !onPatch) return
             if (!id) return
-            onPatch({ [field.id]: id, ...fill })
+            if (inlineCell) {
+              onPatch(fill)
+            } else {
+              onPatch({ [field.id]: id, ...fill })
+            }
           }}
         />
       )
@@ -739,6 +749,7 @@ function FieldWidget({
           readonly={readonly}
           value={value as Record<string, unknown>[]}
           onChange={onChange}
+          onPatch={onPatch}
           formValues={allValues}
           rules={rules}
           fields={fields}
@@ -794,12 +805,13 @@ function isBlankDetailRow(row: unknown): boolean {
 }
 
 function DetailTable({
-  field, readonly, value, onChange, formValues = {}, rules = [], fields = [], layout = 'table', createFill = true,
+  field, readonly, value, onChange, onPatch, formValues = {}, rules = [], fields = [], layout = 'table', createFill = true,
 }: {
   field: FieldDefinition
   readonly: boolean
   value: Record<string, unknown>[] | undefined
   onChange: (v: unknown) => void
+  onPatch?: (patch: Record<string, unknown>) => void
   formValues?: Record<string, unknown>
   rules?: FormRule[]
   fields?: FieldDefinition[]
@@ -912,7 +924,8 @@ function DetailTable({
                       value={row[c.id]}
                       allValues={row}
                       onChange={(v) => setCell(idx, c.id, v)}
-                      inlineCell={c.type === 'file' || c.type === 'image'}
+                      onPatch={onPatch}
+                      inlineCell={c.type === 'file' || c.type === 'image' || c.type === 'select_data'}
                     />
                   </div>
                 ))}
@@ -959,7 +972,8 @@ function DetailTable({
               field={c} readonly={readonly}
               value={row[c.id]} allValues={row}
               onChange={(v) => setCell(idx, c.id, v)}
-              inlineCell={c.type === 'file' || c.type === 'image'}
+              onPatch={onPatch}
+              inlineCell={c.type === 'file' || c.type === 'image' || c.type === 'select_data'}
             />
           )
         },

@@ -7025,9 +7025,11 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
             )).all()
         }
     await _heal_weak_form_titles(db, rows, def_name_map)
+    fi_ids = {i.form_instance_id for i in rows if i.form_instance_id}
+    form_code_map = await _form_codes_by_instance_ids(db, fi_ids)
     out = []
     for i in rows:
-        d = _inst_dict(i)
+        d = _inst_dict(i, form_code=form_code_map.get(i.form_instance_id or ""))
         if i.biz_type == "contract_version" and i.biz_id:
             d["biz_ref_id"] = cv_map.get(i.biz_id)
         elif i.biz_type == "contract_review":
@@ -7099,6 +7101,8 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
 
     # 报价等弱标题（仅模板名）按表单字段补齐单号/客户/业务员；空标题仍用流程名 / 单号兜底
     await _heal_weak_form_titles(db, insts, def_name_map)
+    fi_ids = {i.form_instance_id for i in insts.values() if i and i.form_instance_id}
+    form_code_map = await _form_codes_by_instance_ids(db, fi_ids)
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
@@ -7138,6 +7142,7 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             "biz_id": inst.biz_id if inst else None,
             "biz_ref_id": biz_ref_id,
             "form_instance_id": inst.form_instance_id if inst else None,
+            "form_code": form_code_map.get(inst.form_instance_id or "") if inst else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
             # 代理审批：非本人被指派的待办 = 代办，标注委托人
@@ -7220,11 +7225,25 @@ async def delete_agent(db, tenant_id, agent_row_id: str, principal_id: str) -> N
         await db.commit()
 
 
-def _inst_dict(i: WfProcessInstance) -> dict:
+async def _form_codes_by_instance_ids(db, fi_ids: set[str]) -> dict[str, str]:
+    """form_instance_id → template code，供前端跳转原单据模块页。"""
+    if not fi_ids:
+        return {}
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+    rows = (await db.execute(
+        select(FormInstance.id, FormTemplate.code).join(
+            FormTemplate, FormTemplate.id == FormInstance.template_id,
+        ).where(FormInstance.id.in_(fi_ids))
+    )).all()
+    return {str(r[0]): str(r[1]) for r in rows if r[0] and r[1]}
+
+
+def _inst_dict(i: WfProcessInstance, *, form_code: str | None = None) -> dict:
     return {
         "id": i.id, "title": i.title, "business_no": i.business_no, "status": i.status,
         "initiator_id": i.initiator_id, "form_instance_id": i.form_instance_id,
         "biz_type": i.biz_type, "biz_id": i.biz_id,
+        "form_code": form_code,
         "started_at": i.started_at.isoformat() if i.started_at else None,
         "completed_at": i.completed_at.isoformat() if i.completed_at else None,
         "created_at": i.created_at.isoformat() if i.created_at else None,
@@ -7736,6 +7755,7 @@ async def get_instance_detail(
     form_fields: list = []
     form_data: dict = {}
     form_rules: list = []
+    form_code: str | None = None
     if inst.form_instance_id:
         try:
             from app.domains.lowcode.models import FormInstance, FormTemplateVersion
@@ -7752,6 +7772,7 @@ async def get_instance_detail(
                     )
                     tpl = await db.get(FormTemplate, fi.template_id)
                     form_tpl_code = tpl.code if tpl else None
+                    form_code = form_tpl_code
                     if tpl and tpl.code == "prod_card_supplement":
                         form_data = await overlay_prod_card_contract_live(
                             db, tenant_id, form_data,
@@ -7803,8 +7824,10 @@ async def get_instance_detail(
                 if form_tpl_code == "prod_card_supplement":
                     try:
                         from app.domains.lowcode.prod_card_contract_fill import (
+                            apply_prod_card_install_pick_fields,
                             apply_prod_card_supplement_rules,
                         )
+                        apply_prod_card_install_pick_fields(form_fields)
                         form_rules = apply_prod_card_supplement_rules(form_rules)
                     except Exception:
                         pass
@@ -7857,7 +7880,7 @@ async def get_instance_detail(
     # 轨迹补充节点名
     ni_name = {n.id: n.node_name for n in nodes}
     return {
-        **_inst_dict(inst),
+        **_inst_dict(inst, form_code=form_code),
         "initiator_name": initiator_name,
         "process_name": process_name,
         "approval_nodes": approval_nodes,
@@ -7995,6 +8018,8 @@ async def _resolve_current_task_for_viewer(
         if isinstance(pub, dict):
             if pub.get("type"):
                 meta["type"] = pub["type"]
+            if pub.get("detail_table_columns"):
+                meta["detail_table_columns"] = pub["detail_table_columns"]
             pub_props = pub.get("props") if isinstance(pub.get("props"), dict) else {}
             if pub_props.get("pickable_scope"):
                 props = dict(meta.get("props") or {})

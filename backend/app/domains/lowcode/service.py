@@ -1683,11 +1683,15 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
         ).limit(1)
     )).scalar_one_or_none()
     if tpl_code == "prod_card_supplement":
-        from app.domains.lowcode.prod_card_contract_fill import overlay_prod_card_contract_live
+        from app.domains.lowcode.prod_card_contract_fill import (
+            apply_prod_card_install_pick_fields,
+            apply_prod_card_supplement_rules,
+            overlay_prod_card_contract_live,
+        )
+        apply_prod_card_install_pick_fields(field_defs)
         out["form_data"] = await overlay_prod_card_contract_live(
             db, tenant_id, out.get("form_data"), user,
         )
-        from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_supplement_rules
         rule_defs = apply_prod_card_supplement_rules(rule_defs)
     field_defs, out["form_data"] = filter_read(
         field_defs, out.get("form_data"), (user or {}).get("roles"),

@@ -26,21 +26,12 @@ import {
   printProdCardInstance,
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
-import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
-
-function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
-  if (!bizType || !bizId) return null
-  const map: Record<string, string> = {
-    lead: `/m/leads/${bizId}`,
-    customer: `/m/customers/${bizId}`,
-    order: `/m/orders/${bizId}`,
-    service_ticket: `/m/service-tickets/${bizId}`,
-    contract_review: `/m/contract-reviews/${bizId}`,
-  }
-  if (map[bizType]) return map[bizType]
-  if (bizType === 'contract_version' && bizRefId) return `/m/contracts/${bizRefId}`
-  return null
-}
+import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import {
+  isReviseWorkflowTask,
+  resolveWorkflowBizPath,
+  workflowDocOpenLabel,
+} from '@/utils/workflowBizPath'
 
 export default function MobileLowcodeApprovalDetail() {
   usePageTitle('审批详情')
@@ -112,16 +103,41 @@ export default function MobileLowcodeApprovalDetail() {
   useEffect(() => {
     if (!detail) return
     const ct = detail.current_task
-    if (
-      detail.biz_type === 'lead'
-      && detail.biz_id
-      && ct?.task_id
-      && isLeadReviseTodo({ taskKind: ct.task_kind, nodeType: ct.node_type, nodeName: ct.node_name })
-    ) {
-      nav(leadReviseEditPath(detail.biz_id, ct.task_id, true), { replace: true })
+    if (detail && ct?.task_id && isReviseWorkflowTask({
+      taskKind: ct.task_kind, nodeType: ct.node_type, nodeName: ct.node_name,
+    })) {
+      const path = resolveWorkflowBizPath({
+        bizType: detail.biz_type,
+        bizId: detail.biz_id,
+        bizRefId: detail.biz_ref_id,
+        formInstanceId: detail.form_instance_id,
+        formCode: detail.form_code,
+        taskKind: ct.task_kind,
+        nodeType: ct.node_type,
+        nodeName: ct.node_name,
+        taskId: ct.task_id,
+        mobile: true,
+      })
+      if (path) nav(path, { replace: true })
     }
   }, [detail, nav])
-  const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id, detail.biz_ref_id) : null
+  const docPath = detail ? resolveWorkflowBizPath({
+    bizType: detail.biz_type,
+    bizId: detail.biz_id,
+    bizRefId: detail.biz_ref_id,
+    formInstanceId: detail.form_instance_id,
+    formCode: detail.form_code,
+    taskKind: detail.current_task?.task_kind,
+    nodeType: detail.current_task?.node_type,
+    nodeName: detail.current_task?.node_name,
+    taskId: effectiveTaskId,
+    mobile: true,
+  }) : null
+  const docOpenLabel = workflowDocOpenLabel({
+    isRevise: isReviseTask,
+    bizType: detail?.biz_type,
+    formCode: detail?.form_code,
+  })
   const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
 
   const act = async (action: string) => {
@@ -308,7 +324,7 @@ export default function MobileLowcodeApprovalDetail() {
             {isReviseTask ? '请修改后重新提交' : `当前节点：${detail.current_task.node_name}`}
           </div>
         )}
-        {(canPrintScheme || canPrintProdCard || bizPath) && (
+        {(canPrintScheme || canPrintProdCard || docPath) && (
           <div className="mt-3 flex gap-2 flex-wrap">
             {canPrintScheme && (
               <button
@@ -337,13 +353,13 @@ export default function MobileLowcodeApprovalDetail() {
                 </button>
               </>
             )}
-            {bizPath && (
+            {docPath && (
               <button
                 type="button"
-                onClick={() => nav(bizPath)}
+                onClick={() => nav(docPath)}
                 className="flex-1 h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
               >
-                查看完整单据
+                {docOpenLabel}
               </button>
             )}
           </div>

@@ -1,6 +1,6 @@
 """提交后锁编辑：审批中单据不可改内容；驳回（或撤回回草稿）后可再编辑。
 
-部分表单（合同图纸领用 / 安装图设计通知 / 客服领图）流程通过后仍允许改内容。
+部分表单（合同图纸领用 / 安装图设计通知 / 客服领图）任意流程状态均可改内容。
 权威边界在各业务 update_*；审批人字段写回走 wf act / field_updates，不经本闸门。
 """
 from __future__ import annotations
@@ -31,12 +31,15 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     "customer": frozenset({"draft"}),
 }
 
-# 流程通过后仍允许改内容的低代码表单（审批中仍锁；仅 completed 放开）
-POST_COMPLETE_EDITABLE_FORM_CODES: frozenset[str] = frozenset({
+# 安装单 / 领图单等：任意流程状态均可改内容（草稿、审批中、已通过、驳回）
+ALWAYS_EDITABLE_FORM_CODES: frozenset[str] = frozenset({
     "drawing_requisition",
     "install_drawing_notice",
     "cs_drawing_request",
 })
+
+# 兼容旧名
+POST_COMPLETE_EDITABLE_FORM_CODES = ALWAYS_EDITABLE_FORM_CODES
 
 _LOCK_MSG = "审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交"
 
@@ -65,8 +68,8 @@ def is_status_editable(
     st = status or "draft"
     if (
         biz_type == "form_instance"
-        and st == "completed"
-        and (template_code or "") in POST_COMPLETE_EDITABLE_FORM_CODES
+        and (template_code or "") in ALWAYS_EDITABLE_FORM_CODES
+        and st in ("draft", "running", "completed", "rejected", "submitted")
     ):
         return True
     allowed = EDITABLE_STATUSES.get(biz_type)
@@ -205,7 +208,7 @@ async def assert_form_instance_editable(
     """表单实例：status 闸门 + biz/form_instance_id 任一 running 流程。
 
     ``drawing_requisition`` / ``install_drawing_notice`` / ``cs_drawing_request``：
-    流程完成后(completed)仍可改内容；审批中(running)依旧锁定。
+    任意流程状态均可改内容（含审批中、已通过）。
     """
     code = (template_code or "").strip() or None
     if code is None:
@@ -220,6 +223,13 @@ async def assert_form_instance_editable(
             ).limit(1)
         )).scalar_one_or_none()
         code = row
+    if (code or "") in ALWAYS_EDITABLE_FORM_CODES:
+        if not is_status_editable("form_instance", status, template_code=code):
+            raise BusinessException(
+                code=VALIDATION_ERROR,
+                message="当前状态不可编辑",
+            )
+        return
     await assert_biz_editable(
         db, tenant_id, "form_instance", inst_id, status,
         message="审批中或已提交的表单不可编辑，驳回后可由发起人修改再提交",
