@@ -1979,6 +1979,11 @@ class WorkflowEngine:
                         )
                 except Exception:
                     pass
+                # 人员多选路由：表单存 user_id，条件常写 username —— 补别名便于 in 命中
+                try:
+                    data = await self._alias_user_ids_in_form_data(data)
+                except Exception:
+                    pass
                 return data
         # 业务单据流（线索/报价等）没有 FormInstance：按 biz 重建字段上下文，
         # 供审批通过后的抄送节点「表单人员字段」等规则解析（如 owner_id）。
@@ -1991,6 +1996,47 @@ class WorkflowEngine:
             except Exception:
                 return {}
         return {}
+
+    async def _alias_user_ids_in_form_data(self, form_data: dict) -> dict:
+        """把人员字段里的 user_id 列表附带 username，供路由条件 in 匹配。"""
+        from app.domains.auth.models import User
+
+        ids: list[str] = []
+        for v in form_data.values():
+            if isinstance(v, list):
+                for x in v:
+                    if isinstance(x, str) and x:
+                        ids.append(x)
+                    elif isinstance(x, dict) and x.get("id"):
+                        ids.append(str(x["id"]))
+            elif isinstance(v, dict) and v.get("id"):
+                ids.append(str(v["id"]))
+        if not ids:
+            return form_data
+        rows = (
+            await self.db.execute(
+                select(User.id, User.username).where(
+                    User.tenant_id == self.tenant_id,
+                    User.id.in_(list(dict.fromkeys(ids))),
+                )
+            )
+        ).all()
+        uname_by_id = {str(uid): uname for uid, uname in rows if uname}
+        if not uname_by_id:
+            return form_data
+        out = dict(form_data)
+        for key, v in list(out.items()):
+            if not isinstance(v, list) or not v:
+                continue
+            extra: list[str] = []
+            for x in v:
+                uid = str(x.get("id") if isinstance(x, dict) else x or "")
+                uname = uname_by_id.get(uid)
+                if uname and uname not in v and uname not in extra:
+                    extra.append(uname)
+            if extra:
+                out[key] = [*v, *extra]
+        return out
 
     def _log(self, pid, nid, tid, actor, action, opinion) -> None:
         self.db.add(WfTaskActionLog(

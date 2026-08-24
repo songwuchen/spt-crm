@@ -33,7 +33,7 @@ class Customer(TenantScopedBase):
     level: Mapped[str | None] = mapped_column(String(50))  # A/B/C/D
     status: Mapped[str] = mapped_column(String(50), default="active")  # active / inactive
     # 客户信息审批（对齐简道云客户信息流）：
-    # draft=草稿未提交, pending=审批中, approved=已通过, rejected=驳回终态
+    # draft=草稿未提交, pending=审批中, approved=已通过, rejected=已驳回(可改后再提)
     review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
     review_flow_id: Mapped[str | None] = mapped_column(String(36))
     reject_reason: Mapped[str | None] = mapped_column(Text)

@@ -56,6 +56,11 @@ import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 import { getContractLabelMap } from '@/components/lowcode/fields/ContractField'
 import { getCustomerLabelMap } from '@/components/lowcode/fields/CustomerField'
 import { printSchemeInstance } from '@/pages/drawing/schemePrint'
+import {
+  defaultProdCardPrintMode,
+  printProdCardInstance,
+  type ProdCardPrintMode,
+} from '@/pages/drawing/prodCardPrint'
 
 const { Title, Text } = Typography
 
@@ -1039,6 +1044,7 @@ export default function FormDataListPage({
     || templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
+  const canPrintProdCard = templateCode === 'prod_card_supplement'
   /** 草稿/驳回可改；合同图纸领用、安装图设计通知、客服领图流程通过后也可改（审批中仍锁） */
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
@@ -1060,7 +1066,7 @@ export default function FormDataListPage({
     && viewRec.status === 'completed',
   )
 
-  const handlePrint = async (recId: string) => {
+  const handlePrint = async (recId: string, prodMode?: ProdCardPrintMode) => {
     try {
       const res = await lowcodeApi.getInstance(recId)
       let flowSteps: WfInstanceDetail['flow_steps'] | undefined
@@ -1073,8 +1079,19 @@ export default function FormDataListPage({
           flowSteps = wf.data?.flow_steps
         }
       } catch { /* 无流程也可打印 */ }
+      const formData = res.data.form_data || {}
+      if (canPrintProdCard) {
+        await printProdCardInstance({
+          formData,
+          fieldDefinitions: res.data.field_definitions || [],
+          businessNo: res.data.business_no,
+          flowSteps,
+          mode: prodMode || defaultProdCardPrintMode(formData),
+        })
+        return
+      }
       await printSchemeInstance({
-        formData: res.data.form_data || {},
+        formData,
         fieldDefinitions: res.data.field_definitions || [],
         businessNo: res.data.business_no,
         flowSteps,
@@ -1427,6 +1444,29 @@ export default function FormDataListPage({
                 >
                   打印
                 </Button>
+              )}
+              {canPrintProdCard && (
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: 'notice',
+                        label: '生产通知单',
+                        onClick: () => { void handlePrint(viewRec.id, 'notice') },
+                      },
+                      {
+                        key: 'supplement',
+                        label: '生产补充卡',
+                        onClick: () => { void handlePrint(viewRec.id, 'supplement') },
+                      },
+                    ],
+                  }}
+                  trigger={['click']}
+                >
+                  <Button type="text" icon={<PrinterOutlined />}>
+                    打印 <DownOutlined />
+                  </Button>
+                </Dropdown>
               )}
               {canEditRecord(viewRec.status) && viewRec.readonly && (
                 <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>

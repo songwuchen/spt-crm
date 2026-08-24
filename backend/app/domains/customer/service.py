@@ -48,16 +48,11 @@ async def _apply_customer_review_flow(
 async def resubmit_customer_review(
     db: AsyncSession, tenant_id: str, customer_id: str, user: dict,
 ) -> Customer:
-    """草稿客户提交审核。驳回为终态，不可再提。"""
+    """草稿/驳回客户提交审核（驳回后可改完再提）。"""
     customer = await get_customer(db, tenant_id, customer_id, user)
     rs = getattr(customer, "review_status", None)
-    if rs == "rejected":
-        raise BusinessException(
-            code=VALIDATION_ERROR,
-            message="客户信息已被驳回，不可重新提交",
-        )
-    if rs != "draft":
-        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿客户可提交审批")
+    if rs not in ("draft", "rejected"):
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或已驳回客户可提交审批")
 
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, validate_entity_custom_fields,
@@ -73,12 +68,39 @@ async def resubmit_customer_review(
     customer.review_status = "pending"
     customer.reject_reason = None
     await db.commit()
+    # 驳回后若仍挂着「修改并重新提交」待办，新开审批前先清掉，避免双待办
+    if rs == "rejected":
+        try:
+            from sqlalchemy import select
+            from app.domains.lowcode.workflow_engine import WorkflowEngine
+            from app.domains.lowcode.workflow_models import WfProcessInstance
+            olds = (
+                await db.execute(
+                    select(WfProcessInstance).where(
+                        WfProcessInstance.tenant_id == tenant_id,
+                        WfProcessInstance.biz_type == "customer",
+                        WfProcessInstance.biz_id == customer_id,
+                        WfProcessInstance.status.in_(("rejected", "withdrawn")),
+                    )
+                )
+            ).scalars().all()
+            eng = WorkflowEngine(db, tenant_id)
+            for old in olds:
+                await eng._cancel_initiator_revise_todos(old.id)
+            if olds:
+                await db.commit()
+        except Exception:
+            await db.rollback()
+            customer = await get_customer(db, tenant_id, customer_id)
+            customer.review_status = "pending"
+            customer.reject_reason = None
+            await db.commit()
     try:
         inst = await submit_customer_review(db, tenant_id, customer, user)
     except Exception as e:
         await db.rollback()
         customer = await get_customer(db, tenant_id, customer_id)
-        customer.review_status = "draft"
+        customer.review_status = "rejected" if rs == "rejected" else "draft"
         await db.commit()
         raise BusinessException(code=VALIDATION_ERROR, message=f"提交审批失败: {e}") from e
     await _apply_customer_review_flow(db, tenant_id, customer, inst, user)
@@ -357,11 +379,6 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
     customer = await get_customer(db, tenant_id, customer_id, user)
     rs = getattr(customer, "review_status", None) or "approved"
-    if rs == "rejected":
-        raise BusinessException(
-            code=VALIDATION_ERROR,
-            message="客户信息已被驳回，不可继续编辑或重新提交",
-        )
     from app.domains.lowcode.edit_lock import assert_customer_editable
     await assert_customer_editable(db, tenant_id, customer.id, rs)
     update_data = data.model_dump(exclude_unset=True)

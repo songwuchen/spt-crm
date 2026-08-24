@@ -1687,6 +1687,74 @@ def _to_date(value: str | None):
             return None
 
 
+_OPENAPI_CREATOR_PLACEHOLDERS = frozenset({"开放平台", "开放平台（待分配）"})
+
+
+def _person_display_from_reg_value(raw) -> str | None:
+    """Extract display name from registration_json.submitter (str / dict / list)."""
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        if not raw:
+            return None
+        raw = raw[0]
+    if isinstance(raw, dict):
+        name = (
+            raw.get("name")
+            or raw.get("nickname")
+            or raw.get("real_name")
+            or raw.get("username")
+            or ""
+        )
+        name = str(name).strip()
+        return name or None
+    if isinstance(raw, str):
+        s = raw.strip()
+        return s or None
+    return None
+
+
+def _is_openapi_placeholder_creator(contract: Contract, ctx) -> bool:
+    """True when created_by still looks like the OpenAPI pseudo user."""
+    if getattr(contract, "created_by_id", None) == getattr(ctx, "app_id", None):
+        return True
+    name = (getattr(contract, "created_by_name", None) or "").strip()
+    return (not name) or name in _OPENAPI_CREATOR_PLACEHOLDERS
+
+
+async def _resolve_contract_created_by(
+    db: AsyncSession, tenant_id: str, data, reg: dict | None,
+) -> tuple[str | None, str | None]:
+    """Resolve 合同提交人 → (user_id, display_name).
+
+    Prefer top-level ``created_by_*``; else ``registration_json.submitter``
+    (简道云合同登记「提交人」).
+    """
+    raw_id = getattr(data, "created_by_id", None)
+    raw_name = (getattr(data, "created_by_name", None) or "").strip() or None
+    if not raw_id and not raw_name and isinstance(reg, dict):
+        raw_name = _person_display_from_reg_value(reg.get("submitter"))
+    return await resolve_created_by(
+        db, tenant_id, created_by_id=raw_id, created_by_name=raw_name,
+    )
+
+
+async def _apply_contract_created_by(
+    db: AsyncSession, ctx, contract: Contract, data, *, force: bool = False,
+) -> None:
+    """Overwrite 开放平台 placeholder with 简道云提交人 when available."""
+    reg = getattr(data, "registration_json", None)
+    if not isinstance(reg, dict):
+        reg = contract.registration_json if isinstance(contract.registration_json, dict) else {}
+    uid, display = await _resolve_contract_created_by(db, ctx.tenant_id, data, reg)
+    if not uid and not display:
+        return
+    if force or _is_openapi_placeholder_creator(contract, ctx):
+        contract.created_by_id = uid
+        if display:
+            contract.created_by_name = display
+
+
 async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contract: Contract, data) -> None:
     """Copy OpenAPI intake fields onto an existing Contract (in-memory only)."""
     contract.customer_id = data.customer_id
@@ -1824,6 +1892,8 @@ async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract
     from app.domains.openapi.dto import contract_to_dto
 
     await _apply_openapi_contract_fields(db, ctx.tenant_id, contract, data)
+    # 幂等补全提交人：覆盖开放平台占位，或写入此前缺失的 created_by
+    await _apply_contract_created_by(db, ctx, contract, data)
     version = await _update_contract_version_from_openapi(db, ctx.tenant_id, contract, data)
     await _apply_contract_flow_from_openapi(db, ctx, contract, version, data)
     await db.commit()
@@ -1882,6 +1952,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
             apply_date=drawing_no_apply_date_today(),
         )
 
+    filler_id, filler_name = await _resolve_contract_created_by(db, ctx.tenant_id, data, reg)
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         project_id=data.project_id,
@@ -1903,7 +1974,9 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         delivery_terms_json=data.delivery_terms_json,
         registration_json=reg or None,
         custom_fields_json=data.custom_fields or None,
-        created_by_id=ctx.app_id, created_by_name="开放平台",
+        # 简道云提交人优先；无则仍记开放平台（兼容老中间件未传提交人）
+        created_by_id=filler_id if (filler_id or filler_name) else ctx.app_id,
+        created_by_name=filler_name or "开放平台",
     )
     # Resolve assignee / department onto the new row before commit
     await _apply_openapi_contract_fields(db, ctx.tenant_id, contract, data)

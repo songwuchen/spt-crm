@@ -265,6 +265,10 @@ class OpenContractCreate(BaseModel):
     assignee_name: Optional[str] = Field(None, max_length=100)
     department_id: Optional[str] = Field(None, max_length=36)
     department_name: Optional[str] = Field(None, max_length=200)
+    # 提交人/填表人（CRM created_by_*）：简道云「提交人」；勿落成开放平台伪用户。
+    # 未传时回落 registration_json.submitter。
+    created_by_id: Optional[str] = Field(None, max_length=36)
+    created_by_name: Optional[str] = Field(None, max_length=100)
     payment_terms_json: Optional[dict | list] = None
     delivery_terms_json: Optional[dict | list] = None
     key_clauses_json: Optional[dict | list] = None

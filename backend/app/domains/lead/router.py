@@ -195,6 +195,18 @@ _LEAD_STATUS_LABELS = {
     "qualified": "已转化",
     "discarded": "已废弃",
 }
+# 评估信息：与列表/详情 leadReviewStatusConfig、customerNewnessLabels 一致
+_LEAD_NEWNESS_LABELS = {
+    "new": "新",
+    "old": "老",
+}
+_LEAD_REVIEW_STATUS_LABELS = {
+    "draft": "草稿",
+    "pending": "待审",
+    "approved": "收录",
+    "rejected": "已驳回",
+    "attacked": "袭击",
+}
 _LEAD_CUSTOMER_TYPE_FALLBACK = {
     "terminal_soe": "终端客户-央企/国企",
     "terminal_large_private": "终端客户-大型民企（注册资本10亿以上）",
@@ -288,7 +300,10 @@ async def export_leads_excel(
     headers = [
         # 列表 & 基本信息
         "项目号", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
-        "业务日期", "报备人", "报备时间", "状态", "评分",
+        "业务日期", "报备人", "报备时间", "状态",
+        # 评估信息（审批时填写）
+        "客户类型（新/老）", "项目最终状态",
+        "评分",
         # 联系人信息
         "联系人", "联系电话", "邮箱",
         # 地区
@@ -317,7 +332,22 @@ async def export_leads_excel(
             c("biz_date", str(l.biz_date) if l.biz_date else ""),
             c("reporter_id", getattr(l, "reporter_name", None) or ""),
             c("reported_at", l.reported_at.strftime("%Y-%m-%d %H:%M") if getattr(l, "reported_at", None) else ""),
-            _LEAD_STATUS_LABELS.get(l.status or "", l.status or ""), l.score or "",
+            _LEAD_STATUS_LABELS.get(l.status or "", l.status or ""),
+            c(
+                "customer_newness",
+                _LEAD_NEWNESS_LABELS.get(
+                    getattr(l, "customer_newness", None) or "",
+                    getattr(l, "customer_newness", None) or "",
+                ),
+            ),
+            c(
+                "review_status",
+                _LEAD_REVIEW_STATUS_LABELS.get(
+                    getattr(l, "review_status", None) or "",
+                    getattr(l, "review_status", None) or "",
+                ),
+            ),
+            l.score or "",
             c("contact_name", l.contact_name or ""), c("contact_phone", l.contact_phone or ""),
             c("contact_email", l.contact_email or ""),
             c("country_type", country_label.get(l.country_type or "", l.country_type or "")),

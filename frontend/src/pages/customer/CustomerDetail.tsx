@@ -333,8 +333,8 @@ export default function CustomerDetail() {
   const levelColors: Record<string, string> = { A: 'red', B: 'orange', C: 'blue', D: 'default' }
   const reviewStatus = customer.review_status || 'approved'
   const reviewCfg = reviewStatus !== 'approved' ? customerReviewStatusConfig[reviewStatus] : null
-  const canSubmitApproval = reviewStatus === 'draft'
-  const canEditCustomer = !reviewInFlight && reviewStatus !== 'rejected'
+  const canSubmitApproval = reviewStatus === 'draft' || reviewStatus === 'rejected'
+  const canEditCustomer = !reviewInFlight
   const reviewBannerIcon =
     reviewStatus === 'pending' ? 'hourglass_top'
       : reviewStatus === 'draft' ? 'edit_note'
@@ -428,7 +428,7 @@ export default function CustomerDetail() {
             )}
             {canSubmitApproval && (
               <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
-                提交审批
+                {reviewStatus === 'rejected' ? '修改后重新提交' : '提交审批'}
               </Button>
             )}
             {customer.status !== 'pool' && (
@@ -472,14 +472,16 @@ export default function CustomerDetail() {
               {reviewStatus === 'pending' && '审批通过后可继续维护客户主数据。'}
               {reviewStatus === 'rejected' && (
                 <>
-                  驳回为终态，不可重新提交。
+                  请修改后重新提交审批。
                   {customer.reject_reason ? ` 驳回原因：${customer.reject_reason}` : ''}
                 </>
               )}
             </div>
           </div>
           {canSubmitApproval && (
-            <Button size="small" type="primary" loading={submitting} onClick={handleSubmitApproval}>提交审批</Button>
+            <Button size="small" type="primary" loading={submitting} onClick={handleSubmitApproval}>
+              {reviewStatus === 'rejected' ? '修改后重新提交' : '提交审批'}
+            </Button>
           )}
         </div>
       )}

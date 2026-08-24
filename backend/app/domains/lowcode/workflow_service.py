@@ -693,6 +693,7 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code == "cs_product_return":
         apply_cs_product_return_approvers(nodes)
         apply_cs_product_return_logistics_field_perms(nodes)
+        apply_cs_product_return_n20_countersign_routes(routes)
     if form_code == "cs_product_replace":
         apply_cs_product_replace_approvers(nodes)
     if form_code == "cs_drawing_request":
@@ -2054,6 +2055,90 @@ def apply_cs_product_return_approvers(nodes: list[dict]) -> bool:
         if _approver_rule_matches(cur, want):
             continue
         n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+# 客服办理(n20) 后「会签人员」分流：简道云条件写的是部门 id，CRM 字段是人员多选。
+# 路由同时认 username + 原部门 id；多人并行（去掉互斥组）。
+_CS_RETURN_N20_PERSON_BRANCHES: tuple[tuple[str, str, str, str], ...] = (
+    # route_id, target, username, jdy_dept_id
+    ("r_5", "n4", "191811255038139135", "5b18a7b8258e41557b07f6e2"),  # 质检 韩小超
+    ("r_21", "n23", "02364437547295", "56ca5bacf83c32e4699dd192"),  # 生产 吕英萍
+    ("r_22", "n24", "054351591124488512", "619af35c8fb9780008059d3d"),  # 采购 张蒙蒙
+    ("r_29", "n32", "1135263833366065", "645af34b67c48d0008d855ff"),  # 采购 苏金泓
+)
+_CS_RETURN_REPAIR_TYPE = "退回及维修再发货"
+
+
+def _cs_return_n20_person_cond(username: str, dept_id: str) -> dict:
+    return {
+        "rel": "and",
+        "cond": [
+            {"field": "field_3", "operator": "in", "value": [_CS_RETURN_REPAIR_TYPE]},
+            {
+                "field": "field_18",
+                "operator": "in",
+                "value": [username, dept_id],
+            },
+        ],
+    }
+
+
+def _flow_cs_product_return_needs_n20_route_fix(routes: list | None) -> bool:
+    """n20 出边仍按简道云部门 id 互斥 → 需升级为会签人员并行。"""
+    want_by_id = {rid: (tgt, user, dept) for rid, tgt, user, dept in _CS_RETURN_N20_PERSON_BRANCHES}
+    found = 0
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("source") != "n20":
+            continue
+        rid = str(r.get("id") or "")
+        if rid not in want_by_id:
+            # 兼容无 id 时按 target 认
+            tgt = str(r.get("target") or "")
+            hit = next((x for x in _CS_RETURN_N20_PERSON_BRANCHES if x[1] == tgt), None)
+            if not hit:
+                continue
+            rid, tgt, user, dept = hit
+        else:
+            tgt, user, dept = want_by_id[rid]
+        if r.get("exclusive_group") or r.get("fork") != "parallel":
+            return True
+        cond = r.get("condition") or {}
+        blob = str(cond)
+        if user not in blob:
+            return True
+        found += 1
+    return found < len(_CS_RETURN_N20_PERSON_BRANCHES)
+
+
+def apply_cs_product_return_n20_countersign_routes(routes: list | None) -> bool:
+    """客服办理后：会签人员(field_18) 命中则并行进质检/生产/采购。"""
+    if not routes:
+        return False
+    changed = False
+    by_target = {tgt: (rid, user, dept) for rid, tgt, user, dept in _CS_RETURN_N20_PERSON_BRANCHES}
+    for r in routes:
+        if not isinstance(r, dict) or r.get("source") != "n20":
+            continue
+        tgt = str(r.get("target") or "")
+        if tgt not in by_target:
+            continue
+        rid, user, dept = by_target[tgt]
+        want_cond = _cs_return_n20_person_cond(user, dept)
+        already_ok = (
+            r.get("fork") == "parallel"
+            and not r.get("exclusive_group")
+            and user in str(r.get("condition") or "")
+            and dept in str(r.get("condition") or "")
+        )
+        if already_ok:
+            continue
+        r["condition"] = want_cond
+        r["fork"] = "parallel"
+        r.pop("exclusive_group", None)
+        if not r.get("id"):
+            r["id"] = rid
         changed = True
     return changed
 
@@ -4407,22 +4492,31 @@ async def _upgrade_drawing_form_flow_if_needed(
             f"客服落实/客服安排改为指定角色cs_office+cs_arrange({form_code})",
         )
         return
-    # 售出产品/工具退回：客服办理 → cs_office；物流节点去掉误挂的明细可填
+    # 售出产品/工具退回：客服办理 → cs_office；物流节点去掉误挂的明细可填；
+    # 会签人员(field_18) 按人选并行分流（不再误用简道云部门 id 互斥）
     if form_code == "cs_product_return" and (
         _flow_cs_product_return_needs_approver_fix(version.node_definitions)
         or _flow_cs_product_return_needs_logistics_field_fix(version.node_definitions)
+        or _flow_cs_product_return_needs_n20_route_fix(version.route_definitions)
     ):
         import copy
         from app.common.rbac_sync import ensure_cs_office_role_members
         await ensure_cs_office_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
-        apply_cs_product_return_approvers(patched)
-        apply_cs_product_return_logistics_field_perms(patched)
-        await _publish_system_default_upgrade(
-            db, tenant_id, d, version,
-            patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"售出产品退回客服/物流节点修正({form_code})",
-        )
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        tags: list[str] = []
+        if apply_cs_product_return_approvers(patched):
+            tags.append("客服办理cs_office")
+        if apply_cs_product_return_logistics_field_perms(patched):
+            tags.append("物流节点字段")
+        if apply_cs_product_return_n20_countersign_routes(patched_routes):
+            tags.append("会签人员并行分流")
+        if tags:
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched, patched_routes,
+                DRAWING_FORM_FLOW_DESC, f"售出产品退回修正({'+'.join(tags)})({form_code})",
+            )
         return
     # 客户服务延期申请：客服反馈/备案→cs_office；客服审批→cs_delay_approve
     if (
@@ -7650,12 +7744,14 @@ async def get_instance_detail(
             if fi and not getattr(fi, "is_deleted", False):
                 form_fields = list(fi.field_definitions or [])
                 form_data = dict(fi.form_data or {}) if isinstance(fi.form_data, dict) else {}
+                form_tpl_code: str | None = None
                 try:
                     from app.domains.lowcode.models import FormTemplate
                     from app.domains.lowcode.prod_card_contract_fill import (
                         overlay_prod_card_contract_live,
                     )
                     tpl = await db.get(FormTemplate, fi.template_id)
+                    form_tpl_code = tpl.code if tpl else None
                     if tpl and tpl.code == "prod_card_supplement":
                         form_data = await overlay_prod_card_contract_live(
                             db, tenant_id, form_data,
@@ -7703,6 +7799,15 @@ async def get_instance_detail(
                         form_fields = merged_ff
                     if pub.rule_definitions:
                         form_rules = list(pub.rule_definitions)
+                # 生产卡：叠设计单分派显隐（总部单不要求转新乡），避免已发布规则未同步时仍必填
+                if form_tpl_code == "prod_card_supplement":
+                    try:
+                        from app.domains.lowcode.prod_card_contract_fill import (
+                            apply_prod_card_supplement_rules,
+                        )
+                        form_rules = apply_prod_card_supplement_rules(form_rules)
+                    except Exception:
+                        pass
         except Exception:
             form_fields, form_data, form_rules = [], {}, []
 

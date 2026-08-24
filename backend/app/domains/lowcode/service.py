@@ -1687,6 +1687,8 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
         out["form_data"] = await overlay_prod_card_contract_live(
             db, tenant_id, out.get("form_data"), user,
         )
+        from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_supplement_rules
+        rule_defs = apply_prod_card_supplement_rules(rule_defs)
     field_defs, out["form_data"] = filter_read(
         field_defs, out.get("form_data"), (user or {}).get("roles"),
         is_creator=is_creator,

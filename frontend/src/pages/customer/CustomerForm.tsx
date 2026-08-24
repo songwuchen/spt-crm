@@ -183,8 +183,8 @@ export default function CustomerForm() {
   const [reviewStatus, setReviewStatus] = useState<string | undefined>()
 
   const isForeignTrade = Form.useWatch('is_foreign_trade', form)
-  const canSubmitApproval = !toPool && (!isEdit || reviewStatus === 'draft')
-  const editLocked = isEdit && reviewStatus === 'rejected'
+  const canSubmitApproval = !toPool && (!isEdit || reviewStatus === 'draft' || reviewStatus === 'rejected')
+  const editLocked = false
 
   const checkDuplicates = useCallback((name?: string, phone?: string) => {
     if (dupTimerRef.current) clearTimeout(dupTimerRef.current)
@@ -208,11 +208,6 @@ export default function CustomerForm() {
       customerApi.get(id).then(async (res) => {
         const d: Record<string, unknown> = { ...res.data }
         const rs = res.data.review_status as string | undefined
-        if (rs === 'rejected') {
-          message.warning('客户信息已被驳回，不可继续编辑或重新提交')
-          navigate(`/customers/${id}`, { replace: true })
-          return
-        }
         if (rs === 'pending') {
           try {
             const { workflowApi } = await import('@/api/lowcodeWorkflow')
@@ -356,9 +351,7 @@ export default function CustomerForm() {
 
   const handleSave = async (andSubmit: boolean) => {
     if (editLocked) {
-      message.warning(reviewStatus === 'rejected'
-        ? '客户信息已被驳回，不可编辑'
-        : '审批中不可编辑，请到详情页查看流程')
+      message.warning('审批中不可编辑，请到详情页查看流程')
       return
     }
     let values: Record<string, unknown>

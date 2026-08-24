@@ -893,7 +893,13 @@ def apply_prod_card_contract_fill_visibility(
 
 
 def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    """合并「是否为补充=否 → 显示生产卡通知单内容」显隐规则。"""
+    """合并「是否为补充=否 → 显示生产卡通知单内容」+ 设计单分派联动显隐。
+
+    设计单分派（对齐简道云 fieldShowRules）：
+    - 总部单 / 共同 → 显示并必填「设计指派」
+    - 新乡单 / 郑州单 / 共同 / 包装单 → 显示并必填「转新乡、工艺包装」
+    - 总部单不需要「转新乡、工艺包装」
+    """
     out: list[dict[str, Any]] = [
         r for r in (rules or [])
         if isinstance(r, dict) and r.get("id") not in _PROD_CARD_NOTICE_RULE_IDS
@@ -907,4 +913,6 @@ def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list
             "action": {"visible": True},
             "enabled": True,
         })
-    return apply_prod_card_contract_fill_visibility(out)
+    out = apply_prod_card_contract_fill_visibility(out)
+    from app.domains.lowcode.cs_drawing_request_fields import apply_cs_drawing_request_rules
+    return apply_cs_drawing_request_rules(out)

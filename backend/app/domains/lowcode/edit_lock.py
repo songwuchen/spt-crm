@@ -107,21 +107,20 @@ async def assert_lead_editable(
 async def assert_customer_editable(
     db: AsyncSession, tenant_id: str, customer_id: str, review_status: str | None,
 ) -> None:
-    """客户：running 必锁；draft 可整单编辑；pending 仅无 running（撤回后）可编辑。
+    """客户：running 必锁；draft/rejected 可整单编辑；pending 仅无 running（撤回后）可编辑。
 
-    rejected 为驳回终态；approved 可继续维护主数据（变更再审另议）。
+    rejected 可改后重新提交（对齐流程「修改并重新提交」）；approved 可继续维护主数据。
     """
     running = await has_running_process(db, tenant_id, "customer", customer_id)
     if running:
         raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
     rs = review_status or "approved"
-    if rs in ("draft", "pending", "approved"):
+    if rs in ("draft", "pending", "approved", "rejected"):
         return
-    if rs == "rejected":
-        raise BusinessException(
-            code=VALIDATION_ERROR,
-            message="客户信息已被驳回，不可继续编辑或重新提交",
-        )
+    raise BusinessException(
+        code=VALIDATION_ERROR,
+        message=f"当前审核状态不可编辑: {rs}",
+    )
 
 
 async def assert_contract_record_editable(

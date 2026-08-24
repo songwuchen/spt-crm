@@ -355,3 +355,41 @@ def test_ensure_prod_card_serial_no_field():
     apply_prod_card_contract_pick_fields(defs2)
     assert defs2[0]["id"] == "serial_no"
     assert defs2[1]["default_value"] == "否"
+
+
+def test_prod_card_design_dispatch_hides_transfer_on_hq():
+    """总部单不需要「转新乡、工艺包装」（对齐简道云 fieldShowRules）。"""
+    from app.domains.lowcode.builtin_templates import get_builtin
+    from app.domains.lowcode.cs_drawing_request_fields import CS_DRAWING_DISPATCH_RULES
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_supplement_rules
+    from app.domains.lowcode.rule_engine import compute_field_states
+
+    bt = get_builtin("prod_card_supplement")
+    assert bt
+    rules = apply_prod_card_supplement_rules(bt.get("rule_definitions") or [])
+    ids = {r.get("id") for r in rules if isinstance(r, dict)}
+    for r in CS_DRAWING_DISPATCH_RULES:
+        assert r["id"] in ids
+
+    fields = bt["field_definitions"]
+    perms = [
+        {"fieldId": x, "access": "required"}
+        for x in (
+            "design_dispatch",
+            "transfer_packaging_users",
+            "design_assignees",
+            "offices",
+            "order_datetime",
+        )
+    ]
+    st_hq = compute_field_states(fields, {"design_dispatch": "总部单"}, rules, perms)
+    assert st_hq["transfer_packaging_users"]["visible"] is False
+    assert st_hq["transfer_packaging_users"]["required"] is False
+    assert st_hq["design_assignees"]["visible"] is True
+    assert st_hq["design_assignees"]["required"] is True
+
+    st_xx = compute_field_states(fields, {"design_dispatch": "新乡单"}, rules, perms)
+    assert st_xx["transfer_packaging_users"]["visible"] is True
+    assert st_xx["transfer_packaging_users"]["required"] is True
+    assert st_xx["design_assignees"]["visible"] is False
+    assert st_xx["design_assignees"]["required"] is False

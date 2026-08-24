@@ -150,6 +150,10 @@ async def test_lead_export_maps_codes_to_chinese(client: AsyncClient, auth_heade
     assert by["来源"] == "导入"
     assert by["客户类型"] != "terminal_private"
     assert by["行业"] != "screening_chemical"
+    assert "客户类型（新/老）" in header
+    assert "项目最终状态" in header
+    # 新建未审：最终状态多为草稿/待审；新/老可能为空
+    assert by["项目最终状态"] in ("草稿", "待审", "收录", "已驳回", "袭击", "")
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
 
