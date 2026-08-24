@@ -94,8 +94,14 @@ def validate_field_updates(
 
     若传入 form_rules，按规则引擎显隐/条件必填判定：隐藏字段不强制必填。
     """
+    from app.domains.lowcode.prod_card_contract_fill import (
+        PROD_CARD_LEGACY_HIDDEN_FIELDS,
+        filter_prod_card_legacy_field_perms,
+    )
+    field_perms = filter_prod_card_legacy_field_perms(field_perms)
     allowed = {p["field"]: p["access"] for p in field_perms}
     raw = updates if isinstance(updates, dict) else {}
+    raw = {k: v for k, v in raw.items() if k not in PROD_CARD_LEGACY_HIDDEN_FIELDS}
     unknown = [k for k in raw if k not in allowed]
     if unknown:
         raise BusinessException(

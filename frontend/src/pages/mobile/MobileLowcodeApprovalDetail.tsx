@@ -10,6 +10,7 @@ import { lowcodeApi } from '@/api/lowcode'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
+import { filterProdCardLegacyFieldPerms } from '@/constants/prodCardLegacyFields'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import PersonField from '@/components/lowcode/fields/PersonField'
@@ -158,7 +159,8 @@ export default function MobileLowcodeApprovalDetail() {
       if (ct.opinion_required && !opinion.trim()) {
         message.error('请填写审批意见'); return
       }
-      const miss = missingRequiredFields(ct.field_perms, fieldUpdates, {
+      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [])
+      const miss = missingRequiredFields(submitPerms, fieldUpdates, {
         rules: detail?.form_rules,
         formFields: fields,
         formData,
@@ -181,8 +183,9 @@ export default function MobileLowcodeApprovalDetail() {
         message.success('已重新提交'); nav('/m/approvals')
         return
       }
-      const updates = (ct?.field_perms || []).length
-        ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
+      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+      const updates = actPerms.length
+        ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
       const canPrintSchemeDoc = canPrintDrawingDocument(fields, formData, detail?.process_name)
       const canPrintProd = isProdCardSupplementForm(fields, formData, detail?.process_name)

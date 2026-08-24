@@ -1684,11 +1684,15 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     )).scalar_one_or_none()
     if tpl_code == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import (
+            apply_prod_card_detail_quick_fill_flags,
             apply_prod_card_install_pick_fields,
+            apply_prod_card_legacy_hidden_fields,
             apply_prod_card_supplement_rules,
             overlay_prod_card_contract_live,
         )
         apply_prod_card_install_pick_fields(field_defs)
+        apply_prod_card_detail_quick_fill_flags(field_defs)
+        apply_prod_card_legacy_hidden_fields(field_defs)
         out["form_data"] = await overlay_prod_card_contract_live(
             db, tenant_id, out.get("form_data"), user,
         )
@@ -2420,6 +2424,60 @@ async def list_instances(
         .offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return list(rows), total
+
+
+async def form_instance_summary(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    *, sum_field: str,
+    keyword: str | None = None, status: str | None = None,
+    owner_ids: list[str] | None = None,
+    filters: list | dict | str | None = None,
+    user: dict | None = None,
+) -> dict[str, float | int]:
+    """表单列表同口径汇总：条数 + 指定数值字段合计（form_data 顶层）。"""
+    from sqlalchemy import Numeric, case, cast
+
+    if not _FIELD_ID_RE.match(sum_field or ""):
+        raise BusinessException(code=VALIDATION_ERROR, message="非法汇总字段")
+
+    template_code = await _template_code_for(db, tenant_id, template_id)
+    owner_ids = await _resolve_form_list_owner_ids(
+        db, tenant_id, user, template_code, owner_ids,
+    )
+    owner_person_fields: list[str] = []
+    form_dept_scope_ids: list[str] | None = None
+    form_dept_name_literals: list[str] | None = None
+    if owner_ids is not None:
+        owner_person_fields, form_dept_scope_ids, form_dept_name_literals = (
+            await _form_list_scope_extras(db, tenant_id, user, template_code, owner_ids)
+        )
+        if not owner_person_fields:
+            owner_person_fields = await _owner_person_fields_for_template(
+                db, tenant_id, template_id,
+            )
+    filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
+    viewer_id = (user or {}).get("sub") if user else None
+    conds = _instance_list_conds(
+        tenant_id, template_id, keyword=keyword, status=status,
+        owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
+        owner_person_fields=owner_person_fields,
+        filter_clauses=filter_bundle,
+        template_code=template_code,
+        form_dept_scope_ids=form_dept_scope_ids,
+        form_dept_name_literals=form_dept_name_literals,
+        scope_viewer_id=viewer_id,
+    )
+    txt = FormInstance.form_data.op("->>")(sum_field)
+    safe_num = case(
+        (txt.op("~")(r"^-?[0-9]+(\.[0-9]+)?$"), cast(txt, Numeric)),
+        else_=None,
+    )
+    row = (await db.execute(
+        select(func.count(FormInstance.id), func.coalesce(func.sum(safe_num), 0)).where(*conds)
+    )).one()
+    total_count = int(row[0] or 0)
+    total_sum = float(row[1] or 0)
+    return {"count": total_count, "sum": total_sum}
 
 
 async def export_instances(

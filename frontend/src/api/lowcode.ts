@@ -101,6 +101,13 @@ export const lowcodeApi = {
   // ---- 数据(实例) ----
   listInstances: (params: Record<string, unknown>) =>
     client.get<unknown, ApiResponse<PageData<FormInstance>>>('/api/v1/lc/form-instances', { params }),
+
+  /** 收款登记仪表盘汇总（与列表同口径的数据范围 + 筛选） */
+  paymentRegistrationDashboardSummary: (params: { template_id: string; filters?: string; keyword?: string; status?: string }) =>
+    client.get<unknown, ApiResponse<{ count: number; sum: number }>>(
+      '/api/v1/lc/payment-registration/dashboard/summary',
+      { params },
+    ),
   getInstance: (id: string) =>
     client.get<unknown, ApiResponse<FormInstanceDetail>>(`/api/v1/lc/form-instances/${id}`),
   createInstance: (data: { template_id: string; form_data: Record<string, unknown>; title?: string; as_draft?: boolean }) =>

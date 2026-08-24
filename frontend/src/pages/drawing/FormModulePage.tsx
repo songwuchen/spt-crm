@@ -9,11 +9,14 @@ export default function FormModulePage({
   templateCode,
   title,
   basePath,
+  dashboardPath,
 }: {
   templateCode: string
   title: string
   /** 侧栏路由前缀，如 /drawing-requisitions；新增走 basePath/fill */
   basePath: string
+  /** 可选：模块仪表盘路由（如收款登记仪表盘） */
+  dashboardPath?: string
 }) {
   usePageTitle(title)
   const [templateId, setTemplateId] = useState<string | null>(null)
@@ -60,6 +63,7 @@ export default function FormModulePage({
       moduleTitle={title}
       fillPath={`${basePath.replace(/\/$/, '')}/fill`}
       templateCode={templateCode}
+      dashboardPath={dashboardPath}
     />
   )
 }

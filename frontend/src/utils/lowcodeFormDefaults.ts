@@ -10,6 +10,38 @@ function isEmptyValue(v: unknown): boolean {
   return false
 }
 
+/** 明细子表新行：按列 props 写入 default_today / default_value 等。 */
+export function buildDetailRowDefaults(cols: FieldDefinition[] = []): Record<string, unknown> {
+  const row: Record<string, unknown> = {}
+  for (const col of cols) {
+    if (col.default_value !== undefined && col.default_value !== null && col.default_value !== '') {
+      row[col.id] = col.default_value
+      continue
+    }
+    const props = (col.props || {}) as Record<string, unknown>
+    if (props.default_today && (col.type === 'date' || col.type === 'datetime')) {
+      row[col.id] = dayjs().format(dateFieldFormat(col))
+    }
+  }
+  return row
+}
+
+/** 已有明细行：空单元格补列默认值（不覆盖已填值）。 */
+export function applyDetailRowDefaults(
+  rows: Record<string, unknown>[],
+  cols: FieldDefinition[] = [],
+): Record<string, unknown>[] {
+  if (!cols.length || !rows.length) return rows
+  return rows.map((row) => {
+    const defaults = buildDetailRowDefaults(cols)
+    const out = { ...(row && typeof row === 'object' ? row : {}) }
+    for (const [k, v] of Object.entries(defaults)) {
+      if (isEmptyValue(out[k])) out[k] = v
+    }
+    return out
+  })
+}
+
 export function buildLowcodeInitialValues(
   fields: FieldDefinition[],
   currentUser?: {
@@ -41,7 +73,8 @@ export function buildLowcodeInitialValues(
       // 对齐简道云：出方案图明细等默认带一行空记录，避免「请填写至少一条」却看不到行
       const ensureMin = Math.max(0, Number((f.props as { ensure_min_rows?: number } | undefined)?.ensure_min_rows ?? 0) || 0)
       if (ensureMin > 0) {
-        out[f.id] = Array.from({ length: ensureMin }, () => ({}))
+        const cols = f.detail_table_columns || []
+        out[f.id] = Array.from({ length: ensureMin }, () => buildDetailRowDefaults(cols))
       }
       continue
     }
@@ -99,8 +132,16 @@ export function applyApproveFieldDefaults(
         : null
     )
     if (!f) continue
+    if (f.type === 'detail_table') {
+      const cols = f.detail_table_columns || []
+      const raw = out[id]
+      if (Array.isArray(raw) && raw.length) {
+        out[id] = applyDetailRowDefaults(raw as Record<string, unknown>[], cols)
+      }
+      continue
+    }
     const props = (f.props || {}) as Record<string, unknown>
-    const wantTodayOnApprove = id === 'order_date' || props.default_today_on_approve === true
+    const wantTodayOnApprove = id === 'order_date' || id === 'order_datetime' || props.default_today_on_approve === true
     if (wantTodayOnApprove && (f.type === 'date' || f.type === 'datetime' || id === 'order_date')) {
       out[id] = dayjs().format(dateFieldFormat({
         ...f,

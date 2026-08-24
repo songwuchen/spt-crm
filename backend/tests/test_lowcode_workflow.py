@@ -790,6 +790,44 @@ async def test_activate_start_creates_revise_todo(client, db, lead_intel_user):
 
 
 @pytest.mark.asyncio
+async def test_withdraw_resubmit_reuses_same_process_instance(client, db, lead_intel_user):
+    """撤回后重新提交应复用同一流程实例，「我发起的」不应出现两条。"""
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "撤回-重提同实例", initiator)
+
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    original_id = inst.id
+
+    actor = {"sub": initiator["sub"], "real_name": "admin", "username": "admin"}
+    await WorkflowEngine(db, DEMO_TENANT).withdraw(inst.id, actor)
+    await db.refresh(inst)
+    assert inst.status == "withdrawn"
+
+    out = await WorkflowEngine(db, DEMO_TENANT).resubmit(inst.id, actor)
+    assert out.id == original_id
+    assert out.status == "running"
+    assert out.completed_at is None
+
+    all_insts = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalars().all()
+    assert len(all_insts) == 1, "重新提交不应新建第二条流程实例"
+
+    pending = (await db.execute(select(WfTaskInstance).where(
+        WfTaskInstance.process_instance_id == original_id,
+        WfTaskInstance.status == "pending",
+    ))).scalars().all()
+    assert pending, "重新提交后应有审批待办"
+
+
+@pytest.mark.asyncio
 async def test_delete_form_instance_blocked_after_flow_started(db):
     """表单数据一旦绑定流程实例，禁止直接删除（草稿未发起仍可删）。"""
     from app.common.exceptions import BusinessException

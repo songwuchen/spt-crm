@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+import pytest
+from sqlalchemy import delete
+
+from app.database import generate_uuid
+from app.domains.lowcode.models import FormInstance, FormTemplate, FormTemplateVersion
 from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
 from app.domains.lowcode.formula_engine import compute_formula_fields
 
@@ -51,3 +56,63 @@ def test_payment_total_formula_sums_details():
         "",
     )
     assert float(data["payment_total"]) == 35.5
+
+
+@pytest.mark.asyncio
+async def test_form_instance_summary_sums_payment_total(db):
+    from sqlalchemy import select
+
+    from app.domains.lowcode.service import form_instance_summary
+
+    tenant = "00000000-0000-0000-0000-000000000001"
+    tpl_id = generate_uuid()
+    ver_id = generate_uuid()
+    db.add(FormTemplate(
+        id=tpl_id, tenant_id=tenant, code=f"payment_registration_ut_{tpl_id[:8]}", name="收款登记UT",
+        status="published", is_deleted=False,
+    ))
+    db.add(FormTemplateVersion(
+        id=ver_id, tenant_id=tenant, template_id=tpl_id, version_number=1,
+        status="published", field_definitions=[], rule_definitions=[],
+    ))
+    await db.flush()
+    db.add_all([
+        FormInstance(
+            id=generate_uuid(), tenant_id=tenant, template_id=tpl_id,
+            template_version_id=ver_id, title="A", status="completed",
+            initiator_id="u1", form_data={"payment_total": "100.5", "payment_date": "2026-03-01"},
+            field_definitions=[], is_deleted=False,
+        ),
+        FormInstance(
+            id=generate_uuid(), tenant_id=tenant, template_id=tpl_id,
+            template_version_id=ver_id, title="B", status="completed",
+            initiator_id="u1", form_data={"payment_total": "200", "payment_date": "2026-04-01"},
+            field_definitions=[], is_deleted=False,
+        ),
+        FormInstance(
+            id=generate_uuid(), tenant_id=tenant, template_id=tpl_id,
+            template_version_id=ver_id, title="C", status="completed",
+            initiator_id="u1", form_data={"payment_total": "999", "payment_date": "2025-12-01"},
+            field_definitions=[], is_deleted=False,
+        ),
+    ])
+    await db.commit()
+
+    out = await form_instance_summary(
+        db, tenant, tpl_id, sum_field="payment_total", owner_ids=None,
+        filters={
+            "match": "all",
+            "rules": [{
+                "field": "payment_date", "op": "between",
+                "value": ["2026-01-01", "2026-12-31"],
+            }],
+        },
+        user={"sub": "u1"},
+    )
+    assert out["count"] == 2
+    assert abs(out["sum"] - 300.5) < 0.01
+
+    await db.execute(delete(FormInstance).where(FormInstance.template_id == tpl_id))
+    await db.execute(delete(FormTemplateVersion).where(FormTemplateVersion.template_id == tpl_id))
+    await db.execute(delete(FormTemplate).where(FormTemplate.id == tpl_id))
+    await db.commit()

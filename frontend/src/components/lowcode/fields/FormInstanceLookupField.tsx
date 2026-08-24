@@ -146,9 +146,12 @@ export default function FormInstanceLookupField({
   }, [open, formCode, linkField])
 
   const commit = (id?: string) => {
-    onChange?.(id)
     const fill = id ? (fillById.current[id] || {}) : {}
-    onFill?.(id, fill)
+    if (onFill) {
+      onFill(id, fill)
+    } else {
+      onChange?.(id)
+    }
     if (!id) setDisplay('')
     else {
       const hit = rows.find((r) => r.id === id)

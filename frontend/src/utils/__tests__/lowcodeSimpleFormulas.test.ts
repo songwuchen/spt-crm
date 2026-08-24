@@ -59,9 +59,9 @@ describe('生产卡下单类型（合并含补充）', () => {
   const fields: FieldDefinition[] = [
     {
       id: 'field',
-      type: 'formula',
+      type: 'text',
       label: '下单类型（合并含补充）',
-      props: { formula: "IF($is_supplement#=='是','补充',$order_type#)" },
+      props: { suggest_formula: "IF($is_supplement#=='是','补充',$order_type#)" },
     },
   ]
 
@@ -75,9 +75,12 @@ describe('生产卡下单类型（合并含补充）', () => {
     expect(next.field).toBe('补充')
   })
 
-  it('无公式定义时兜底回填', () => {
-    expect(applyProdCardOrderTypeMerged({ is_supplement: '否', order_type: '设备' }).field).toBe('设备')
-    expect(applyProdCardOrderTypeMerged({ is_supplement: '是', order_type: '设备' }).field).toBe('补充')
+  it('手改 field 时不被联动覆盖', () => {
+    const next = applyProdCardOrderTypeMerged(
+      { is_supplement: '否', order_type: '备件', field: '自定义' },
+      { skipField: true },
+    )
+    expect(next.field).toBe('自定义')
   })
 })
 

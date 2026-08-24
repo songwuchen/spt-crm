@@ -64,6 +64,14 @@ PICKABLE_FORM_CODES = {spec["form_code"] for spec in PRICING_CHECKLIST_LINKS.val
 PICKABLE_EXCLUDED_STATUSES = ("draft", "withdrawn")
 
 # 弹窗列表列，对齐简道云 linkFields。
+# 生产卡「项目号选择251128」弹窗列，对齐简道云 linkFields（非核价清单 link_install）。
+PROD_CARD_INSTALL_PICK_COLUMNS: list[tuple[str, str]] = [
+    ("project_no_print", "项目号（打印模板显示）"),
+    ("customer_name", "现场"),
+    ("sales_person", "业务员"),
+    ("matter", "事项"),
+]
+
 PICK_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "install_drawing_notice": [
         ("serial_no", "流水号"),
@@ -313,8 +321,12 @@ def instance_pick_label(inst: FormInstance) -> str:
     return serial or extra or inst.id
 
 
-def pick_column_defs(form_code: str) -> list[dict[str, str]]:
-    return [{"key": k, "title": t} for k, t in PICK_COLUMNS.get(form_code, [])]
+def pick_column_defs(form_code: str, link_field: str | None = None) -> list[dict[str, str]]:
+    if link_field == "prod_card_install":
+        cols = PROD_CARD_INSTALL_PICK_COLUMNS
+    else:
+        cols = PICK_COLUMNS.get(form_code, [])
+    return [{"key": k, "title": t} for k, t in cols]
 
 
 def _pick_cell(
@@ -329,6 +341,18 @@ def _pick_cell(
     data = form_data
     if key == "serial_no":
         return _as_text(data.get("serial_no")) or (business_no or "")
+    if key == "project_no_print":
+        return (
+            _as_text(data.get("project_no_print"))
+            or _as_text(data.get("serial_no"))
+            or (business_no or "")
+        )
+    if key == "sales_person":
+        return _as_text(data.get("sales_person"), user_names)
+    if key == "customer_name":
+        return _as_text(data.get("customer_name"))
+    if key == "matter":
+        return _as_text(data.get("matter"))
     if key in ("department", "order_dept"):
         return _as_text(data.get(key) or data.get("department") or data.get("order_dept"), dept_names)
     if key == "order_person":
@@ -363,7 +387,7 @@ async def list_pickable_form_instances(
     page_size: int = 20,
 ) -> dict[str, Any]:
     """登录即可选关联表单实例（不要求 form_data:view）。"""
-    columns = pick_column_defs(form_code)
+    columns = pick_column_defs(form_code, link_field)
     empty = {"items": [], "total": 0, "page": page, "page_size": page_size, "columns": columns}
     if form_code not in PICKABLE_FORM_CODES:
         return empty
@@ -419,6 +443,8 @@ async def list_pickable_form_instances(
         user_ids.extend(_collect_ref_ids(
             data.get("applicant"), data.get("order_person"),
         ))
+        if link_field == "prod_card_install":
+            user_ids.extend(_collect_ref_ids(data.get("sales_person")))
         dept_ids.extend(_collect_ref_ids(
             data.get("department"), data.get("order_dept"),
         ))
@@ -504,6 +530,7 @@ async def list_pickable_form_instances(
                 business_no=inst.business_no,
                 form_data=data,
                 project_codes=project_codes,
+                user_names=user_names,
             )
         elif link_field and link_field in PRICING_CHECKLIST_LINKS:
             item["fill"] = build_pricing_checklist_fill(

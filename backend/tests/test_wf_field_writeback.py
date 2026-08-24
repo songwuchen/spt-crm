@@ -51,6 +51,19 @@ def test_validate_opinion_required():
     assert validate_field_updates([], {}, opinion="同意", opinion_required=True, action="approve") == {}
 
 
+def test_validate_skips_prod_card_legacy_f0414():
+    """生产卡废弃子表 f_0414 不应再强制必填（在途流程节点可能仍挂着旧 field_perms）。"""
+    perms = [
+        {"field": "design_assignees", "access": "required"},
+        {"field": "f_0414", "access": "required"},
+    ]
+    ok = validate_field_updates(
+        perms,
+        {"design_assignees": ["u1"]},
+        action="approve",
+    )
+    assert ok == {"design_assignees": ["u1"]}
+
 def test_contract_review_default_has_field_perms():
     nodes, routes = _contract_review_flow_graph()
     by_id = {n["id"]: n for n in nodes}
@@ -171,6 +184,37 @@ def test_next_targets_packaging_exclusive_priority():
     # 都无 → else 图纸领取
     targets3 = eng._next_targets(ver, "n5", {})
     assert targets3 == ["n6"]
+
+
+def test_next_targets_packaging_wins_when_exclusive_order_wrong():
+    """冻结版连线顺序错误时，运行时仍应工艺包装优先（生产卡安排设计1）。"""
+    from types import SimpleNamespace
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    li = "9da3593e-a3c1-4a7f-93d4-affe8d466218"
+    nodes = [
+        {"id": "n17", "name": "安排设计1", "type": "approval"},
+        {"id": "n20", "name": "安排设计-转新乡郑州", "type": "approval"},
+        {"id": "n46", "name": "工艺包装", "type": "approval"},
+    ]
+    # 故意把「转新乡郑州」排在「工艺包装」前（WMGF202608069 冻结版即此顺序）
+    routes = [
+        {
+            "id": "r1", "source": "n17", "target": "n20", "exclusive_group": "ex_n17",
+            "condition": {"field": "design_dispatch", "operator": "in", "value": ["新乡单", "共同"]},
+        },
+        {
+            "id": "r2", "source": "n17", "target": "n46", "exclusive_group": "ex_n17",
+            "condition": {"field": "transfer_packaging_users", "operator": "in", "value": [li]},
+        },
+    ]
+    ver = SimpleNamespace(node_definitions=nodes, route_definitions=routes)
+    eng = WorkflowEngine(None, "t1")
+    targets = eng._next_targets(ver, "n17", {
+        "design_dispatch": "共同",
+        "transfer_packaging_users": [li, "other"],
+    })
+    assert targets == ["n46"]
 
 
 def test_next_targets_always_cc_does_not_steal_else():

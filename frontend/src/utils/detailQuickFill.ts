@@ -1,6 +1,24 @@
 import type { FieldSpec } from '@/components/ContractTerms'
+import { columnsToFieldSpecs } from '@/components/ContractTerms'
+import type { FieldDefinition } from '@/types/lowcode'
 
 type Row = Record<string, unknown>
+
+/** 明细子表列 → 快速填报 FieldSpec（排除不宜粘贴的类型） */
+const QUICK_FILL_SKIP_TYPES = new Set([
+  'person', 'person_multi', 'department', 'department_multi',
+  'file', 'image', 'select_data', 'formula', 'auto_number',
+])
+
+export function detailColumnsToQuickFillSpecs(columns: FieldDefinition[]): FieldSpec[] {
+  return columnsToFieldSpecs(
+    columns.filter((c) => {
+      if (QUICK_FILL_SKIP_TYPES.has(c.type)) return false
+      if ((c.props as Record<string, unknown> | undefined)?.computed === true) return false
+      return true
+    }),
+  )
+}
 
 /** 快速填报可编辑列：排除计算列 */
 export function getPasteableFields(fields: FieldSpec[]): FieldSpec[] {

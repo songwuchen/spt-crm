@@ -85,6 +85,8 @@ const enUS = {
     quotes: 'Quote Management',
     pricingChecklists: 'Pricing Checklist Transfer',
     researchCoopCards: 'Research Coop Card',
+    techAgreementFeedbacks: 'Tech Agreement Feedback',
+    contractOutsourceEarly: 'Contract Outsource Early',
     contracts: 'Contracts',
     applicationFields: 'Application Fields',
     applicationMaterials: 'Application Materials',

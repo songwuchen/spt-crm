@@ -18,6 +18,8 @@ export const FORM_MODULE_BASE_PATHS: Record<string, string> = {
   quote_management: '/quotes',
   pricing_checklist_hjqd: '/pricing-checklists',
   research_coop_card: '/research-coop-cards',
+  tech_agreement_feedback: '/tech-agreement-feedbacks',
+  contract_outsource_early: '/contract-outsource-early',
   prod_card_supplement: '/prod-card-supplements',
   invoice_application: '/invoice-applications',
   shipment_notice: '/shipment-notices',

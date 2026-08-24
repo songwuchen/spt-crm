@@ -117,6 +117,14 @@ def evaluate_condition(cond: dict | None, form_data: dict) -> bool:
     return True
 
 
+def _sort_exclusive_group_edges(edges: list, name_by_id: dict[str, str]) -> list:
+    """互斥组内排序：工艺包装优先，其次有条件边，最后 else（对齐简道云实单）。"""
+    return sorted(edges, key=lambda r: (
+        0 if name_by_id.get(str(r.get("target") or "")) == "工艺包装" else
+        1 if r.get("condition") else 2
+    ))
+
+
 # ==================== 引擎 ====================
 
 # 同一出边批次的激活顺序（选路 _next_targets 只决定「谁该亮」，不决定「先亮谁」）
@@ -488,7 +496,7 @@ class WorkflowEngine:
 
         - ``always: true``：抄送旁路，与主链并行、互不抢占（有条件时仍需为真）
         - ``exclusive_group``：同组内按连线顺序互斥（简道云 if/else）——命中第一条
-          有条件边，否则走组内无条件边(else)；不同组彼此独立
+          有条件边，否则走组内无条件边(else)；「工艺包装」在同组内始终优先评估
         - 无 ``exclusive_group`` 的普通边：仍可多条条件同时命中（并行）；
           若这些并行边中无一条件命中，则走其中无条件边
         返回顺序不等于激活顺序。激活见 ``_order_advance_targets`` /
@@ -497,6 +505,11 @@ class WorkflowEngine:
         routes = self._outgoing(version, node_id)
         always_routes = [r for r in routes if r.get("always")]
         normal = [r for r in routes if not r.get("always")]
+        name_by_id = {
+            str(n.get("id") or ""): str(n.get("name") or "")
+            for n in (version.node_definitions or [])
+            if isinstance(n, dict) and n.get("id")
+        }
 
         exclusive_groups: dict[str, list] = {}
         parallel_edges: list = []
@@ -528,8 +541,9 @@ class WorkflowEngine:
 
         core: list[str] = []
         for edges in exclusive_groups.values():
+            ordered = _sort_exclusive_group_edges(edges, name_by_id)
             hit: str | None = None
-            for r in edges:
+            for r in ordered:
                 cond = r.get("condition")
                 if cond and evaluate_condition(cond, form_data):
                     hit = r["target"]
@@ -539,7 +553,7 @@ class WorkflowEngine:
             else:
                 # else 只走组内第一条无条件边。条件被 sanitize 清成 null 后若残留
                 # 多条「假 else」，全部放行会把串行节点双开（报价：部门审批∥财务核价）。
-                for r in edges:
+                for r in ordered:
                     if not r.get("condition"):
                         core.append(r["target"])
                         break
@@ -777,8 +791,10 @@ class WorkflowEngine:
             return False
         return bool(ApproverResolver._as_list(rule.get("value")))
 
-    async def _advance(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
-                       from_node_id: str, ctx: ApprovalContext) -> None:
+    async def _advance(
+        self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
+        from_node_id: str, ctx: ApprovalContext, *, force_reenter: bool = False,
+    ) -> None:
         targets = self._next_targets(version, from_node_id, ctx.form_data)
         nodes = self._nodes_by_id(version)
         # 报价「采购→财务核价」等回路：连线标 reenter 时允许再次激活已完成节点
@@ -796,7 +812,8 @@ class WorkflowEngine:
                 if not node:
                     continue
                 await self._activate_node(
-                    inst, version, node, ctx, allow_reenter=tid in reenter_targets,
+                    inst, version, node, ctx,
+                    allow_reenter=force_reenter or tid in reenter_targets,
                 )
                 if inst.status in _ABORT_STATUSES:
                     self._deferred_complete = None
@@ -1377,6 +1394,27 @@ class WorkflowEngine:
         node_def_id = node_inst.node_def_id if node_inst else None
         node = self._nodes_by_id(version).get(node_def_id or "") or {}
         perms = parse_field_perms(node)
+        try:
+            from app.domains.lowcode.workflow_service import _published_version
+            latest_pub = await _published_version(self.db, self.tenant_id, inst.process_definition_id)
+            if latest_pub and (not version or latest_pub.id != version.id):
+                by_id = {
+                    n.get("id"): n for n in (latest_pub.node_definitions or [])
+                    if isinstance(n, dict) and n.get("id")
+                }
+                by_name = {
+                    n.get("name"): n for n in (latest_pub.node_definitions or [])
+                    if isinstance(n, dict) and n.get("name")
+                }
+                latest_node = by_id.get(node_def_id or "") or by_name.get(node.get("name") or "")
+                if latest_node:
+                    # 在途单冻结旧版 field_perms 时，以最新发布版本节点可填区为准
+                    perms = parse_field_perms(latest_node)
+                    node = latest_node
+        except Exception:
+            pass
+        from app.domains.lowcode.prod_card_contract_fill import filter_prod_card_legacy_field_perms
+        perms = filter_prod_card_legacy_field_perms(perms)
         opinion_required = bool(node.get("opinion_required"))
         # 无配置且无提交时跳过；有提交或必填/意见要求则走校验
         if not perms and not field_updates and not opinion_required:
@@ -2316,7 +2354,7 @@ class WorkflowEngine:
         await self.end_process(task.process_instance_id, actor, reason=reason)
 
     async def resubmit(self, process_instance_id: str, actor: dict) -> WfProcessInstance:
-        """已撤回/已驳回流程由发起人重新发起：新建流程实例，挂回同一表单或业务单据。"""
+        """已撤回/已驳回流程由发起人重新提交：复用同一流程实例，从起始节点重新推进。"""
         inst = (await self.db.execute(
             select(WfProcessInstance).where(
                 WfProcessInstance.id == process_instance_id,
@@ -2326,19 +2364,20 @@ class WorkflowEngine:
         if not inst:
             raise BusinessException(code=NOT_FOUND, message="流程不存在")
         if inst.initiator_id != actor.get("sub"):
-            raise BusinessException(code=FORBIDDEN, message="仅发起人可重新发起")
+            raise BusinessException(code=FORBIDDEN, message="仅发起人可重新提交")
         if inst.status not in ("withdrawn", "rejected"):
-            raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回或已驳回的流程可重新发起")
+            raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回或已驳回的流程可重新提交")
 
         # 清掉发起人修订待办（若从「我发起的」直接重提，也可能仍挂着）
         await self._cancel_initiator_revise_todos(inst.id)
 
-        # 防重：同一表单/业务已有进行中流程则直接返回
+        # 防重：同一表单/业务已有其它进行中流程则直接返回
         if inst.form_instance_id:
             existing = (await self.db.execute(select(WfProcessInstance).where(
                 WfProcessInstance.tenant_id == self.tenant_id,
                 WfProcessInstance.form_instance_id == inst.form_instance_id,
                 WfProcessInstance.status == "running",
+                WfProcessInstance.id != inst.id,
             ).limit(1))).scalar_one_or_none()
             if existing:
                 return existing
@@ -2348,11 +2387,12 @@ class WorkflowEngine:
                 WfProcessInstance.biz_type == inst.biz_type,
                 WfProcessInstance.biz_id == inst.biz_id,
                 WfProcessInstance.status == "running",
+                WfProcessInstance.id != inst.id,
             ).limit(1))).scalar_one_or_none()
             if existing:
                 return existing
 
-        # 优先用当前已发布版本，保证重新发起吃到最新流程设计
+        # 优先用当前已发布版本，保证重新提交吃到最新流程设计
         version = (await self.db.execute(select(WfProcessDefinitionVersion).where(
             WfProcessDefinitionVersion.tenant_id == self.tenant_id,
             WfProcessDefinitionVersion.process_definition_id == inst.process_definition_id,
@@ -2361,37 +2401,70 @@ class WorkflowEngine:
         if not version:
             version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
         if not version:
-            raise BusinessException(code=BUSINESS_ERROR, message="流程未发布，无法重新发起")
+            raise BusinessException(code=BUSINESS_ERROR, message="流程未发布，无法重新提交")
 
         form_data = await self._form_data(inst)
-        title = inst.title
         if inst.form_instance_id:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
-                fi.status = "submitted"
-                title = (fi.title or "").strip() or title
+                inst.title = (fi.title or "").strip() or inst.title
                 form_data = dict(fi.form_data or {}) or form_data
+                fi.status = "submitted"
+                fi.process_instance_id = inst.id
         if inst.biz_type and inst.biz_id:
             from app.domains.lowcode.wf_biz_writeback import writeback
             await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "submitted")
 
-        self._log(inst.id, None, None, actor, "resubmit", "重新发起")
+        # 作废残留待办 / running 节点，清并行汇聚状态（对齐 activate / return_to_node）
+        tasks = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ))).scalars().all()
+        for t in tasks:
+            t.status = "cancelled"
+        if tasks:
+            self._queue("todos_done", [t.id for t in tasks])
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled"
+            ni.completed_at = _now()
+        inst.pending_joins = None
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
+        if version.id != inst.process_version_id:
+            inst.process_version_id = version.id
+        inst.status = "running"
+        inst.completed_at = None
+        if not inst.started_at:
+            inst.started_at = _now()
+
+        self._log(inst.id, None, None, actor, "resubmit", "重新提交")
         await self.db.flush()
 
-        new_inst = await self.submit(
-            inst.process_definition_id, version, actor,
-            form_instance_id=inst.form_instance_id,
-            form_data=form_data, title=title,
-            biz_type=inst.biz_type, biz_id=inst.biz_id,
-            nominated=dict(inst.nominated_approvers or {}) or None,
+        ctx = ApprovalContext(
+            initiator_id=inst.initiator_id,
+            form_data=form_data,
+            nominated=dict(inst.nominated_approvers or {}) or {},
         )
-        if inst.form_instance_id:
-            fi = await self.db.get(FormInstance, inst.form_instance_id)
-            if fi:
-                fi.status = new_inst.status
-                fi.process_instance_id = new_inst.id
-                await self.db.commit()
-        return new_inst
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.submitted", inst)
+
+        start = self._start_node(version)
+        if not start:
+            raise BusinessException(code=VALIDATION_ERROR, message="流程缺少开始节点")
+        await self._advance(inst, version, start["id"], ctx, force_reenter=True)
+
+        await self.db.commit()
+        await self.db.refresh(inst)
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "resubmit")
+        return inst
 
     # ---------- 超时(SLA) ----------
 

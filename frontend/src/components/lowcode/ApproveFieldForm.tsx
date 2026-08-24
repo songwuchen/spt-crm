@@ -26,6 +26,7 @@ import {
   applyProdCardOrderTypeMerged,
   applySimpleFormulas,
 } from '@/utils/lowcodeSimpleFormulas'
+import { filterProdCardLegacyFieldPerms, PROD_CARD_LEGACY_HIDDEN_FIELD_IDS } from '@/constants/prodCardLegacyFields'
 import { prodCardInstallClearKeys } from '@/constants/prodCardInstallLinks'
 
 const { Text } = Typography
@@ -45,6 +46,30 @@ function isEmpty(v: unknown): boolean {
   if (typeof v === 'string' && !v.trim()) return true
   if (Array.isArray(v) && v.length === 0) return true
   return false
+}
+
+/** 审批节点 meta 与表单定义合并明细列（meta 常缺 select_data 的 link_fill props）。 */
+function mergeDetailTableColumns(
+  formFd: FieldDefinition | undefined,
+  metaCols: FieldDefinition['detail_table_columns'] | undefined,
+): FieldDefinition['detail_table_columns'] {
+  const base = formFd?.detail_table_columns || []
+  const overlay = metaCols || []
+  if (!base.length) return overlay
+  if (!overlay.length) return base
+  const byId = new Map(base.filter((c) => c?.id).map((c) => [c.id, c]))
+  for (const col of overlay) {
+    if (!col?.id) continue
+    const prev = byId.get(col.id)
+    byId.set(col.id, {
+      ...(prev || col),
+      ...col,
+      props: { ...(prev?.props || {}), ...(col.props || {}) },
+    })
+  }
+  const order = overlay.map((c) => c.id).filter(Boolean) as string[]
+  const rest = base.map((c) => c.id).filter((id) => id && !order.includes(id)) as string[]
+  return [...order, ...rest].map((id) => byId.get(id)).filter(Boolean) as FieldDefinition['detail_table_columns']
 }
 
 function buildApproveFields(
@@ -94,7 +119,7 @@ export function missingRequiredFields(
     fieldMeta?: WfCurrentTask['field_meta']
   },
 ): string[] {
-  const perms = fieldPerms || []
+  const perms = filterProdCardLegacyFieldPerms(fieldPerms || [])
   if (!perms.length) return []
   const fields = buildApproveFields(opts?.fieldMeta, perms, opts?.formFields)
   const merged = { ...(opts?.formData || {}), ...values }
@@ -167,7 +192,7 @@ export default function ApproveFieldForm({
 }) {
   const currentUser = useAuthStore((s) => s.user)
   const metaById = Object.fromEntries((currentTask.field_meta || []).map((m) => [m.id, m]))
-  const perms = currentTask.field_perms || []
+  const perms = filterProdCardLegacyFieldPerms(currentTask.field_perms || [])
   const [localHighlight, setLocalHighlight] = useState(highlightMissing)
   useEffect(() => { setLocalHighlight(highlightMissing) }, [highlightMissing])
 
@@ -205,21 +230,24 @@ export default function ApproveFieldForm({
 
   if (!perms.length) return null
 
-  const emitValues = (next: Record<string, unknown>) => {
-    // 审批可写字段 + 表单字段定义（含公式）一起重算，如生产卡「下单类型（合并含补充）」
+  const emitValues = (next: Record<string, unknown>, changedField?: string) => {
+    // 审批可写字段 + 表单字段定义（含 suggest_formula）一起重算，如生产卡「下单类型（合并含补充）」
     let out = applySimpleFormulas(fieldsForRules, { ...formData, ...next })
-    // 审批节点 values 只存本节点可写字段；合并后写回 next 里出现过的键 + 公式产物 field
     const patch: Record<string, unknown> = { ...next }
     for (const f of fieldsForRules) {
-      if (f.type === 'formula' && f.id in out) patch[f.id] = out[f.id]
+      const sf = (f.props as { suggest_formula?: string } | undefined)?.suggest_formula
+      if ((f.type === 'formula' || sf) && f.id in out) patch[f.id] = out[f.id]
     }
-    out = applyProdCardOrderTypeMerged({ ...formData, ...patch })
-    if ('field' in out) patch.field = out.field
+    out = applyProdCardOrderTypeMerged(
+      { ...formData, ...patch },
+      { skipField: changedField === 'field' },
+    )
+    if ('field' in out && changedField !== 'field') patch.field = out.field
     onChange(patch)
   }
 
   const setField = (id: string, v: unknown) => {
-    emitValues({ ...values, [id]: v })
+    emitValues({ ...values, [id]: v }, id)
   }
   const patchFields = (patch: Record<string, unknown>) => {
     emitValues({ ...values, ...patch })
@@ -262,11 +290,12 @@ export default function ApproveFieldForm({
           const status = err ? 'error' as const : undefined
           const label = meta.label || formFd?.label || p.field
           const options = (meta.options?.length ? meta.options : formFd?.options) || []
-          const detailCols = meta.detail_table_columns || formFd?.detail_table_columns
+          const detailCols = mergeDetailTableColumns(formFd, meta.detail_table_columns)
           const fieldProps = {
             ...((formFd?.props as Record<string, unknown> | undefined) || {}),
             ...((meta.props as Record<string, unknown> | undefined) || {}),
           }
+          if (fieldProps.hidden === true || PROD_CARD_LEGACY_HIDDEN_FIELD_IDS.has(p.field)) return null
 
           if (isReadonly) {
             const fd: FieldDefinition = {
@@ -301,6 +330,7 @@ export default function ApproveFieldForm({
               required,
               detail_table_columns: detailCols,
               available_on_create: true,
+              props: fieldProps,
             }
             const parentFillKeys = prodCardInstallClearKeys()
             return (
@@ -314,6 +344,14 @@ export default function ApproveFieldForm({
                     if (p.field in next) patch[p.field] = next[p.field]
                     for (const k of parentFillKeys) {
                       if (k in next) patch[k] = next[k]
+                    }
+                    emitValues(patch)
+                  }}
+                  onPatch={(parentPatch) => {
+                    const patch: Record<string, unknown> = { ...values, ...parentPatch }
+                    if (p.field in parentPatch) patch[p.field] = parentPatch[p.field]
+                    for (const k of parentFillKeys) {
+                      if (k in parentPatch) patch[k] = parentPatch[k]
                     }
                     emitValues(patch)
                   }}

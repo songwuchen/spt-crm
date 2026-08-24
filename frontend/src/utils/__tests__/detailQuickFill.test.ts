@@ -8,11 +8,21 @@ import {
   gridToRows,
   parseClipboardText,
   validateQuickFillRows,
+  detailColumnsToQuickFillSpecs,
 } from '@/utils/detailQuickFill'
 
 const fields = columnsToFieldSpecs(FALLBACK_LINE_COLUMNS)
 
 describe('detailQuickFill', () => {
+  it('明细列排除人员/附件等不宜粘贴类型', () => {
+    const specs = detailColumnsToQuickFillSpecs([
+      { id: 'a', type: 'text', label: '物料代码' },
+      { id: 'b', type: 'person', label: '设计人' },
+      { id: 'c', type: 'number', label: '数量' },
+    ] as never)
+    expect(specs.map((s) => s.key)).toEqual(['a', 'c'])
+  })
+
   it('排除计算列', () => {
     const pasteable = getPasteableFields(fields)
     expect(pasteable.map((f) => f.key)).not.toContain('amount')

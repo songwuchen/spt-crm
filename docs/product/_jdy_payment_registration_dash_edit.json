@@ -1,0 +1,230 @@
+{
+  "_id": "6217260b07289c00071aeca5",
+  "appId": "56ca77ce1efc301d279b8a4d",
+  "entryId": "6217260b07289c00071aeca4",
+  "name": "收款登记仪表盘",
+  "components": {
+    "_widget_1645684243360": {
+      "title": "收款登记",
+      "form": "5d63721786b06824f3fcc07f",
+      "type": "data_manage",
+      "width": 60,
+      "height": 46,
+      "posX": 0,
+      "posY": 10,
+      "permission": "form",
+      "styles": {
+        "fontSetting": {
+          "textAlign": "center"
+        }
+      },
+      "pageSize": 100,
+      "pcLayoutType": "default"
+    },
+    "_widget_1645684278609": {
+      "title": "来款合计",
+      "form": "5d63721786b06824f3fcc07f",
+      "type": "metric_table",
+      "hasExport": true,
+      "chart_label": {
+        "enable": true
+      },
+      "width": 16,
+      "height": 10,
+      "posX": 0,
+      "posY": 0,
+      "useMemberFormOpt": true,
+      "permission": "all",
+      "value_size": "L",
+      "drilldown": "pc",
+      "fields": [],
+      "filter": {
+        "cond": [
+          {
+            "name": "_widget_1566798360384",
+            "text": "来款日期",
+            "labelHidden": false,
+            "lineWidth": 3,
+            "id": "5d63721786b06824f3fcc07f",
+            "form": "5d63721786b06824f3fcc07f",
+            "type": "datetime",
+            "format": "yyyy-MM-dd",
+            "visible": true,
+            "rely": null,
+            "title": "来款日期",
+            "entryId": "5d63721786b06824f3fcc07f",
+            "field": "_widget_1566798360384",
+            "method": "formula",
+            "value": [
+              {
+                "mode": "preset",
+                "formula": "thisYear"
+              }
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "conditionalFormatting": [],
+      "color": "",
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "xFields": [],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1566798361100",
+          "form": "5d63721786b06824f3fcc07f",
+          "type": "number",
+          "title": "来款合计",
+          "tag": "f_1645684236780",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00",
+          "unit": ""
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1645684237003": {
+      "title": "单位名称",
+      "defaultConfig": {},
+      "valueMode": "item",
+      "method": "in",
+      "type": "text_filter",
+      "fields": [
+        {
+          "form": "5d63721786b06824f3fcc07f",
+          "field": "_widget_1566798360397",
+          "type": "combo"
+        }
+      ],
+      "triggers": [
+        "_widget_1645684243360",
+        "_widget_1645684278609"
+      ],
+      "rely": [],
+      "width": 10,
+      "height": 6,
+      "posX": 16,
+      "posY": 0
+    },
+    "_widget_1645684357526": {
+      "title": "部门",
+      "defaultConfig": {},
+      "valueMode": "item",
+      "method": "in",
+      "type": "dept_filter",
+      "fields": [
+        {
+          "form": "5d63721786b06824f3fcc07f",
+          "field": "_widget_1566798360541",
+          "type": "dept"
+        }
+      ],
+      "triggers": [
+        "_widget_1645684243360",
+        "_widget_1645684278609"
+      ],
+      "rely": [
+        "_widget_1645684237003"
+      ],
+      "width": 10,
+      "height": 6,
+      "posX": 26,
+      "posY": 0
+    },
+    "_widget_1645684372726": {
+      "title": "图纸编号",
+      "defaultConfig": {},
+      "valueMode": "item",
+      "method": "eq",
+      "type": "text_filter",
+      "fields": [
+        {
+          "form": "5d63721786b06824f3fcc07f",
+          "subform": "_widget_1566798361280",
+          "subField": "_widget_1566798361303",
+          "type": "combo"
+        }
+      ],
+      "triggers": [
+        "_widget_1645684243360",
+        "_widget_1645684278609"
+      ],
+      "rely": [
+        "_widget_1645684237003"
+      ],
+      "width": 10,
+      "height": 6,
+      "posX": 36,
+      "posY": 0
+    },
+    "_widget_1645684390896": {
+      "title": "来款日期",
+      "defaultConfig": {},
+      "valueMode": "item",
+      "method": "range",
+      "type": "date_filter",
+      "fields": [
+        {
+          "form": "5d63721786b06824f3fcc07f",
+          "field": "_widget_1566798360384",
+          "type": "datetime"
+        }
+      ],
+      "triggers": [
+        "_widget_1645684243360",
+        "_widget_1645684278609"
+      ],
+      "rely": [
+        "_widget_1645684237003",
+        "_widget_1645684372726"
+      ],
+      "width": 10,
+      "height": 6,
+      "posX": 46,
+      "posY": 0
+    }
+  },
+  "styles": {
+    "theme": {
+      "name": "preset_style_light_1",
+      "highLightColor": "#0DB3A6",
+      "palette": "preset_1",
+      "gradation": "preset_map_1"
+    },
+    "background": {
+      "type": "color",
+      "color": "#F4F6F9"
+    },
+    "widget": {
+      "theme": {
+        "color": "#E9E9E9",
+        "icon": 1,
+        "cardName": "preset_metric_1"
+      },
+      "background": {
+        "type": "color",
+        "color": "#FFFFFF"
+      },
+      "fontSetting": {
+        "titleColor": "#1F2D3D",
+        "headColor": "#5E6D82",
+        "textColor": "#1F2D3D",
+        "textAlign": "default"
+      }
+    }
+  },
+  "mobileStyles": {},
+  "attr": {
+    "isPublic": false,
+    "parent": "5d118dc2829e1f6d5d0fd13c",
+    "isExport": false,
+    "isPublishedAsHome": false,
+    "isPublicExcelExport": false
+  },
+  "checkConfig": {}
+}

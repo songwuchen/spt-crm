@@ -78,6 +78,7 @@ const ServiceTicketDetail = lazy(() => import('@/pages/service/ServiceTicketDeta
 const RenewalList = lazy(() => import('@/pages/service/RenewalList'))
 const FollowUpPage = lazy(() => import('@/pages/activity/FollowUpPage'))
 const PaymentPage = lazy(() => import('@/pages/payment/PaymentPage'))
+const PaymentRegistrationDashboard = lazy(() => import('@/pages/payment/PaymentRegistrationDashboard'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
@@ -298,6 +299,10 @@ export const router = createBrowserRouter([
       { path: 'pricing-checklists', element: <Guard permission="form_data:view"><FormModulePage templateCode="pricing_checklist_hjqd" title="核价清单传递" basePath="/pricing-checklists" /></Guard> },
       { path: 'research-coop-cards/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="research_coop_card" listPath="/research-coop-cards" title="中央研究院协同卡" /></Guard> },
       { path: 'research-coop-cards', element: <Guard permission="form_data:view"><FormModulePage templateCode="research_coop_card" title="中央研究院协同卡" basePath="/research-coop-cards" /></Guard> },
+      { path: 'tech-agreement-feedbacks/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="tech_agreement_feedback" listPath="/tech-agreement-feedbacks" title="技术协议反馈单" /></Guard> },
+      { path: 'tech-agreement-feedbacks', element: <Guard permission="form_data:view"><FormModulePage templateCode="tech_agreement_feedback" title="技术协议反馈单" basePath="/tech-agreement-feedbacks" /></Guard> },
+      { path: 'contract-outsource-early/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="contract_outsource_early" listPath="/contract-outsource-early" title="合同外购件提前安排流程" /></Guard> },
+      { path: 'contract-outsource-early', element: <Guard permission="form_data:view"><FormModulePage templateCode="contract_outsource_early" title="合同外购件提前安排流程" basePath="/contract-outsource-early" /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
@@ -316,8 +321,9 @@ export const router = createBrowserRouter([
       { path: 'shipment-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="shipment_notice" title="发货通知" basePath="/shipment-notices" /></Guard> },
       { path: 'xunhan-contract-reviews/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="xunhan_contract_review" listPath="/xunhan-contract-reviews" title="迅焊公司合同评审" /></Guard> },
       { path: 'xunhan-contract-reviews', element: <Guard permission="form_data:view"><FormModulePage templateCode="xunhan_contract_review" title="迅焊公司合同评审" basePath="/xunhan-contract-reviews" /></Guard> },
+      { path: 'payment-registrations/dashboard', element: <Guard permission="form_data:view"><Lazy><PaymentRegistrationDashboard /></Lazy></Guard> },
       { path: 'payment-registrations/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="payment_registration" listPath="/payment-registrations" title="收款登记" /></Guard> },
-      { path: 'payment-registrations', element: <Guard permission="form_data:view"><FormModulePage templateCode="payment_registration" title="收款登记" basePath="/payment-registrations" /></Guard> },
+      { path: 'payment-registrations', element: <Guard permission="form_data:view"><FormModulePage templateCode="payment_registration" title="收款登记" basePath="/payment-registrations" dashboardPath="/payment-registrations/dashboard" /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },

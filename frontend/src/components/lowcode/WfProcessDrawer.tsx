@@ -16,6 +16,7 @@ import type { ContractItem, ContractVersion } from '@/api/types'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
+import { filterProdCardLegacyFieldPerms } from '@/constants/prodCardLegacyFields'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrationReadonly'
 import ContractReviewReadonly from '@/components/lowcode/ContractReviewReadonly'
@@ -328,7 +329,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     const ct = detail?.current_task
     if (action === 'approve' && ct && !isReviseTask) {
       if (ct.opinion_required && !opinion.trim()) return message.error('请填写审批意见')
-      const miss = missingRequiredFields(ct.field_perms, fieldUpdates, {
+      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [])
+      const miss = missingRequiredFields(submitPerms, fieldUpdates, {
         rules: detail?.form_rules,
         formFields: fields,
         formData,
@@ -352,8 +354,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         message.success('已重新提交'); onDone(); onClose()
         return
       }
-      const updates = (ct?.field_perms || []).length
-        ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
+      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+      const updates = actPerms.length
+        ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
       const mergedForm = { ...formData, ...fieldUpdates }
       const shouldPrintAfterApprove = action === 'approve'

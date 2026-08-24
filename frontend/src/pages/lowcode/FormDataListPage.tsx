@@ -24,6 +24,7 @@ import {
   ArrowLeftOutlined, PlusOutlined, DownloadOutlined, DownOutlined,
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
   SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
 import RecordPrevNextNav from '@/components/RecordPrevNextNav'
@@ -61,6 +62,7 @@ import {
   printProdCardInstance,
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
+import { recordListNo } from '@/utils/formInstanceListNo'
 
 const { Title, Text } = Typography
 
@@ -246,28 +248,6 @@ function flattenInstancesByDetails(
     }
   }
   return out
-}
-
-/** 列表「流水号」：只用 serial_no / 真正的流水号，绝不拿设计卡号顶替 */
-function recordListNo(r: FormInstance, fields: FieldDefinition[]): string {
-  const data = r.form_data || {}
-  if (data.serial_no != null && data.serial_no !== '') return String(data.serial_no)
-  const serialField = fields.find((f) => f.id === 'serial_no')
-    || fields.find((f) => f.type === 'auto_number' && /流水号/.test(f.label || '') && !/设计卡/.test(f.label || ''))
-  if (serialField) {
-    const v = data[serialField.id]
-    if (v != null && v !== '') return String(v)
-  }
-  // business_no 若与设计卡号/图纸编号相同，说明历史误把合同号写入业务编号
-  if (r.business_no) {
-    const card = data.design_card_no
-    const drawing = data.drawing_no
-    const biz = String(r.business_no)
-    if (card != null && card !== '' && biz === String(card)) return '—'
-    if (drawing != null && drawing !== '' && biz === String(drawing)) return '—'
-    return r.business_no
-  }
-  return '—'
 }
 
 type NameMaps = {
@@ -539,6 +519,7 @@ export default function FormDataListPage({
   moduleTitle,
   fillPath: fillPathProp,
   templateCode,
+  dashboardPath,
 }: {
   /** 侧栏模块传入；缺省则从路由 /lowcode/forms/:id/data 取 */
   templateId?: string
@@ -547,6 +528,8 @@ export default function FormDataListPage({
   fillPath?: string
   /** 内置模块 code，用于图纸表单分区布局 */
   templateCode?: string
+  /** 可选仪表盘入口（如收款登记仪表盘） */
+  dashboardPath?: string
 } = {}) {
   const { id: paramId = '' } = useParams()
   const id = propId || paramId
@@ -1412,6 +1395,9 @@ export default function FormDataListPage({
           <Title level={4} style={{ margin: 0 }}>{moduleTitle || name}{isModule ? '' : ' · 数据'}</Title>
         </Space>
         <Space>
+          {dashboardPath && (
+            <Button icon={<BarChartOutlined />} onClick={() => nav(dashboardPath)}>仪表盘</Button>
+          )}
           <Dropdown menu={{ items: exportMenuItems }} trigger={['click']}>
             <Button icon={<DownloadOutlined />}>
               导出 <DownOutlined className="text-xs" />

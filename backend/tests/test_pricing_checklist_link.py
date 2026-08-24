@@ -102,3 +102,5 @@ def test_pick_columns_match_jdy_link_fields():
     inst = {c["title"] for c in pick_column_defs("install_drawing_notice")}
     assert "新设计卡号" in inst
     assert "install_drawing_notice" in PICK_COLUMNS
+    prod = {c["key"] for c in pick_column_defs("install_drawing_notice", "prod_card_install")}
+    assert prod == {"project_no_print", "customer_name", "sales_person", "matter"}

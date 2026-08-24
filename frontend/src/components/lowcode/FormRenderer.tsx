@@ -6,7 +6,11 @@ import {
   Row, Col, Input, InputNumber, DatePicker, Select, Radio, Checkbox, Switch,
   Button, Typography, Tag, Empty, Space, Tooltip, message,
 } from 'antd'
-import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import DetailQuickFillModal from '@/components/DetailQuickFillModal'
+import { PROD_CARD_QUICK_FILL_FIELD_IDS } from '@/constants/prodCardLegacyFields'
+import { detailColumnsToQuickFillSpecs } from '@/utils/detailQuickFill'
+import { applyDetailRowDefaults, buildDetailRowDefaults } from '@/utils/lowcodeFormDefaults'
 import dayjs from 'dayjs'
 import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/types/lowcode'
 import { computeFieldStates, isDetailColVisibleInRow } from './RuleEngine'
@@ -37,7 +41,7 @@ import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLo
 import FormInstanceLookupField from './fields/FormInstanceLookupField'
 import { linkFillClearKeys } from '@/constants/prodCardInstallLinks'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
-import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
+import { applyProdCardOrderTypeMerged, applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
 import { fetchCustomerFormFill, needsCustomerFormFill, clearCustomerFormFillPatch, pickShipAddressFill } from '@/utils/customerFormFill'
 import FillHeightTable from '@/components/list/FillHeightTable'
@@ -97,6 +101,8 @@ interface Props {
    * 默认 false，避免创建/草稿编辑页露出审批字段。
    */
   includeApproverFields?: boolean
+  /** 明细「选择数据」等联动回填父级字段时的旁路回调（审批抽屉与 value 结构解耦时使用） */
+  onPatch?: (patch: Record<string, unknown>) => void
 }
 
 export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]): FieldPermission[] {
@@ -129,7 +135,7 @@ export function isFieldFormReadonly(field: FieldDefinition): boolean {
   return fe === false || fe === 'false' || fe === 0
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false, onPatch: onPatchExternal }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const valueRef = useRef(value)
   valueRef.current = value
@@ -147,11 +153,18 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
     [fields, ruleValues, rules, rolePerms],
   )
 
+  const applyFormulas = (values: Record<string, unknown>, changedField?: string) => {
+    let out = applySimpleFormulas(fields, values)
+    out = applyProdCardOrderTypeMerged(out, { skipField: changedField === 'field' })
+    return out
+  }
+
   const setField = (id: string, v: unknown) => {
-    onChange?.(applySimpleFormulas(fields, { ...valueRef.current, [id]: v }))
+    onChange?.(applyFormulas({ ...valueRef.current, [id]: v }, id))
   }
   const patchFields = (patch: Record<string, unknown>) => {
-    onChange?.(applySimpleFormulas(fields, { ...valueRef.current, ...patch }))
+    onChange?.(applyFormulas({ ...valueRef.current, ...patch }))
+    onPatchExternal?.(patch)
   }
 
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
@@ -553,16 +566,19 @@ function FieldWidget({
               if (Object.keys(cleared).length) onPatch(cleared)
               return
             }
-            onChange(v)
+            // 选中时由 onFill 一次性写入 id + 带出字段，避免明细行两次 onChange 竞态
           }}
           onFill={(id, fill) => {
             if (!fillMode || !onPatch) return
-            if (!id) return
-            if (inlineCell) {
-              onPatch(fill)
-            } else {
-              onPatch({ [field.id]: id, ...fill })
+            if (!id) {
+              const cleared: Record<string, unknown> = inlineCell
+                ? { [field.id]: undefined }
+                : { [field.id]: undefined }
+              for (const k of linkFillClearKeys(field.id, fillMode)) cleared[k] = undefined
+              onPatch(cleared)
+              return
             }
+            onPatch({ [field.id]: id, ...fill })
           }}
         />
       )
@@ -820,6 +836,7 @@ function DetailTable({
   createFill?: boolean
 }) {
   const rows = Array.isArray(value) ? value : []
+  const [qfOpen, setQfOpen] = useState(false)
   const allCols = (field.detail_table_columns || []).filter((c) => {
     // 发起填报：隐藏审批阶段列（简道云 optAuth 未授权给发起节点）
     if (createFill && !readonly && (c.available_on_create === false || c.fill_stage === 'approver')) {
@@ -834,15 +851,15 @@ function DetailTable({
     if (didMountInit.current || readonly) return
     didMountInit.current = true
     const cur = Array.isArray(value) ? value : []
-    if (ensureMin > 0) {
-      if (cur.length < ensureMin) {
-        const next = [...cur]
-        while (next.length < ensureMin) next.push({})
-        onChange(next)
-      }
+    let next = [...cur]
+    if (ensureMin > 0 && next.length < ensureMin) {
+      while (next.length < ensureMin) next.push(buildDetailRowDefaults(allCols))
+    } else if (ensureMin === 0 && next.length === 1 && isBlankDetailRow(next[0])) {
+      onChange([])
       return
     }
-    if (cur.length === 1 && isBlankDetailRow(cur[0])) onChange([])
+    const withDefaults = applyDetailRowDefaults(next, allCols)
+    if (withDefaults !== next || (ensureMin > 0 && cur.length < ensureMin)) onChange(withDefaults)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只处理初次挂载（显隐切换会重挂）
   }, [])
 
@@ -869,7 +886,27 @@ function DetailTable({
     })
     onChange(next)
   }
-  const addRow = () => onChange([...rows, {}])
+  const colIdSet = useMemo(() => new Set(allCols.map((c) => c.id)), [allCols])
+  const patchRow = (rowIdx: number, patch: Record<string, unknown>) => {
+    const rowPatch: Record<string, unknown> = {}
+    const parentPatch: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(patch)) {
+      if (colIdSet.has(k)) rowPatch[k] = v
+      else parentPatch[k] = v
+    }
+    if (!Object.keys(rowPatch).length) {
+      if (Object.keys(parentPatch).length) onPatch?.(parentPatch)
+      return
+    }
+    const nextRows = rows.map((r, i) => (i === rowIdx ? { ...r, ...rowPatch } : r))
+    if (Object.keys(parentPatch).length && onPatch) {
+      onPatch({ ...parentPatch, [field.id]: nextRows })
+      return
+    }
+    onChange(nextRows)
+    if (Object.keys(parentPatch).length) onPatch?.(parentPatch)
+  }
+  const addRow = () => onChange([...rows, buildDetailRowDefaults(allCols)])
   const delRow = (idx: number) => onChange(rows.filter((_, i) => i !== idx))
 
   const evalRows = rows.length ? rows : [{}]
@@ -877,6 +914,14 @@ function DetailTable({
   const cols = allCols.filter((c) => evalRows.some((row) => isDetailColVisibleInRow(
     c.id, field.id, row, formValues, ruleFields, rules,
   )))
+  const quickFillEnabled = !readonly && (
+    (field.props as { quick_fill?: boolean } | undefined)?.quick_fill === true
+    || PROD_CARD_QUICK_FILL_FIELD_IDS.has(field.id)
+  )
+  const quickFillFields = useMemo(
+    () => detailColumnsToQuickFillSpecs(cols.length ? cols : allCols),
+    [allCols, cols],
+  )
 
   const defaultColWidth = (c: FieldDefinition) => {
     if (c.type === 'image' || c.type === 'file') return 200
@@ -924,7 +969,7 @@ function DetailTable({
                       value={row[c.id]}
                       allValues={row}
                       onChange={(v) => setCell(idx, c.id, v)}
-                      onPatch={onPatch}
+                      onPatch={(patch) => patchRow(idx, patch)}
                       inlineCell={c.type === 'file' || c.type === 'image' || c.type === 'select_data'}
                     />
                   </div>
@@ -937,9 +982,29 @@ function DetailTable({
           <div className="text-sm text-slate-400 text-center py-4">暂无明细</div>
         )}
         {!readonly && (
-          <Button type="dashed" block icon={<PlusOutlined />} onClick={addRow}>
-            添加一行
-          </Button>
+          <Space>
+            <Button type="dashed" block icon={<PlusOutlined />} onClick={addRow}>
+              添加一行
+            </Button>
+            {quickFillEnabled && quickFillFields.length > 0 && (
+              <Button type="link" icon={<ThunderboltOutlined />} onClick={() => setQfOpen(true)}>
+                快速填报
+              </Button>
+            )}
+          </Space>
+        )}
+        {quickFillEnabled && quickFillFields.length > 0 && (
+          <DetailQuickFillModal
+            open={qfOpen}
+            title={`快速填报 · ${field.label || ''}`}
+            fields={quickFillFields}
+            existingRows={rows}
+            onClose={() => setQfOpen(false)}
+            onConfirm={(incoming, mode) => {
+              const base = mode === 'replace' ? [] : rows
+              onChange(applyDetailRowDefaults([...base, ...incoming], allCols))
+            }}
+          />
         )}
       </div>
     )
@@ -972,7 +1037,7 @@ function DetailTable({
               field={c} readonly={readonly}
               value={row[c.id]} allValues={row}
               onChange={(v) => setCell(idx, c.id, v)}
-              onPatch={onPatch}
+              onPatch={(patch) => patchRow(idx, patch)}
               inlineCell={c.type === 'file' || c.type === 'image' || c.type === 'select_data'}
             />
           )
@@ -1006,9 +1071,29 @@ function DetailTable({
         />
       </div>
       {!readonly && (
-        <Button type="dashed" block icon={<PlusOutlined />} style={{ marginTop: 8 }} onClick={addRow}>
-          添加一行
-        </Button>
+        <Space style={{ marginTop: 8 }}>
+          <Button type="dashed" icon={<PlusOutlined />} onClick={addRow}>
+            添加一行
+          </Button>
+          {quickFillEnabled && quickFillFields.length > 0 && (
+            <Button type="link" icon={<ThunderboltOutlined />} onClick={() => setQfOpen(true)}>
+              快速填报
+            </Button>
+          )}
+        </Space>
+      )}
+      {quickFillEnabled && quickFillFields.length > 0 && (
+        <DetailQuickFillModal
+          open={qfOpen}
+          title={`快速填报 · ${field.label || ''}`}
+          fields={quickFillFields}
+          existingRows={rows}
+          onClose={() => setQfOpen(false)}
+          onConfirm={(incoming, mode) => {
+            const base = mode === 'replace' ? [] : rows
+            onChange(applyDetailRowDefaults([...base, ...incoming], allCols))
+          }}
+        />
       )}
     </div>
   )

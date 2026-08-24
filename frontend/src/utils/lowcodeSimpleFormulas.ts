@@ -94,12 +94,16 @@ export function applySimpleFormulas(
 ): Record<string, unknown> {
   let next = values
   // 多轮：SUM → 加减依赖（如累计=历史+本次、未发货=合同−累计）→ IF 文本
-  for (let pass = 0; pass < 4; pass += 1) {
+    for (let pass = 0; pass < 4; pass += 1) {
     let changed = false
     const base = next
     for (const f of fields) {
-      if (f.type !== 'formula') continue
-      const formula = String((f.props as { formula?: string } | undefined)?.formula || '').trim()
+      const props = (f.props as { formula?: string; suggest_formula?: string } | undefined)
+      const formula = String(
+        f.type === 'formula' ? props?.formula : props?.suggest_formula || '',
+      ).trim()
+      if (!formula) continue
+      if (f.type !== 'formula' && f.type !== 'text') continue
       let computed: number | string | null = null
       const sum = formula.match(SUM_DETAIL_RE)
       if (sum) {
@@ -124,10 +128,12 @@ export function applySimpleFormulas(
   return next
 }
 
-/** 生产卡：按「是否补充 / 下单类型」回填「下单类型（合并含补充）」（无公式定义时兜底）。 */
+/** 生产卡：按「是否补充 / 下单类型」建议回填「下单类型（合并含补充）」；手改 field 时不覆盖。 */
 export function applyProdCardOrderTypeMerged(
   values: Record<string, unknown>,
+  opts?: { skipField?: boolean },
 ): Record<string, unknown> {
+  if (opts?.skipField) return values
   if (!('order_type' in values) && !('is_supplement' in values) && !('field' in values)) {
     return values
   }

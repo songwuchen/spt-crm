@@ -372,7 +372,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
         fieldIds: [
           'design_dispatch', 'transfer_packaging_users', 'design_assignees', 'offices',
           'order_datetime', 'order_type', 'field',
-          'has_install_project', 'f_251128', 'install_project_no', 'f_0414',
+          'has_install_project', 'f_251128', 'install_project_no',
         ],
       },
       {
@@ -419,7 +419,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       attachments: 12, images: 12, confirm_agreement: 24,
       design_dispatch: 12, transfer_packaging_users: 12, design_assignees: 12, offices: 12,
       order_datetime: 8, order_type: 8, field: 8,
-      has_install_project: 6, f_251128: 24, install_project_no: 24, f_0414: 24,
+      has_install_project: 6, f_251128: 24, install_project_no: 24,
       special_reminder_multi: 8,
       has_contract_tech_review: 12, select_contract_tech_review: 12, contract_tech_review_sn: 12,
     },
@@ -477,7 +477,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     contentMaxWidth: 1080,
     listExpandDetail: 'payment_details',
     listColumns: [
-      'payment_no', 'payment_date', 'customer_name', 'department',
+      'payment_date', 'customer_name', 'department',
       'payment_total', 'sales_person',
     ],
     sections: [
@@ -750,6 +750,86 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       designer: 8, office: 8, apply_datetime: 8, pricing_qty: 8,
       images: 12, attachments: 12, remark: 24,
       has_issue: 8, issue_details: 24,
+    },
+  },
+  // 技术协议反馈单（中央研究院）
+  tech_agreement_feedback: {
+    contentMaxWidth: 1080,
+    listColumns: [
+      'serial_no', 'applicant', 'office', 'contract_no', 'order_person',
+      'department', 'design_reviewer', 'design_dispatch', 'notify_purchase',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'apply_datetime', 'applicant', 'office',
+          'contract_no', 'order_person', 'department',
+        ],
+      },
+      {
+        title: '审核与分派',
+        fieldIds: [
+          'design_reviewer', 'notify_purchase', 'design_dispatch',
+          'transfer_rd_centers', 'dept_clerk', 'salesperson',
+        ],
+      },
+      {
+        title: '协议与反馈',
+        fieldIds: [
+          'agreement_content', 'business_feedback', 'feedback_suggestion',
+          'attachments', 'images',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 6, apply_datetime: 6, applicant: 6, office: 6,
+      contract_no: 6, order_person: 6, department: 6,
+      design_reviewer: 6, notify_purchase: 6, design_dispatch: 6,
+      transfer_rd_centers: 6, dept_clerk: 6, salesperson: 6,
+      agreement_content: 12, business_feedback: 12, feedback_suggestion: 12,
+      attachments: 12, images: 12,
+    },
+  },
+  // 合同外购件提前安排流程（数据中心）
+  contract_outsource_early: {
+    contentMaxWidth: 1080,
+    listExpandDetail: 'equipment_details',
+    listColumns: [
+      'serial_no', 'link_prod_card', 'prod_card_serial', 'contract_no',
+      'salesperson', 'department', 'business_desc',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'apply_datetime', 'link_prod_card', 'prod_card_serial',
+          'salesperson', 'department', 'contract_no',
+        ],
+      },
+      {
+        title: '设计分派',
+        fieldIds: [
+          'design_assign', 'office', 'transfer_dept_heads', 'transfer_dept_head',
+          'designer_single', 'designer_multi', 'purchaser_multi',
+        ],
+      },
+      {
+        title: '业务说明',
+        fieldIds: ['business_desc', 'remark', 'attachments'],
+      },
+      {
+        title: '设备明细',
+        fieldIds: ['equipment_details'],
+      },
+    ],
+    spans: {
+      serial_no: 6, apply_datetime: 6, link_prod_card: 6, prod_card_serial: 6,
+      salesperson: 6, department: 6, contract_no: 6,
+      design_assign: 6, office: 6, transfer_dept_heads: 6, transfer_dept_head: 6,
+      designer_single: 6, designer_multi: 6, purchaser_multi: 6,
+      business_desc: 12, remark: 12, attachments: 12,
+      equipment_details: 24,
     },
   },
   // 中央研究院协同卡

@@ -269,6 +269,11 @@ async def _discard_stale_system_draft_if_needed(
             and _flow_missing_invoice_sales_cc(
                 latest.node_definitions, latest.route_definitions,
             )
+        ) and not (
+            form_code in _CS_SALES_CC_FORM_CODES
+            and _flow_missing_cs_sales_cc_on_start(
+                latest.node_definitions, latest.route_definitions,
+            )
         ):
             return
     latest.status = "deprecated"
@@ -528,6 +533,26 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "tech_agreement_feedback",
+        "code": "SYS_TECH_AGREEMENT_FEEDBACK",
+        "name": "技术协议反馈单",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "contract_outsource_early",
+        "code": "SYS_CONTRACT_OUTSOURCE_EARLY",
+        "name": "合同外购件提前安排流程",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "cs_service_request",
         "code": "SYS_CS_SERVICE_REQUEST",
         "name": "客户服务申请及反馈",
@@ -690,6 +715,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_drawing_pre_chief_opinion_required(nodes)
     if form_code == "invoice_application":
         apply_invoice_sales_cc(nodes, routes)
+    if form_code in _CS_SALES_CC_FORM_CODES:
+        apply_cs_sales_cc_on_start(nodes, routes)
     if form_code == "cs_product_return":
         apply_cs_product_return_approvers(nodes)
         apply_cs_product_return_logistics_field_perms(nodes)
@@ -707,15 +734,18 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import (
             apply_prod_card_design_assign_field_perms,
+            apply_prod_card_prune_legacy_field_perms,
             apply_prod_card_sales_before_region,
             apply_prod_card_sales_confirm_field_perms,
         )
         apply_prod_card_sales_confirm_field_perms(nodes)
         apply_prod_card_design_assign_field_perms(nodes)
+        apply_prod_card_prune_legacy_field_perms(nodes)
         apply_prod_card_sales_before_region(nodes, routes)
         apply_prod_card_notify_production_cc(nodes)
         apply_prod_card_finance_branch_parallel(nodes, routes)
         apply_prod_card_xiaomeng_yangshuang_cc(nodes, routes)
+        fix_packaging_fork_serial_priority(nodes, routes)
     if form_code == "xunhan_contract_review":
         apply_xunhan_contract_review_approvers(nodes)
         patch_xunhan_contract_review_feedback_routes(routes)
@@ -831,6 +861,15 @@ _INVOICE_CC_SALES_SUBMIT_NAME = "已提交开票申请"
 _INVOICE_CC_SALES_DONE_NAME = "发票已开具可下载"
 _INVOICE_INITIATOR_RECV_NAME = "发起人接收"
 _INVOICE_APPROVE_NAME = "开票"
+
+# 客服三类表单：发起旁路抄送表单「业务员」
+_CS_SALES_CC_ON_START = "cc_sales_on_start"
+_CS_SALES_CC_ON_START_NAME = "抄送业务员"
+_CS_SALES_CC_FORM_CODES = frozenset({
+    "cs_service_request",
+    "cs_product_replace",
+    "cs_product_return",
+})
 
 
 def _invoice_node_id(nodes: list | None, name: str) -> str | None:
@@ -964,6 +1003,80 @@ def apply_invoice_sales_cc(nodes: list[dict], routes: list[dict]) -> bool:
             "id": "r_cc_sales_done_end",
             "source": _INVOICE_CC_SALES_DONE,
             "target": "end",
+        })
+        changed = True
+    return changed
+
+
+def _flow_missing_cs_sales_cc_on_start(
+    nodes: list | None, routes: list | None = None,
+) -> bool:
+    """客服类表单：缺少发起旁路抄送业务员。"""
+    if not isinstance(nodes, list):
+        return True
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    n = by_id.get(_CS_SALES_CC_ON_START)
+    if not n or n.get("type") != "cc":
+        return True
+    rule = n.get("approver_rule") or {}
+    if rule.get("type") != "form_field_person" or rule.get("value") != "sales_person":
+        return True
+    if n.get("name") != _CS_SALES_CC_ON_START_NAME:
+        return True
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if (
+            r.get("source") == "start"
+            and r.get("target") == _CS_SALES_CC_ON_START
+            and r.get("always")
+        ):
+            return False
+    return True
+
+
+def apply_cs_sales_cc_on_start(nodes: list[dict], routes: list[dict]) -> bool:
+    """客服三类表单：发起后立即旁路抄送表单「业务员」字段对应人员。"""
+    if not isinstance(nodes, list) or not isinstance(routes, list):
+        return False
+    if not _flow_missing_cs_sales_cc_on_start(nodes, routes):
+        return False
+    changed = False
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    want = _cc_node(
+        _CS_SALES_CC_ON_START,
+        _CS_SALES_CC_ON_START_NAME,
+        {"type": "form_field_person", "value": "sales_person"},
+    )
+    cur = by_id.get(_CS_SALES_CC_ON_START)
+    if not cur:
+        nodes.append(want)
+        by_id[_CS_SALES_CC_ON_START] = want
+        changed = True
+    else:
+        if cur.get("type") != "cc" or cur.get("name") != _CS_SALES_CC_ON_START_NAME:
+            cur["type"] = "cc"
+            cur["name"] = _CS_SALES_CC_ON_START_NAME
+            changed = True
+        rule = cur.get("approver_rule") or {}
+        if rule.get("type") != "form_field_person" or rule.get("value") != "sales_person":
+            cur["approver_rule"] = {"type": "form_field_person", "value": "sales_person"}
+            changed = True
+    has_start_route = False
+    for r in routes:
+        if not isinstance(r, dict):
+            continue
+        if r.get("source") == "start" and r.get("target") == _CS_SALES_CC_ON_START:
+            has_start_route = True
+            if not r.get("always"):
+                r["always"] = True
+                changed = True
+    if not has_start_route:
+        routes.append({
+            "id": "r_start_cc_sales_on_start",
+            "source": "start",
+            "target": _CS_SALES_CC_ON_START,
+            "always": True,
         })
         changed = True
     return changed
@@ -2758,6 +2871,10 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_pricing_checklist(nodes)
     if form_code == "research_coop_card":
         return _flow_is_jdy_research_coop_card(nodes)
+    if form_code == "tech_agreement_feedback":
+        return _flow_is_jdy_tech_agreement_feedback(nodes)
+    if form_code == "contract_outsource_early":
+        return _flow_is_jdy_contract_outsource_early(nodes)
     if form_code == "xunhan_contract_review":
         return _flow_is_jdy_xunhan_contract_review(nodes)
     if form_code and form_code.startswith("cs_"):
@@ -2790,6 +2907,20 @@ def _flow_is_jdy_research_coop_card(nodes: list | None) -> bool:
     names = {n.get("name") for n in (nodes or [])}
     types = {n.get("type") for n in (nodes or [])}
     return "设计安排" in names and "cc" in types and len(nodes or []) >= 6
+
+
+def _flow_is_jdy_tech_agreement_feedback(nodes: list | None) -> bool:
+    """已对齐简道云技术协议反馈单（或 CRM 兜底拓扑）：设计审核 + 部门内勤。"""
+    names = {n.get("name") for n in (nodes or [])}
+    types = {n.get("type") for n in (nodes or [])}
+    return "设计审核" in names and "部门内勤" in names and "approval" in types and len(nodes or []) >= 5
+
+
+def _flow_is_jdy_contract_outsource_early(nodes: list | None) -> bool:
+    """已对齐简道云合同外购件提前安排（或 CRM 兜底拓扑）：设计指派 + 采购安排。"""
+    names = {n.get("name") for n in (nodes or [])}
+    types = {n.get("type") for n in (nodes or [])}
+    return "设计指派" in names and "采购安排" in names and "approval" in types and len(nodes or []) >= 5
 
 
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
@@ -4348,6 +4479,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_CS_CORRESPONDENCE",
         "SYS_SHIPMENT_NOTICE",
         "SYS_XUNHAN_CONTRACT_REVIEW",
+        "SYS_TECH_AGREEMENT_FEEDBACK",
+        "SYS_CONTRACT_OUTSOURCE_EARLY",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -4600,6 +4733,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         import copy
         from app.domains.lowcode.prod_card_contract_fill import (
             apply_prod_card_design_assign_field_perms,
+            apply_prod_card_prune_legacy_field_perms,
             apply_prod_card_sales_before_region,
             apply_prod_card_sales_confirm_field_perms,
         )
@@ -4609,7 +4743,9 @@ async def _upgrade_drawing_form_flow_if_needed(
         if apply_prod_card_sales_confirm_field_perms(patched):
             tags.append("业务员确认可填协议确认")
         if apply_prod_card_design_assign_field_perms(patched):
-            tags.append("研管办安排设计指派字段")
+            tags.append("安排设计只读派人/技术协议评审+设计指派字段")
+        if apply_prod_card_prune_legacy_field_perms(patched):
+            tags.append("剔除废弃字段室主任0414")
         if apply_prod_card_sales_before_region(patched, patched_routes):
             tags.append("先业务员确认再区域经理")
         if apply_prod_card_notify_production_cc(patched):
@@ -4741,6 +4877,22 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"开票申请可下载改到发起人接收后({form_code})",
         )
         return
+    if (
+        form_code in _CS_SALES_CC_FORM_CODES
+        and _flow_missing_cs_sales_cc_on_start(
+            version.node_definitions, version.route_definitions,
+        )
+    ):
+        import copy
+        patched_nodes = copy.deepcopy(version.node_definitions or [])
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        apply_cs_sales_cc_on_start(patched_nodes, patched_routes)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched_nodes, patched_routes,
+            DRAWING_FORM_FLOW_DESC, f"发起旁路抄送业务员({form_code})",
+        )
+        return
     # 安装图设计通知：剥离业务打分（及打分备注）节点可填权限
     if topology_ok and form_code == "install_drawing_notice":
         from app.domains.lowcode.biz_score import (
@@ -4822,6 +4974,7 @@ async def _upgrade_drawing_form_flow_if_needed(
     # 工艺包装分叉：互斥 + 包装优先（对齐简道云实单；纠正曾误标的 parallel）
     if topology_ok and form_code in (
         "drawing_requisition", "install_drawing_notice", "scheme_management",
+        "prod_card_supplement",
     ):
         import copy
         patched_routes = copy.deepcopy(version.route_definitions or [])
@@ -4867,6 +5020,8 @@ async def _upgrade_drawing_form_flow_if_needed(
             if apply_prod_card_xiaomeng_yangshuang_cc(patched_nodes, patched_routes):
                 tags.append("小萌工厂杨霜审批+抄送∥结束")
                 publish_nodes = patched_nodes
+            if fix_packaging_fork_serial_priority(publish_nodes, patched_routes):
+                tags.append("工艺包装分叉互斥优先")
         if form_code == "prod_card_supplement" and apply_prod_card_finance_branch_parallel(
             version.node_definitions, patched_routes,
         ):
@@ -4968,6 +5123,10 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "核价清单传递"
     elif form_code == "research_coop_card":
         d.name = "中央研究院协同卡"
+    elif form_code == "tech_agreement_feedback":
+        d.name = "技术协议反馈单"
+    elif form_code == "contract_outsource_early":
+        d.name = "合同外购件提前安排流程"
     elif form_code == "cs_service_request":
         d.name = "客户服务申请及反馈"
     elif form_code == "cs_product_replace":
@@ -7824,10 +7983,14 @@ async def get_instance_detail(
                 if form_tpl_code == "prod_card_supplement":
                     try:
                         from app.domains.lowcode.prod_card_contract_fill import (
+                            apply_prod_card_detail_quick_fill_flags,
                             apply_prod_card_install_pick_fields,
+                            apply_prod_card_legacy_hidden_fields,
                             apply_prod_card_supplement_rules,
                         )
                         apply_prod_card_install_pick_fields(form_fields)
+                        apply_prod_card_detail_quick_fill_flags(form_fields)
+                        apply_prod_card_legacy_hidden_fields(form_fields)
                         form_rules = apply_prod_card_supplement_rules(form_rules)
                     except Exception:
                         pass
@@ -7981,15 +8144,24 @@ async def _resolve_current_task_for_viewer(
                     field_perms = parse_field_perms(latest_node)
         except Exception:
             pass
+    from app.domains.lowcode.prod_card_contract_fill import (
+        PROD_CARD_LEGACY_HIDDEN_FIELDS,
+        filter_prod_card_legacy_field_perms,
+    )
+    field_perms = filter_prod_card_legacy_field_perms(field_perms)
 
     field_ids = [p["field"] for p in field_perms]
     catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
     published_by_id: dict = {}
+    form_tpl_code: str | None = None
+    is_prod_card = inst.biz_type == "prod_card_supplement"
     if inst.form_instance_id:
-        from app.domains.lowcode.models import FormInstance
+        from app.domains.lowcode.models import FormInstance, FormTemplate
         fi = await db.get(FormInstance, inst.form_instance_id)
         form_defs = []
         if fi and fi.tenant_id == tenant_id:
+            tpl = await db.get(FormTemplate, fi.template_id)
+            form_tpl_code = tpl.code if tpl else None
             form_defs = list(fi.field_definitions or [])
             from app.domains.lowcode.service import get_published_version
             try:
@@ -8006,13 +8178,30 @@ async def _resolve_current_task_for_viewer(
         for fd in form_defs:
             if isinstance(fd, dict) and fd.get("id") and fd["id"] not in catalog:
                 catalog[fd["id"]] = fd
+        is_prod_card = (
+            form_tpl_code == "prod_card_supplement"
+            or inst.biz_type == "prod_card_supplement"
+        )
+        if is_prod_card:
+            from app.domains.lowcode.prod_card_contract_fill import (
+                apply_prod_card_detail_quick_fill_flags,
+                apply_prod_card_legacy_hidden_fields,
+            )
+            patched_defs = list(catalog.values())
+            apply_prod_card_detail_quick_fill_flags(patched_defs)
+            apply_prod_card_legacy_hidden_fields(patched_defs)
+            catalog = {fd["id"]: fd for fd in patched_defs if isinstance(fd, dict) and fd.get("id")}
         # 修订待办：整单可编辑，返回全部表单字段
         if is_revise and form_defs:
             field_ids = [fd["id"] for fd in form_defs if isinstance(fd, dict) and fd.get("id")]
             field_perms = [{"field": fid, "access": "editable"} for fid in field_ids]
+            field_perms = filter_prod_card_legacy_field_perms(field_perms)
+            field_ids = [p["field"] for p in field_perms]
 
     field_meta = []
     for fid in field_ids:
+        if fid in PROD_CARD_LEGACY_HIDDEN_FIELDS:
+            continue
         meta = dict(catalog.get(fid) or {"id": fid, "label": fid, "type": "text"})
         pub = published_by_id.get(fid)
         if isinstance(pub, dict):
@@ -8025,6 +8214,12 @@ async def _resolve_current_task_for_viewer(
                 props = dict(meta.get("props") or {})
                 props["pickable_scope"] = pub_props["pickable_scope"]
                 meta["props"] = props
+        if is_prod_card and fid == "f_251128":
+            from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_install_pick_fields
+            patched = [dict(meta)]
+            apply_prod_card_install_pick_fields(patched)
+            if patched and patched[0].get("detail_table_columns"):
+                meta["detail_table_columns"] = patched[0]["detail_table_columns"]
         if fid in ("design_assignees",):
             props = dict(meta.get("props") or {})
             scope = props.get("pickable_scope")

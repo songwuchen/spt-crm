@@ -1332,6 +1332,25 @@ async def list_form_instances(
     })
 
 
+@router.get("/payment-registration/dashboard/summary")
+async def payment_registration_dashboard_summary(
+    template_id: str = Query(...),
+    keyword: str = Query(None),
+    status: str = Query(None),
+    filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]}'),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_permissions("form_data:view")),
+    scope: "list[str] | None" = Depends(get_data_scope),
+):
+    """收款登记仪表盘：来款合计等指标（筛选口径与列表一致）。"""
+    data = await service.form_instance_summary(
+        db, tenant_id, template_id, sum_field="payment_total",
+        keyword=keyword, status=status, owner_ids=scope, filters=filters, user=user,
+    )
+    return ok(data)
+
+
 _INST_STATUS_LABELS = {
     "draft": "草稿", "submitted": "已提交", "running": "审批中",
     "completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回",

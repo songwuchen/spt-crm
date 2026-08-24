@@ -250,6 +250,34 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "field_definitions": [],
         "sync_fields": True,
     },
+    {
+        "key": "tech_agreement_feedback",
+        "name": "技术协议反馈单",
+        "category": "研究院",
+        "icon": "CommentOutlined",
+        "description": (
+            "对齐简道云中央研究院「技术协议反馈单」"
+            "(app=58465841… entry=5e707cbf…)。"
+            "流水号 yyyyMMdd+四位年序。"
+            "详见 docs/product/_jdy_tech_agreement_feedback_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "contract_outsource_early",
+        "name": "合同外购件提前安排流程",
+        "category": "合同",
+        "icon": "ScheduleOutlined",
+        "description": (
+            "对齐简道云数据中心「合同外购件提前安排流程」"
+            "(app=56ca77ce… entry=638ab9b4…)。"
+            "流水号 1.2.15+yyyyMMdd+五位不重置。"
+            "详见 docs/product/_jdy_contract_outsource_early_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
     # —— 客户服务部（售后低代码，与原生售后工单并存）——
     {
         "key": "cs_service_request",
@@ -519,11 +547,15 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._xunhan_contract_review_generated import XUNHAN_CONTRACT_REVIEW_JDY
     except Exception:
         XUNHAN_CONTRACT_REVIEW_JDY = {}
+    try:
+        from app.domains.lowcode._tech_feedback_outsource_generated import TECH_FEEDBACK_OUTSOURCE_JDY
+    except Exception:
+        TECH_FEEDBACK_OUTSOURCE_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
         **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
-        **SHIPMENT_NOTICE_JDY, **XUNHAN_CONTRACT_REVIEW_JDY,
+        **SHIPMENT_NOTICE_JDY, **XUNHAN_CONTRACT_REVIEW_JDY, **TECH_FEEDBACK_OUTSOURCE_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])

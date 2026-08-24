@@ -133,11 +133,23 @@ def test_prod_card_approver_only_fields_hidden_on_create():
     ]
     apply_prod_card_contract_pick_fields(defs)
     by = {f["id"]: f for f in defs}
-    for fid in ("confirm_agreement", "install_project_no", "f_0414"):
+    for fid in ("confirm_agreement", "install_project_no"):
         assert by[fid]["available_on_create"] is False
         assert by[fid]["fill_stage"] == "approver"
         assert by[fid]["required"] is False
+    assert by["f_0414"]["available_on_create"] is False
+    assert by["f_0414"]["required"] is False
+    assert "fill_stage" not in by["f_0414"]
+    assert by["f_0414"]["props"]["hidden"] is True
     assert by["submitter"]["props"]["default_current_user"] is True
+
+
+def test_apply_prod_card_detail_quick_fill_flags():
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_detail_quick_fill_flags
+
+    defs = [{"id": "std_room_fill", "type": "detail_table", "label": "标准化室填写"}]
+    apply_prod_card_detail_quick_fill_flags(defs)
+    assert defs[0]["props"]["quick_fill"] is True
 
 
 def test_apply_prod_card_design_assign_field_perms():
@@ -147,9 +159,12 @@ def test_apply_prod_card_design_assign_field_perms():
     nodes = [
         {
             "id": "n17",
-            "name": "研管办安排1",
+            "name": "安排设计1",
             "type": "approval",
             "field_perms": [
+                {"field": "need_dispatch", "access": "editable"},
+                {"field": "has_contract_tech_review", "access": "editable"},
+                {"field": "select_contract_tech_review", "access": "editable"},
                 {"field": "design_dispatch", "access": "required"},
                 {"field": "design_assignees", "access": "required"},
                 {"field": "confirm_agreement", "access": "required"},
@@ -159,9 +174,39 @@ def test_apply_prod_card_design_assign_field_perms():
     assert apply_prod_card_design_assign_field_perms(nodes) is True
     fields = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
     assert "confirm_agreement" not in fields
-    assert fields["install_project_no"] == "editable"
-    assert fields["f_0414"] == "required"
+    assert fields["need_dispatch"] == "readonly"
+    assert fields["has_contract_tech_review"] == "readonly"
+    assert fields["select_contract_tech_review"] == "readonly"
+    assert fields["install_project_no"] == "readonly"
+    assert fields["f_251128"] == "required"
+    assert "f_0414" not in fields
     assert fields["design_assignees"] == "required"
+    assert apply_prod_card_design_assign_field_perms(nodes) is False
+
+
+def test_apply_prod_card_prune_legacy_field_perms():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_prune_legacy_field_perms,
+        filter_prod_card_legacy_field_perms,
+    )
+    nodes = [
+        {
+            "id": "n17",
+            "name": "安排设计1",
+            "type": "approval",
+            "field_perms": [
+                {"field": "design_assignees", "access": "required"},
+                {"field": "f_0414", "access": "required"},
+            ],
+        }
+    ]
+    assert apply_prod_card_prune_legacy_field_perms(nodes) is True
+    fields = {p["field"] for p in nodes[0]["field_perms"]}
+    assert "f_0414" not in fields
+    assert filter_prod_card_legacy_field_perms(nodes[0]["field_perms"]) == [
+        {"field": "design_assignees", "access": "required"},
+    ]
+    assert apply_prod_card_prune_legacy_field_perms(nodes) is False
 
 
 def test_apply_prod_card_sales_confirm_field_perms():
@@ -409,11 +454,17 @@ def test_apply_prod_card_install_pick_fields():
         {"id": "install_project_no", "type": "text", "label": "安装图项目号"},
     ]
     apply_prod_card_install_pick_fields(defs)
-    col = defs[0]["detail_table_columns"][0]
+    cols = {c["id"]: c for c in defs[0]["detail_table_columns"]}
+    col = cols["field_2"]
     assert col["type"] == "select_data"
     assert col["props"]["source_form_code"] == "install_drawing_notice"
     assert col["props"]["link_fill"] == "prod_card_install"
     assert col["props"]["link_field"] == "prod_card_install"
+    assert cols["field_5"]["label"] == "项目号（打印模板显示）"
+    assert cols["field_5"].get("form_editable") is False
+    assert cols["field_3"]["label"] == "业务员"
+    assert cols["field_4"]["label"] == "现场"
+    assert cols["field_6"]["label"] == "事项"
     assert defs[1]["form_editable"] is False
 
 
@@ -423,18 +474,32 @@ def test_build_prod_card_install_fill():
     fill = build_prod_card_install_fill(
         business_no="AZ20260817001",
         form_data={
+            "serial_no": "AZ202608104",
             "project_no": pid,
             "design_card_no": "YY-01",
             "matter": "事项A",
+            "customer_name": "内蒙古汇能煤电集团巴隆图煤炭有限公司",
+            "sales_person": "u-sales",
         },
         project_codes={pid: "PRJ-2026-001"},
+        user_names={"u-sales": "韩开强"},
     )
-    assert fill == {"install_project_no": "PRJ-2026-001"}
+    assert fill["install_project_no"] == "AZ202608104"
+    assert fill["field_5"] == "AZ202608104"
+    assert fill["field_3"] == "韩开强"
+    assert fill["field_4"] == "内蒙古汇能煤电集团巴隆图煤炭有限公司"
+    assert fill["field_6"] == "事项A"
     fill2 = build_prod_card_install_fill(
         business_no="AZ20260817001",
         form_data={"matter": "事项B", "design_card_no": "YY-02"},
     )
-    assert fill2 == {"install_project_no": "事项B"}
+    assert fill2 == {
+        "install_project_no": "AZ20260817001",
+        "field_5": "AZ20260817001",
+        "field_3": "",
+        "field_4": "",
+        "field_6": "事项B",
+    }
 
 
 def test_builtin_prod_card_install_detail_select_data():

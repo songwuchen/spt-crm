@@ -471,7 +471,7 @@ export default function ApprovalCenter() {
       } else {
         await approvalApi.resubmit(flowId, {})
       }
-      message.success('已重新发起审批')
+      message.success('已重新提交审批')
       fetchData()
     } finally {
       setSubmitting(false)
@@ -716,7 +716,7 @@ export default function ApprovalCenter() {
                 icon={<RedoOutlined />}
                 onClick={() => handleResubmit(r.instanceId, r.engine)}
               >
-                重新发起
+                重新提交
               </Button>
               {r.engine === 'wf' && (
                 <Button size="small" danger onClick={() => handleEndProcess(r.instanceId)}>

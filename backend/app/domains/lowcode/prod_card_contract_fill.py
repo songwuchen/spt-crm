@@ -500,19 +500,28 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             f["props"] = props
             f["description"] = f.get("description") or "实时引用所选合同/技术协议评审，不可手改。"
         elif fid == "field" and "合并含补充" in str(f.get("label") or ""):
-            # 简道云 rely：IF(是否补充==是,'补充',下单类型)
-            f["type"] = "formula"
-            f["form_editable"] = False
+            # 简道云：text + rely 联动回填，用户仍可手改（非 formula 只读）
+            f["type"] = "text"
+            f["form_editable"] = True
             f["props"] = {
                 **dict(f.get("props") or {}),
-                "formula": "IF($is_supplement#=='是','补充',$order_type#)",
+                "suggest_formula": "IF($is_supplement#=='是','补充',$order_type#)",
             }
             f["description"] = (
                 f.get("description")
-                or "自动计算：补充单为「补充」，否则等于下单类型。"
+                or "默认随「是否补充/下单类型」联动；可手动修改。"
             )
+        elif fid == "order_datetime":
+            props = dict(f.get("props") or {})
+            props.setdefault("show_time", False)
+            props.setdefault("date_only", True)
+            props["default_today_on_approve"] = True
+            f["props"] = props
 
+    apply_prod_card_std_room_detail_defaults(defs)
     apply_prod_card_approver_only_fields(defs)
+    apply_prod_card_legacy_hidden_fields(defs)
+    apply_prod_card_detail_quick_fill_flags(defs)
     ensure_prod_card_contract_fill_on_create(defs)
     apply_prod_card_install_pick_fields(defs)
 
@@ -522,17 +531,93 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
 _PROD_CARD_SALES_CONFIRM_PERMS: dict[str, str] = {
     "confirm_agreement": "required",
 }
-# 研管办安排：设计指派填写（安装图项目号 / 室主任0414 等）
+# 研管办安排：设计指派填写（对齐简道云 安排设计1 optAuth）
+# 注：f_0414「室主任0414」在简道云全流程 optAuth 均未出现（legacy 子表），不在任何节点填写。
 _PROD_CARD_DESIGN_ASSIGN_PERMS: dict[str, str] = {
-    "install_project_no": "editable",
-    "f_0414": "required",
+    "f_251128": "required",
     "has_install_project": "required",
+    "install_project_no": "readonly",
     "design_assignees": "required",
 }
+# 表单保留但简道云流程已废弃：全程隐藏（创建/审批/详情均不展示）
+PROD_CARD_LEGACY_HIDDEN_FIELDS: frozenset[str] = frozenset({"f_0414"})
+# 安排设计节点：发起人已填，审批人仅查看（对齐业务：不可改派人/技术协议评审选项）
+_PROD_CARD_DESIGN_READONLY_FIELDS: tuple[str, ...] = (
+    "need_dispatch",
+    "has_contract_tech_review",
+    "select_contract_tech_review",
+)
 _PROD_CARD_APPROVER_ONLY: dict[str, str] = {
     **_PROD_CARD_SALES_CONFIRM_PERMS,
     **_PROD_CARD_DESIGN_ASSIGN_PERMS,
 }
+
+
+PROD_CARD_DETAIL_QUICK_FILL_FIELDS: frozenset[str] = frozenset({"std_room_fill"})
+
+
+def apply_prod_card_std_room_detail_defaults(defs: list) -> None:
+    """标准化室子表：填写物料代码时间默认当前时刻（对齐简道云 value=today）。"""
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") != "std_room_fill":
+            continue
+        for col in f.get("detail_table_columns") or []:
+            if not isinstance(col, dict) or col.get("id") != "material_code_time":
+                continue
+            props = dict(col.get("props") or {})
+            props["default_today"] = True
+            col["props"] = props
+
+
+def apply_prod_card_detail_quick_fill_flags(defs: list) -> None:
+    """对齐简道云 subform quick_fill：明细子表显示「快速填报」入口。"""
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") not in PROD_CARD_DETAIL_QUICK_FILL_FIELDS:
+            continue
+        props = dict(f.get("props") or {})
+        props["quick_fill"] = True
+        f["props"] = props
+
+
+def apply_prod_card_legacy_hidden_fields(defs: list) -> None:
+    """简道云 optAuth 未挂出的 legacy 字段：CRM 全程隐藏。"""
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") not in PROD_CARD_LEGACY_HIDDEN_FIELDS:
+            continue
+        f["available_on_create"] = False
+        f["required"] = False
+        f.pop("fill_stage", None)
+        props = dict(f.get("props") or {})
+        props["hidden"] = True
+        f["props"] = props
+
+
+def filter_prod_card_legacy_field_perms(perms: list | None) -> list:
+    """待办/审批：去掉已废弃字段（在途流程节点可能仍挂着旧 field_perms）。"""
+    out: list = []
+    for p in perms or []:
+        if not isinstance(p, dict):
+            continue
+        if p.get("field") in PROD_CARD_LEGACY_HIDDEN_FIELDS:
+            continue
+        out.append(p)
+    return out
+
+
+def apply_prod_card_prune_legacy_field_perms(nodes: list | None) -> bool:
+    """发布/升级流程：从各节点 field_perms 剔除废弃字段。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        perms = list(n.get("field_perms") or [])
+        pruned = filter_prod_card_legacy_field_perms(perms)
+        if len(pruned) != len(perms):
+            n["field_perms"] = pruned
+            changed = True
+    return changed
 
 
 def apply_prod_card_approver_only_fields(defs: list) -> None:
@@ -569,6 +654,21 @@ def _merge_node_field_perms(node: dict, want: dict[str, str]) -> bool:
     if changed:
         node["field_perms"] = perms
     return changed
+
+
+def _force_node_field_access(node: dict, field_id: str, access: str) -> bool:
+    """写入/覆盖节点 field_perms（含 editable → readonly）。"""
+    perms = list(node.get("field_perms") or [])
+    for p in perms:
+        if isinstance(p, dict) and p.get("field") == field_id:
+            if p.get("access") == access:
+                return False
+            p["access"] = access
+            node["field_perms"] = perms
+            return True
+    perms.append({"field": field_id, "access": access})
+    node["field_perms"] = perms
+    return True
 
 
 def apply_prod_card_sales_confirm_field_perms(nodes: list | None) -> bool:
@@ -741,7 +841,7 @@ def apply_prod_card_sales_before_region(
 
 
 def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
-    """研管办安排节点补上安装图项目号 / 室主任0414 等可写权限。"""
+    """安排设计节点：设计指派可写；是否需要公司派人/技术协议评审仅只读。"""
     if not nodes:
         return False
     changed = False
@@ -749,27 +849,26 @@ def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
         if not isinstance(n, dict):
             continue
         name = str(n.get("name") or "")
-        # 「下单类型（合并含补充）」由公式自动填，节点上改为只读展示
-        perms = list(n.get("field_perms") or [])
-        for p in perms:
-            if not isinstance(p, dict) or p.get("field") != "field":
-                continue
-            if p.get("access") != "readonly":
-                p["access"] = "readonly"
-                changed = True
-        if "研管办安排" not in name:
+        if "安排设计" not in name or n.get("type") != "approval":
             continue
+        for fid in _PROD_CARD_DESIGN_READONLY_FIELDS:
+            if _force_node_field_access(n, fid, "readonly"):
+                changed = True
         if _merge_node_field_perms(n, _PROD_CARD_DESIGN_ASSIGN_PERMS):
             changed = True
-        # 协议确认已归业务员确认，从研管办节点去掉避免重复必填
+        # 协议确认已归业务员确认，从安排设计节点去掉避免重复必填
         perms = list(n.get("field_perms") or [])
         pruned = [
             p for p in perms
-            if not (isinstance(p, dict) and p.get("field") == "confirm_agreement")
+            if not (
+                isinstance(p, dict)
+                and p.get("field") in ("confirm_agreement", *PROD_CARD_LEGACY_HIDDEN_FIELDS)
+            )
         ]
         if len(pruned) != len(perms):
             n["field_perms"] = pruned
             changed = True
+    changed = apply_prod_card_prune_legacy_field_perms(nodes) or changed
     return changed
 
 
@@ -896,6 +995,10 @@ def apply_prod_card_contract_fill_visibility(
 PROD_CARD_INSTALL_LINK_FIELD = "prod_card_install"
 _PROD_CARD_INSTALL_DETAIL_ID = "f_251128"
 _PROD_CARD_INSTALL_COL_ID = "field_2"
+_PROD_CARD_INSTALL_COL_SALES = "field_3"
+_PROD_CARD_INSTALL_COL_SITE = "field_4"
+_PROD_CARD_INSTALL_COL_PRINT = "field_5"
+_PROD_CARD_INSTALL_COL_MATTER = "field_6"
 
 
 def _install_pick_as_id(val: Any) -> str | None:
@@ -910,26 +1013,61 @@ def _install_pick_as_id(val: Any) -> str | None:
     return s or None
 
 
+def _resolve_install_project_no(
+    data: dict,
+    *,
+    business_no: str | None,
+    project_codes: dict[str, str] | None = None,
+) -> str:
+    """安装图项目号：优先打印项目号/流水号（AZ…），对齐简道云 linkDataMaps。"""
+    pn = str(data.get("project_no_print") or "").strip()
+    if pn:
+        return pn
+    pn = str(data.get("serial_no") or "").strip()
+    if pn:
+        return pn
+    pn = (business_no or "").strip()
+    if pn:
+        return pn
+    pid = _install_pick_as_id(data.get("project_no"))
+    if pid and project_codes and pid in project_codes:
+        return project_codes[pid]
+    pn = str(data.get("matter") or "").strip()
+    if pn:
+        return pn
+    return str(data.get("design_card_no") or "").strip()
+
+
 def build_prod_card_install_fill(
     *,
     business_no: str | None,
     form_data: dict | None,
     project_codes: dict[str, str] | None = None,
+    user_names: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """生产卡明细「选择数据」→ 安装图设计通知；带出安装图项目号（对齐简道云 linkDataMaps）。"""
+    """生产卡明细「选择数据」→ 安装图设计通知；带出安装图项目号与明细展示列。"""
     data = form_data if isinstance(form_data, dict) else {}
-    pn = str(data.get("project_no_print") or "").strip()
-    if not pn:
-        pid = _install_pick_as_id(data.get("project_no"))
-        if pid and project_codes and pid in project_codes:
-            pn = project_codes[pid]
-    if not pn:
-        pn = str(data.get("matter") or "").strip()
-    if not pn:
-        pn = str(data.get("design_card_no") or "").strip()
-    if not pn:
-        pn = (business_no or "").strip()
-    return {"install_project_no": pn}
+    names = user_names if isinstance(user_names, dict) else {}
+    pn = _resolve_install_project_no(data, business_no=business_no, project_codes=project_codes)
+    sales = data.get("sales_person")
+    sales_text = ""
+    if isinstance(sales, dict):
+        sales_text = str(sales.get("name") or sales.get("label") or "").strip()
+    if not sales_text and sales is not None:
+        sid = _install_pick_as_id(sales)
+        if sid and sid in names:
+            sales_text = names[sid]
+        elif sales not in (None, ""):
+            sales_text = str(sales).strip()
+    site = str(data.get("customer_name") or "").strip()
+    matter = str(data.get("matter") or "").strip()
+    return {
+        "install_project_no": pn,
+        _PROD_CARD_INSTALL_COL_PRINT: pn,
+        _PROD_CARD_INSTALL_COL_SALES: sales_text,
+        _PROD_CARD_INSTALL_COL_SITE: site,
+        _PROD_CARD_INSTALL_COL_MATTER: matter,
+    }
 
 
 def prod_card_install_fill_clear_keys() -> list[str]:
@@ -938,23 +1076,43 @@ def prod_card_install_fill_clear_keys() -> list[str]:
 
 def apply_prod_card_install_pick_fields(defs: list) -> None:
     """项目号选择251128 → 选择数据：关联安装图设计通知实例。"""
+    _display_cols = (
+        (_PROD_CARD_INSTALL_COL_PRINT, "项目号（打印模板显示）", "_widget_1764289051545"),
+        (_PROD_CARD_INSTALL_COL_SALES, "业务员", None),
+        (_PROD_CARD_INSTALL_COL_SITE, "现场", None),
+        (_PROD_CARD_INSTALL_COL_MATTER, "事项", None),
+    )
     for f in defs:
         if not isinstance(f, dict) or f.get("id") != _PROD_CARD_INSTALL_DETAIL_ID:
             continue
-        for col in f.get("detail_table_columns") or []:
-            if not isinstance(col, dict) or col.get("id") != _PROD_CARD_INSTALL_COL_ID:
-                continue
-            col["type"] = "select_data"
-            col["label"] = col.get("label") or "选择数据"
-            col["description"] = (
-                col.get("description")
-                or "从安装图设计通知中选择；选中后自动带出安装图项目号。"
-            )
-            props = dict(col.get("props") or {})
-            props["source_form_code"] = "install_drawing_notice"
-            props["link_fill"] = "prod_card_install"
-            props["link_field"] = PROD_CARD_INSTALL_LINK_FIELD
-            col["props"] = props
+        cols = [c for c in (f.get("detail_table_columns") or []) if isinstance(c, dict)]
+        col_by_id = {c["id"]: c for c in cols if c.get("id")}
+        pick = col_by_id.get(_PROD_CARD_INSTALL_COL_ID)
+        if not isinstance(pick, dict):
+            pick = {"id": _PROD_CARD_INSTALL_COL_ID, "type": "text", "label": "选择数据"}
+            cols.insert(0, pick)
+        pick["type"] = "select_data"
+        pick["label"] = pick.get("label") or "选择数据"
+        pick["description"] = (
+            pick.get("description")
+            or "从安装图设计通知中选择；选中后自动带出安装图项目号。"
+        )
+        props = dict(pick.get("props") or {})
+        props["source_form_code"] = "install_drawing_notice"
+        props["link_fill"] = "prod_card_install"
+        props["link_field"] = PROD_CARD_INSTALL_LINK_FIELD
+        pick["props"] = props
+        for cid, label, jdy_widget in _display_cols:
+            col = col_by_id.get(cid)
+            if not isinstance(col, dict):
+                col = {"id": cid, "type": "text", "label": label}
+                cols.append(col)
+            col["type"] = "text"
+            col["label"] = label
+            col["form_editable"] = False
+            if jdy_widget:
+                col["jdy_widget"] = jdy_widget
+        f["detail_table_columns"] = cols
         break
     for f in defs:
         if isinstance(f, dict) and f.get("id") == "install_project_no":
