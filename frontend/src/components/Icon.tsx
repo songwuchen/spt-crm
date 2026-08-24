@@ -109,7 +109,7 @@ const MAP: Record<string, IconComp> = {
   summarize: FileTextOutlined, edit_document: ProfileOutlined, assignment: ProfileOutlined,
   // 客服「产品退货」菜单：退回语义
   assignment_return: RollbackOutlined,
-  fact_check: FileDoneOutlined, difference: DiffOutlined, dynamic_form: FormOutlined,
+  fact_check: FileDoneOutlined, rate_review: AuditOutlined, difference: DiffOutlined, dynamic_form: FormOutlined,
   folder: FolderOutlined, menu_book: ReadOutlined, receipt_long: AccountBookOutlined,
   checklist: UnorderedListOutlined, table_rows: TableOutlined, view_kanban: ProjectOutlined,
   confirmation_number: TagOutlined, sell: TagOutlined, label: TagOutlined,
