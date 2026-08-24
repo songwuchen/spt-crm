@@ -83,11 +83,14 @@ export default function ContractAttachmentSlots({
   contractId,
   pending,
   onPendingChange,
+  readonly,
 }: {
   slot: RegAfterSlot
   contractId?: string
   pending?: PendingAttachments
   onPendingChange?: (next: PendingAttachments) => void
+  /** 审批只读：仅预览/下载 */
+  readonly?: boolean
 }) {
   const panels = useMemo(() => CONTRACT_ATTACHMENT_SLOTS.filter((s) => s.key === slot), [slot])
   if (!panels.length) return null
@@ -103,16 +106,17 @@ export default function ContractAttachmentSlots({
             title={p.title}
             accept={p.accept}
             compact
+            readonly={readonly}
           />
         ))}
       </div>
     )
   }
 
-  if (!onPendingChange) {
+  if (readonly || !onPendingChange) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-[12px] text-slate-400 text-center">
-        请选择文件：{panels.map((p) => p.title).join('、')}
+        {readonly ? '暂无附件' : `请选择文件：${panels.map((p) => p.title).join('、')}`}
       </div>
     )
   }

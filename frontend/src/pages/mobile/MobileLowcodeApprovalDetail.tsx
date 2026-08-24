@@ -15,9 +15,17 @@ import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import {
+  defaultProdCardPrintMode,
+  isProdCardApproveAndPrintNode,
+  isProdCardSupplementForm,
+  printProdCardInstance,
+  type ProdCardPrintMode,
+} from '@/pages/drawing/prodCardPrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
@@ -160,10 +168,13 @@ export default function MobileLowcodeApprovalDetail() {
       const updates = (ct?.field_perms || []).length
         ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
-      const canPrint = canPrintDrawingDocument(fields, formData, detail?.process_name)
+      const canPrintSchemeDoc = canPrintDrawingDocument(fields, formData, detail?.process_name)
+      const canPrintProd = isProdCardSupplementForm(fields, formData, detail?.process_name)
       const shouldPrintAfterApprove = action === 'approve'
-        && canPrint
-        && isDrawingApproveAndPrintNode(ct?.node_name)
+        && (
+          (canPrintSchemeDoc && isDrawingApproveAndPrintNode(ct?.node_name))
+          || (canPrintProd && isProdCardApproveAndPrintNode(ct?.node_name))
+        )
       const mergedForm = { ...formData, ...fieldUpdates }
       await workflowApi.act(effectiveTaskId, {
         action,
@@ -179,17 +190,29 @@ export default function MobileLowcodeApprovalDetail() {
       if (shouldPrintAfterApprove) {
         message.success('已通过，正在打开打印预览')
         try {
-          await printSchemeInstance({
-            formData: mergedForm,
-            fieldDefinitions: fields,
-            businessNo: detail?.business_no,
-            flowSteps: detail?.flow_steps,
-            injectApproval: {
-              node_name: ct?.node_name,
-              opinion: opinion.trim() || undefined,
-              action: 'approve',
-            },
-          })
+          const inject = {
+            node_name: ct?.node_name,
+            opinion: opinion.trim() || undefined,
+            action: 'approve',
+          }
+          if (canPrintProd) {
+            await printProdCardInstance({
+              formData: mergedForm,
+              fieldDefinitions: fields,
+              businessNo: detail?.business_no,
+              flowSteps: detail?.flow_steps,
+              mode: defaultProdCardPrintMode(mergedForm),
+              injectApproval: inject,
+            })
+          } else {
+            await printSchemeInstance({
+              formData: mergedForm,
+              fieldDefinitions: fields,
+              businessNo: detail?.business_no,
+              flowSteps: detail?.flow_steps,
+              injectApproval: inject,
+            })
+          }
         } catch (err: unknown) {
           const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
           message.warning(msg || '已通过，打印失败，可稍后点打印重试')
@@ -219,12 +242,34 @@ export default function MobileLowcodeApprovalDetail() {
   if (!detail) return null
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail.process_name)
-  const approveAndPrint = canAct && canPrintScheme
-    && isDrawingApproveAndPrintNode(detail.current_task?.node_name)
+  const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail.process_name)
+  const approveAndPrint = canAct && (
+    (canPrintScheme && isDrawingApproveAndPrintNode(detail.current_task?.node_name))
+    || (canPrintProdCard && isProdCardApproveAndPrintNode(detail.current_task?.node_name))
+  )
 
-  const handlePrintScheme = async () => {
+  const handlePrintScheme = async (prodMode?: ProdCardPrintMode) => {
     try {
       const ct = detail.current_task
+      const mergedForm = { ...formData, ...fieldUpdates }
+      if (canPrintProdCard) {
+        const inject = ct && isProdCardApproveAndPrintNode(ct.node_name) && opinion.trim()
+          ? {
+            node_name: ct.node_name,
+            opinion: opinion.trim(),
+            action: 'approve',
+          }
+          : null
+        await printProdCardInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail.business_no,
+          flowSteps: detail.flow_steps,
+          mode: prodMode || defaultProdCardPrintMode(mergedForm),
+          injectApproval: inject,
+        })
+        return
+      }
       const inject = ct && isDrawingApproveAndPrintNode(ct.node_name) && opinion.trim()
         ? {
           node_name: ct.node_name,
@@ -233,7 +278,7 @@ export default function MobileLowcodeApprovalDetail() {
         }
         : null
       await printSchemeInstance({
-        formData: { ...formData, ...fieldUpdates },
+        formData: mergedForm,
         fieldDefinitions: fields,
         businessNo: detail.business_no,
         flowSteps: detail.flow_steps,
@@ -263,8 +308,8 @@ export default function MobileLowcodeApprovalDetail() {
             {isReviseTask ? '请修改后重新提交' : `当前节点：${detail.current_task.node_name}`}
           </div>
         )}
-        {(canPrintScheme || bizPath) && (
-          <div className="mt-3 flex gap-2">
+        {(canPrintScheme || canPrintProdCard || bizPath) && (
+          <div className="mt-3 flex gap-2 flex-wrap">
             {canPrintScheme && (
               <button
                 type="button"
@@ -273,6 +318,24 @@ export default function MobileLowcodeApprovalDetail() {
               >
                 打印
               </button>
+            )}
+            {canPrintProdCard && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { void handlePrintScheme('notice') }}
+                  className="flex-1 min-w-[40%] h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+                >
+                  生产通知单
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handlePrintScheme('supplement') }}
+                  className="flex-1 min-w-[40%] h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+                >
+                  生产补充卡
+                </button>
+              </>
             )}
             {bizPath && (
               <button
@@ -329,30 +392,47 @@ export default function MobileLowcodeApprovalDetail() {
 
       {detail.biz_type === 'lead' && detail.biz_id && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact readonly />
         </div>
       )}
       {detail.biz_type === 'customer' && detail.biz_id && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
+          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact readonly />
+        </div>
+      )}
+      {detail.biz_type === 'contract_version' && (detail.biz_ref_id || detail.biz_id) && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3 space-y-3">
+          <div className="text-sm font-bold text-slate-500">合同附件（发起人上传）</div>
+          <ContractAttachmentSlots
+            slot="contract_files"
+            contractId={detail.biz_ref_id || undefined}
+            readonly
+          />
+          <ContractAttachmentSlots
+            slot="accept_files"
+            contractId={detail.biz_ref_id || undefined}
+            readonly
+          />
         </div>
       )}
       {detail.biz_type === 'contract_review' && detail.biz_id && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3 space-y-3">
-          <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact />
+          <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact readonly />
           <AttachmentPanel
             bizType="contract_review_image"
             bizId={detail.biz_id}
             title="图片"
             accept="image/*"
             compact
+            readonly
           />
-          <AttachmentPanel bizType="contract_review_cost" bizId={detail.biz_id} title="成本附件" compact />
+          <AttachmentPanel bizType="contract_review_cost" bizId={detail.biz_id} title="成本附件" compact readonly />
           <AttachmentPanel
             bizType="contract_review_feedback"
             bizId={detail.biz_id}
             title="反馈附件"
             compact
+            readonly
           />
           <AttachmentPanel
             bizType="contract_review_feedback_image"
@@ -360,6 +440,7 @@ export default function MobileLowcodeApprovalDetail() {
             title="反馈图片"
             accept="image/*"
             compact
+            readonly
           />
         </div>
       )}

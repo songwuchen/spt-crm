@@ -24,6 +24,8 @@ interface Props {
   accept?: string
   /** 紧凑模式（嵌入登记分区） */
   compact?: boolean
+  /** 审批/只读：不展示上传与删除，仅预览下载 */
+  readonly?: boolean
   /** 新建态暂存文件（无 bizId 时） */
   pendingFiles?: File[]
   onPendingChange?: (files: File[]) => void
@@ -110,19 +112,20 @@ function PendingDropZone({
 }
 
 export default function AttachmentPanel({
-  bizType, bizId, title = '附件', accept, compact,
+  bizType, bizId, title = '附件', accept, compact, readonly,
   pendingFiles, onPendingChange,
 }: Props) {
   const [list, setList] = useState<AttachmentItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // 新建态：无 bizId 时用本地暂存（对齐简道云创建即可选附件）
   if (!bizId) {
-    if (!onPendingChange) {
+    if (readonly || !onPendingChange) {
       return (
         <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-[12px] text-slate-400 text-center mb-4">
-          保存后可上传{title}
+          {readonly ? `暂无${title}` : `保存后可上传${title}`}
         </div>
       )
     }
@@ -144,38 +147,46 @@ export default function AttachmentPanel({
       title={title}
       accept={accept}
       compact={compact}
+      readonly={!!readonly}
       list={list}
       setList={setList}
       loading={loading}
       setLoading={setLoading}
       uploading={uploading}
       setUploading={setUploading}
+      loadError={loadError}
+      setLoadError={setLoadError}
     />
   )
 }
 
 /** 有 bizId 时的列表面板（hooks 须在条件分支外的稳定组件里） */
 function AttachmentPanelBound({
-  bizType, bizId, title, accept, compact,
+  bizType, bizId, title, accept, compact, readonly,
   list, setList, loading, setLoading, uploading, setUploading,
+  loadError, setLoadError,
 }: {
   bizType: string
   bizId: string
   title: string
   accept?: string
   compact?: boolean
+  readonly?: boolean
   list: AttachmentItem[]
   setList: (v: AttachmentItem[]) => void
   loading: boolean
   setLoading: (v: boolean) => void
   uploading: boolean
   setUploading: (v: boolean) => void
+  loadError: string | null
+  setLoadError: (v: string | null) => void
 }) {
   const isImage = !!accept?.startsWith('image')
   const maxBytes = jdyMaxBytes(isImage)
 
   const fetchList = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const res = await client.get<unknown, ApiResponse<Array<{
         id: string
@@ -186,7 +197,8 @@ function AttachmentPanelBound({
         created_at: string
       }>>>('/api/v1/attachments/by_biz', {
         params: { biz_type: bizType, biz_id: bizId },
-        headers: compact ? { 'X-Silent-Error': '1' } : undefined,
+        // 只读审批态需要看到失败原因；编辑紧凑态仍静默
+        headers: compact && !readonly ? { 'X-Silent-Error': '1' } : undefined,
       })
       setList((res.data || []).map((a) => ({
         id: a.id,
@@ -198,6 +210,7 @@ function AttachmentPanelBound({
       })))
     } catch {
       setList([])
+      setLoadError('附件加载失败（可能无权限），请刷新或联系管理员')
       if (!compact) message.error('附件列表加载失败，请刷新重试')
     } finally {
       setLoading(false)
@@ -251,17 +264,26 @@ function AttachmentPanelBound({
       <div className="mb-2">
         <span className={compact ? 'text-sm font-medium text-slate-700' : 'font-medium'}>{title}</span>
       </div>
-      <JdyUploadZone image={isImage} uploading={uploading} onFiles={handleUploadMany} />
-      <div className="mt-2">
-        <AttachmentFileTable
-          items={list}
-          loading={loading}
-          fetchMeta={false}
-          showDelete
-          onDelete={handleDelete}
-          compact={compact}
-        />
-      </div>
+      {!readonly && (
+        <JdyUploadZone image={isImage} uploading={uploading} onFiles={handleUploadMany} />
+      )}
+      {loadError ? (
+        <div className="mt-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
+          {loadError}
+        </div>
+      ) : (
+        <div className={readonly ? undefined : 'mt-2'}>
+          <AttachmentFileTable
+            items={list}
+            loading={loading}
+            fetchMeta={false}
+            showDelete={!readonly}
+            onDelete={readonly ? undefined : handleDelete}
+            compact={compact}
+            emptyText={readonly ? '暂无附件' : '暂无文件'}
+          />
+        </div>
+      )}
     </div>
   )
 }

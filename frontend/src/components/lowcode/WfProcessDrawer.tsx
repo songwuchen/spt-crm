@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio, Tabs, Modal,
+  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio, Tabs, Modal, Dropdown,
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
@@ -25,9 +25,17 @@ import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import {
+  defaultProdCardPrintMode,
+  isProdCardApproveAndPrintNode,
+  isProdCardSupplementForm,
+  printProdCardInstance,
+  type ProdCardPrintMode,
+} from '@/pages/drawing/prodCardPrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath, LEAD_INTEL_FIELD_PERMS } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -253,12 +261,34 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const canAct = !!effectiveTaskId && (detail?.status === 'running' || isReviseTask)
 
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
-  const approveAndPrint = canAct && canPrintScheme
-    && isDrawingApproveAndPrintNode(detail?.current_task?.node_name)
+  const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail?.process_name)
+  const approveAndPrint = canAct && (
+    (canPrintScheme && isDrawingApproveAndPrintNode(detail?.current_task?.node_name))
+    || (canPrintProdCard && isProdCardApproveAndPrintNode(detail?.current_task?.node_name))
+  )
 
-  const handlePrintScheme = async () => {
+  const handlePrintScheme = async (prodMode?: ProdCardPrintMode) => {
     try {
       const ct = detail?.current_task
+      const mergedForm = { ...formData, ...fieldUpdates }
+      if (canPrintProdCard) {
+        const inject = ct && isProdCardApproveAndPrintNode(ct.node_name) && opinion.trim()
+          ? {
+            node_name: ct.node_name,
+            opinion: opinion.trim(),
+            action: 'approve',
+          }
+          : null
+        await printProdCardInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail?.business_no,
+          flowSteps: detail?.flow_steps,
+          mode: prodMode || defaultProdCardPrintMode(mergedForm),
+          injectApproval: inject,
+        })
+        return
+      }
       const inject = ct && isDrawingApproveAndPrintNode(ct.node_name) && opinion.trim()
         ? {
           node_name: ct.node_name,
@@ -267,7 +297,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         }
         : null
       await printSchemeInstance({
-        formData: { ...formData, ...fieldUpdates },
+        formData: mergedForm,
         fieldDefinitions: fields,
         businessNo: detail?.business_no,
         flowSteps: detail?.flow_steps,
@@ -345,8 +375,10 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         : undefined
       const mergedForm = { ...formData, ...fieldUpdates }
       const shouldPrintAfterApprove = action === 'approve'
-        && canPrintScheme
-        && isDrawingApproveAndPrintNode(ct?.node_name)
+        && (
+          (canPrintScheme && isDrawingApproveAndPrintNode(ct?.node_name))
+          || (canPrintProdCard && isProdCardApproveAndPrintNode(ct?.node_name))
+        )
       await workflowApi.act(effectiveTaskId, {
         action, opinion: opinion.trim() || undefined,
         transfer_to: action === 'transfer'
@@ -360,17 +392,29 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       if (shouldPrintAfterApprove) {
         message.success('已通过，正在打开打印预览')
         try {
-          await printSchemeInstance({
-            formData: mergedForm,
-            fieldDefinitions: fields,
-            businessNo: detail?.business_no,
-            flowSteps: detail?.flow_steps,
-            injectApproval: {
-              node_name: ct?.node_name,
-              opinion: opinion.trim() || undefined,
-              action: 'approve',
-            },
-          })
+          const inject = {
+            node_name: ct?.node_name,
+            opinion: opinion.trim() || undefined,
+            action: 'approve',
+          }
+          if (canPrintProdCard) {
+            await printProdCardInstance({
+              formData: mergedForm,
+              fieldDefinitions: fields,
+              businessNo: detail?.business_no,
+              flowSteps: detail?.flow_steps,
+              mode: defaultProdCardPrintMode(mergedForm),
+              injectApproval: inject,
+            })
+          } else {
+            await printSchemeInstance({
+              formData: mergedForm,
+              fieldDefinitions: fields,
+              businessNo: detail?.business_no,
+              flowSteps: detail?.flow_steps,
+              injectApproval: inject,
+            })
+          }
         } catch (err: unknown) {
           const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
           message.warning(msg || '已通过，打印失败，可稍后点打印重试')
@@ -515,7 +559,22 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       </div>
       {detail?.biz_type === 'lead' && detail.biz_id && (
         <div className="mb-4">
-          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact readonly />
+        </div>
+      )}
+      {detail?.biz_type === 'contract_version' && (contract?.id || detail.biz_ref_id) && (
+        <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+          <div className="text-sm font-semibold text-slate-700">合同附件（发起人上传）</div>
+          <ContractAttachmentSlots
+            slot="contract_files"
+            contractId={contract?.id || detail.biz_ref_id || undefined}
+            readonly
+          />
+          <ContractAttachmentSlots
+            slot="accept_files"
+            contractId={contract?.id || detail.biz_ref_id || undefined}
+            readonly
+          />
         </div>
       )}
       {fields.length ? (
@@ -557,7 +616,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       )}
       {detail?.biz_type === 'customer' && detail.biz_id && (
         <div className="mt-4">
-          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
+          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact readonly />
         </div>
       )}
       {detail?.biz_type === 'tech_agreement_review' && detail.biz_id && (
@@ -567,12 +626,14 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
             bizId={detail.biz_id}
             title="认可图（附件）"
             compact
+            readonly
           />
           <AttachmentPanel
             bizType="tech_agreement_review"
             bizId={detail.biz_id}
             title="技术协议（附件）"
             compact
+            readonly
           />
         </div>
       )}
@@ -627,6 +688,29 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       打印
                     </Button>
                   )}
+                  {canPrintProdCard && (
+                    <Dropdown
+                      menu={{
+                        items: [
+                          {
+                            key: 'notice',
+                            label: '生产通知单',
+                            onClick: () => { void handlePrintScheme('notice') },
+                          },
+                          {
+                            key: 'supplement',
+                            label: '生产补充卡',
+                            onClick: () => { void handlePrintScheme('supplement') },
+                          },
+                        ],
+                      }}
+                      trigger={['click']}
+                    >
+                      <Button size="small" icon={<PrinterOutlined />}>
+                        打印
+                      </Button>
+                    </Dropdown>
+                  )}
                   {canActivateFlow && detail.can_activate && (
                     <Button
                       size="small"
@@ -664,7 +748,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       children: (
                         <div className="space-y-4 pt-1">
                           {detail.biz_id && (
-                            <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+                            <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact readonly />
                           )}
                           <BizDetailGrid entries={originalBizEntries} />
                         </div>

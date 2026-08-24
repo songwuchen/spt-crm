@@ -119,12 +119,12 @@ export default function ContractRegistrationReadonly({
           )}
           {sec.afterSlot === 'contract_files' && (
             <div className="mb-3">
-              <ContractAttachmentSlots slot="contract_files" contractId={contract.id} />
+              <ContractAttachmentSlots slot="contract_files" contractId={contract.id} readonly />
             </div>
           )}
           {sec.afterSlot === 'accept_files' && (
             <div className="mb-3">
-              <ContractAttachmentSlots slot="accept_files" contractId={contract.id} />
+              <ContractAttachmentSlots slot="accept_files" contractId={contract.id} readonly />
             </div>
           )}
           {sec.fieldsAfterSlot?.length ? renderDesc(sec.fieldsAfterSlot) : null}
