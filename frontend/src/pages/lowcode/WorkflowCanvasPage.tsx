@@ -267,6 +267,28 @@ function autoLayout(nodes: WfNode[], routes: WfRoute[]): Record<string, { x: num
   return pos
 }
 
+/** 画布必须保留开始/结束；历史草稿可能缺结束节点。 */
+function ensureTerminalNodes(
+  nodes: WfNode[],
+  routes: WfRoute[],
+): { nodes: WfNode[]; routes: WfRoute[]; addedEnd: boolean } {
+  const ns = [...nodes]
+  const rs = [...routes]
+  let addedEnd = false
+  if (!ns.some((n) => n.id === 'start' && n.type === 'start')) {
+    ns.unshift({ id: 'start', type: 'start', name: '开始' })
+  }
+  if (!ns.some((n) => n.id === 'end' && n.type === 'end')) {
+    ns.push({ id: 'end', type: 'end', name: '结束' })
+    addedEnd = true
+  }
+  return { nodes: ns, routes: rs, addedEnd }
+}
+
+function hasRouteToEnd(routes: WfRoute[]): boolean {
+  return routes.some((r) => r.target === 'end')
+}
+
 function DesignerInner() {
   const { id = '' } = useParams()
   const nav = useNavigate()
@@ -314,6 +336,12 @@ function DesignerInner() {
         const design = await workflowApi.loadDesign(id)
         let nodes = (design.data.node_definitions || []) as WfNode[]
         let routes = (design.data.route_definitions || []) as WfRoute[]
+        const ensured = ensureTerminalNodes(nodes, routes)
+        nodes = ensured.nodes
+        routes = ensured.routes
+        if (ensured.addedEnd) {
+          message.info('已自动补上「结束」节点，请把主链最后一环连到结束')
+        }
         if (nodes.length === 0) {
           nodes = [{ id: 'start', type: 'start', name: '开始' }, { id: 'end', type: 'end', name: '结束' }]
           routes = [{ id: 'r0', source: 'start', target: 'end' }]
@@ -423,6 +451,28 @@ function DesignerInner() {
     message.success('已重新整理布局（保存草稿后生效）')
   }
 
+  const ensureEndNode = () => {
+    if (!rfNodes.some((n) => n.id === 'end')) {
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: 'end',
+          type: 'wf',
+          position: { x: 120, y: 160 + nds.length * 40 },
+          data: { node: { id: 'end', type: 'end', name: '结束' } },
+        },
+      ])
+      message.success('已添加「结束」节点，请把主链最后一环连过来')
+    } else {
+      message.info('结束节点已在画布上，请把主链接到结束')
+    }
+    setSelNode('end')
+    setSelEdge(null)
+    requestAnimationFrame(() => {
+      setTimeout(() => fitView({ padding: 0.18, duration: 220, nodes: [{ id: 'end' }] }), 40)
+    })
+  }
+
   const delSelected = () => {
     if (selNode && !['start', 'end'].includes(selNode)) {
       setNodes((n) => n.filter((x) => x.id !== selNode))
@@ -433,12 +483,17 @@ function DesignerInner() {
   }
 
   const buildDesign = (): WfDesign => {
-    const node_definitions = rfNodes.map((n) => ({ ...(n.data as { node: WfNode }).node, position: n.position }))
-    const route_definitions = rfEdges.map((e) => (e.data as { route: WfRoute }).route)
+    const rawNodes = rfNodes.map((n) => ({ ...(n.data as { node: WfNode }).node, position: n.position }))
+    const rawRoutes = rfEdges.map((e) => (e.data as { route: WfRoute }).route)
+    const { nodes: node_definitions, routes: route_definitions } = ensureTerminalNodes(rawNodes, rawRoutes)
     return { node_definitions, route_definitions, approver_rules: [] }
   }
   const save = async (publish = false) => {
-    await workflowApi.saveDesign(id, buildDesign())
+    const design = buildDesign()
+    if (!hasRouteToEnd(design.route_definitions)) {
+      message.warning('当前没有任何连线指向「结束」节点，发布后流程可能无法正常完结，请把主链最后一环连到结束')
+    }
+    await workflowApi.saveDesign(id, design)
     if (publish) { await workflowApi.publish(id); message.success('已发布'); nav('/lowcode/workflows') }
     else message.success('草稿已保存')
   }
@@ -551,6 +606,7 @@ function DesignerInner() {
           <Button icon={<PlusOutlined />} onClick={() => addNode('cc')}>抄送节点</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('parallel')}>并行网关</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('merge')}>汇聚节点</Button>
+          <Button icon={<StopOutlined />} onClick={ensureEndNode}>结束节点</Button>
           <Button icon={<ColumnHeightOutlined />} onClick={rearrangeLayout}>整理布局</Button>
           <Button onClick={() => save(false)}>保存草稿</Button>
           <Button type="primary" onClick={() => save(true)}>保存并发布</Button>
@@ -664,7 +720,9 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
           />
           {node.type === 'cc' && (
             <Text type="secondary" style={{ fontSize: 11 }}>
-              抄送人与审批人共用同一套规则类型；可切换为「组合选人」以同时抄送发起人与表单人员字段。
+              抄送按部门圈人：「指定部门·全体成员」或「表单部门·全体成员」；
+              仅抄主管用「部门负责人」/「表单部门·负责人」。
+              勾选「含下级部门成员」可包含子部门。
             </Text>
           )}
           {node.type === 'approval' && (

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
-  Input, Select, Dropdown,
+  Input, Select, Dropdown, Alert,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -520,6 +520,7 @@ export default function FormDataListPage({
   fillPath: fillPathProp,
   templateCode,
   dashboardPath,
+  legacySchemeList,
 }: {
   /** 侧栏模块传入；缺省则从路由 /lowcode/forms/:id/data 取 */
   templateId?: string
@@ -530,6 +531,8 @@ export default function FormDataListPage({
   templateCode?: string
   /** 可选仪表盘入口（如收款登记仪表盘） */
   dashboardPath?: string
+  /** 旧版合并方案管理列表：新建走拆分菜单 */
+  legacySchemeList?: boolean
 } = {}) {
   const { id: paramId = '' } = useParams()
   const id = propId || paramId
@@ -1385,8 +1388,23 @@ export default function FormDataListPage({
     ? (drawingLayout ? applyDrawingFormLayout(templateCode, viewRec.fields) : viewRec.fields)
     : []
 
+  const schemeCreateMenu: MenuProps['items'] = legacySchemeList ? [
+    { key: 'drawing-requisition', label: '合同图纸领用', onClick: () => nav('/drawing-requisitions/fill') },
+    { key: 'install-notice', label: '安装图设计通知', onClick: () => nav('/install-drawing-notices/fill') },
+    { key: 'presale-notice', label: '售前服务通知', onClick: () => nav('/presale-service-notices/fill') },
+  ] : undefined
+
   return (
     <div>
+      {legacySchemeList && (
+        <Alert
+          type="info"
+          showIcon
+          className="mb-4"
+          message="方案管理已拆分为独立表单"
+          description="本页仅保留历史合并单据查询。新建请从左侧「方案管理」子菜单选择：合同图纸领用、安装图设计通知或售前服务通知。"
+        />
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="shrink-0">
         <Space>
           {!isModule && (
@@ -1403,7 +1421,15 @@ export default function FormDataListPage({
               导出 <DownOutlined className="text-xs" />
             </Button>
           </Dropdown>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>
+          {legacySchemeList ? (
+            <Dropdown menu={{ items: schemeCreateMenu }} trigger={['click']}>
+              <Button type="primary" icon={<PlusOutlined />}>
+                新建 <DownOutlined />
+              </Button>
+            </Dropdown>
+          ) : (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>
+          )}
         </Space>
       </div>
 

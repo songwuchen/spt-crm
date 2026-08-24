@@ -15,6 +15,15 @@ def test_apply_payment_registration_fields():
         {"id": "customer_name", "type": "text", "label": "单位名称"},
         {"id": "payment_total", "type": "number", "label": "来款合计", "available_on_create": True},
         {"id": "sales_person", "type": "person", "label": "业务人员", "available_on_create": True},
+        {
+            "id": "payment_details",
+            "type": "detail_table",
+            "label": "来款明细",
+            "detail_table_columns": [
+                {"id": "amount", "type": "number", "label": "金额"},
+                {"id": "due_date", "type": "datetime", "label": "到期日"},
+            ],
+        },
         {"id": "payment_allocation", "type": "detail_table", "label": "款项分配"},
         {"id": "alloc_total", "type": "number", "label": "分配金额合计"},
         {"id": "remark_2", "type": "textarea", "label": "备注"},
@@ -29,12 +38,16 @@ def test_apply_payment_registration_fields():
     assert defs[2]["type"] == "customer"
     assert defs[3]["type"] == "formula"
     assert defs[3]["props"]["formula"] == "SUM($payment_details.amount#)"
+    due_col = next(c for c in defs[5]["detail_table_columns"] if c["id"] == "due_date")
+    assert due_col["type"] == "date"
+    assert due_col["props"]["date_only"] is True
+    assert due_col["props"]["show_time"] is False
     assert defs[4]["available_on_create"] is False
     assert defs[4]["fill_stage"] == "approver"
-    assert defs[5]["available_on_create"] is False
-    assert defs[6]["type"] == "formula"
     assert defs[6]["available_on_create"] is False
+    assert defs[7]["type"] == "formula"
     assert defs[7]["available_on_create"] is False
+    assert defs[8]["available_on_create"] is False
 
 
 def test_payment_total_formula_sums_details():

@@ -22,8 +22,9 @@ def test_tech_agreement_feedback_builtin_pack():
     from app.domains.lowcode._tech_feedback_outsource_generated import TECH_FEEDBACK_OUTSOURCE_JDY
     pack = TECH_FEEDBACK_OUTSOURCE_JDY["tech_agreement_feedback"]
     nodes = pack.get("flow_nodes") or []
-    assert _flow_is_jdy_tech_agreement_feedback(nodes)
-    assert len([n for n in nodes if n.get("type") == "approval"]) >= 3
+    routes = pack.get("flow_routes") or []
+    assert _flow_is_jdy_tech_agreement_feedback(nodes, routes)
+    assert len([n for n in nodes if n.get("type") == "approval"]) >= 8
 
 
 def test_contract_outsource_early_builtin_pack():

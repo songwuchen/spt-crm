@@ -1,15 +1,16 @@
 /** 流程节点审批人/抄送人规则编辑（含组合选人 mixed）。 */
 import { useEffect, useState } from 'react'
-import { Button, Input, Select, Space, Typography } from 'antd'
+import { Button, Checkbox, Input, Select, Space, Typography } from 'antd'
 import { DeleteOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import DeptField from '@/components/lowcode/fields/DeptField'
 import { pickableScopeApi } from '@/api/pickableScope'
 import { lowcodeApi } from '@/api/lowcode'
 import type { ApproverType, FieldDefinition, WfApproverRule } from '@/types/lowcode'
 
 const { Text } = Typography
 
-type NeedValue = 'user' | 'field_person' | 'field_dept' | 'role' | 'pickable_scope' | 'mixed'
+type NeedValue = 'user' | 'field_person' | 'field_dept' | 'dept_fixed' | 'role' | 'pickable_scope' | 'mixed'
 
 export type ApproverTypeMeta = {
   value: ApproverType
@@ -23,10 +24,12 @@ export const ATOMIC_APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'creator', label: '发起人本人' },
   { value: 'direct_supervisor', label: '直接上级' },
   { value: 'dept_head', label: '部门负责人' },
+  { value: 'dept_members', label: '指定部门·全体成员', needValue: 'dept_fixed' },
   { value: 'multi_level_superior', label: '逐级上级' },
   { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
   { value: 'form_field_person_dept_head', label: '表单人员·部门负责人', needValue: 'field_person' },
-  { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
+  { value: 'form_field_dept', label: '表单部门·负责人', needValue: 'field_dept' },
+  { value: 'form_field_dept_members', label: '表单部门·全体成员', needValue: 'field_dept' },
   { value: 'pickable_scope', label: '可选范围', needValue: 'pickable_scope' },
   { value: 'specified_role', label: '指定角色', needValue: 'role' },
 ]
@@ -64,6 +67,10 @@ function asFieldIds(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean)
   if (typeof value === 'string' && value.trim()) return [value.trim()]
   return []
+}
+
+function asDeptIds(value: unknown): string[] {
+  return asFieldIds(value)
 }
 
 /** 单字段存 string，多字段存 string[]（对齐后端 form_field_person 解析） */
@@ -220,18 +227,32 @@ function AtomicValueEditor({
   }
   if (meta.needValue === 'field_dept') {
     const selected = asFieldIds(rule.value)
+    const hint = rule.type === 'form_field_dept_members'
+      ? '选择部门字段（抄送该部门全部成员）'
+      : '选择部门字段（取各部门负责人）'
     return (
       <Select
         size="small"
         mode="multiple"
         allowClear
         style={{ width: '100%' }}
-        placeholder="选择部门字段（可多选）"
+        placeholder={hint}
         value={selected}
         options={deptFieldOptions(formFields, selected)}
         optionFilterProp="label"
         showSearch
         onChange={(ids) => onChange(normalizeFieldIds(ids))}
+      />
+    )
+  }
+  if (meta.needValue === 'dept_fixed') {
+    const selected = asDeptIds(rule.value)
+    return (
+      <DeptField
+        multi
+        value={selected}
+        onChange={(nv) => onChange(Array.isArray(nv) ? nv : nv ? [nv] : [])}
+        placeholder="选择部门（可多选，抄送各部门全部成员）"
       />
     )
   }
@@ -366,11 +387,21 @@ export function ApproverRuleEditor({
           onChange={(subs) => onChange({ type: 'mixed', value: subs })}
         />
       ) : meta?.needValue ? (
-        <AtomicValueEditor
-          rule={current}
-          formFields={formFields}
-          onChange={(v) => onChange({ ...current, value: v })}
-        />
+        <>
+          <AtomicValueEditor
+            rule={current}
+            formFields={formFields}
+            onChange={(v) => onChange({ ...current, value: v })}
+          />
+          {(current.type === 'dept_members' || current.type === 'form_field_dept_members') && (
+            <Checkbox
+              checked={!!current.include_sub}
+              onChange={(e) => onChange({ ...current, include_sub: e.target.checked })}
+            >
+              含下级部门成员
+            </Checkbox>
+          )}
+        </>
       ) : null}
     </Space>
   )

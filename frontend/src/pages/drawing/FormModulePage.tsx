@@ -10,6 +10,7 @@ export default function FormModulePage({
   title,
   basePath,
   dashboardPath,
+  legacySchemeList,
 }: {
   templateCode: string
   title: string
@@ -17,6 +18,8 @@ export default function FormModulePage({
   basePath: string
   /** 可选：模块仪表盘路由（如收款登记仪表盘） */
   dashboardPath?: string
+  /** 旧版合并「方案管理」列表：仅查历史单，新建走拆分菜单 */
+  legacySchemeList?: boolean
 }) {
   usePageTitle(title)
   const [templateId, setTemplateId] = useState<string | null>(null)
@@ -64,6 +67,7 @@ export default function FormModulePage({
       fillPath={`${basePath.replace(/\/$/, '')}/fill`}
       templateCode={templateCode}
       dashboardPath={dashboardPath}
+      legacySchemeList={legacySchemeList}
     />
   )
 }

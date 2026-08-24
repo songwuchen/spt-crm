@@ -1,6 +1,6 @@
 // 扩展平台 → 表单填报: 按已发布 schema 渲染, 提交生成一条数据。
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Card, Button, Space, message, Typography, Result, Modal } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
@@ -42,6 +42,10 @@ export default function FormFillPage({
   pageTitle,
   templateCode,
   contentMaxWidth,
+  embedded,
+  prefillFormData: prefillProp,
+  onSuccess,
+  onCancel,
 }: {
   /** 侧栏模块传入；缺省则从路由 /lowcode/forms/:id/fill 取 */
   templateId?: string
@@ -51,10 +55,19 @@ export default function FormFillPage({
   /** 内置模块 code，用于图纸表单分区布局 */
   templateCode?: string
   contentMaxWidth?: number
+  /** 弹窗内嵌填报：不展示返回/Card，提交后走 onSuccess */
+  embedded?: boolean
+  /** 预填字段（弹窗模式直接传 prop，页面模式仍可读 location.state） */
+  prefillFormData?: Record<string, unknown>
+  onSuccess?: () => void
+  onCancel?: () => void
 } = {}) {
   const { id: paramId = '' } = useParams()
   const id = propId || paramId
   const nav = useNavigate()
+  const location = useLocation()
+  const prefillFormData = prefillProp
+    ?? (location.state as { prefillFormData?: Record<string, unknown> } | null)?.prefillFormData
   const backPath = returnTo || (id ? `/lowcode/forms/${id}/data` : '/lowcode/forms')
   const [name, setName] = useState('')
   const [fields, setFields] = useState<FieldDefinition[]>([])
@@ -88,12 +101,13 @@ export default function FormFillPage({
         setName(tpl.data.name)
         setFields(defs)
         setRules((ver.data.rule_definitions as FormRule[]) || [])
-        setValue(buildLowcodeInitialValues(defs, useAuthStore.getState().user))
+        const base = buildLowcodeInitialValues(defs, useAuthStore.getState().user)
+        setValue(prefillFormData ? { ...base, ...prefillFormData } : base)
       } catch {
         setErr('该表单尚未发布或不存在')
       } finally { setLoading(false) }
     })()
-  }, [id])
+  }, [id, prefillFormData])
 
   // 用户信息晚于 schema 加载时，补填 default_current_user / default_current_dept
   useEffect(() => {
@@ -373,6 +387,11 @@ export default function FormFillPage({
           setValue(buildLowcodeInitialValues(fields, useAuthStore.getState().user))
           lastAutoPreviewRef.current = {}
         }
+        if (embedded && onSuccess) onSuccess()
+        return
+      }
+      if (embedded && onSuccess) {
+        onSuccess()
         return
       }
       nav(backPath)
@@ -393,8 +412,17 @@ export default function FormFillPage({
     } finally { setSubmitting(false) }
   }
 
-  if (loading) return <Card loading />
+  if (loading) return embedded ? <div className="py-12 text-center text-slate-400">加载中…</div> : <Card loading />
   if (err) {
+    if (embedded) {
+      return (
+        <Result
+          status="warning"
+          title={err}
+          extra={onCancel ? <Button onClick={onCancel}>关闭</Button> : undefined}
+        />
+      )
+    }
     return (
       <Result
         status="warning"
@@ -404,13 +432,9 @@ export default function FormFillPage({
     )
   }
 
-  return (
-    <Card>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => nav(backPath)}>返回</Button>
-        <Title level={4} style={{ margin: 0 }}>{pageTitle || `填报 · ${name}`}</Title>
-      </Space>
-      <div style={{ maxWidth }}>
+  const formBody = (
+    <>
+      <div style={{ maxWidth: embedded ? undefined : maxWidth }}>
         <FormRenderer
           fields={displayFields}
           rules={rules}
@@ -450,17 +474,32 @@ export default function FormFillPage({
             </>
           ) : (
             <>
+              {embedded && onCancel && (
+                <Button onClick={onCancel} disabled={submitting}>取消</Button>
+              )}
               <Button onClick={() => submit(true)} loading={submitting}>存草稿</Button>
               <Button type="primary" onClick={() => submit(false)} loading={submitting}>提交</Button>
             </>
           )}
         </Space>
-        {!isDrawingMap && (
+        {!isDrawingMap && !embedded && (
           <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
             「提交」会发起审批；「存草稿」仅保存，可稍后在列表中打开草稿再点「提交审批」。
           </Text>
         )}
       </div>
+    </>
+  )
+
+  if (embedded) return formBody
+
+  return (
+    <Card>
+      <Space style={{ marginBottom: 16 }}>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => nav(backPath)}>返回</Button>
+        <Title level={4} style={{ margin: 0 }}>{pageTitle || `填报 · ${name}`}</Title>
+      </Space>
+      {formBody}
     </Card>
   )
 }

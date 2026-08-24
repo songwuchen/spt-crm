@@ -494,6 +494,13 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
                 notes.append("客服补登：换货明细 field_12 标 required（故障分类）")
         except Exception as ex:  # pragma: no cover
             notes.append(f"客服补登 field_perms 补丁跳过: {ex}")
+    if key in ("cs_service_request", "cs_product_replace", "cs_product_return"):
+        try:
+            from app.domains.lowcode.workflow_service import apply_cs_sales_cc_on_start
+            if apply_cs_sales_cc_on_start(nodes, routes):
+                notes.append("发起旁路抄送表单业务员")
+        except Exception as ex:  # pragma: no cover
+            notes.append(f"发起抄送业务员补丁跳过: {ex}")
     if key in ("cs_service_request", "cs_product_replace"):
         try:
             from app.domains.lowcode.workflow_service import (

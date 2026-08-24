@@ -343,6 +343,42 @@ async def get_project(
     return ok(d)
 
 
+@router.get("/{project_id}/scheme-forms")
+async def list_project_scheme_forms(
+    project_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:view", "form_data:view")),
+    scope: "list[str] | None" = Depends(get_data_scope),
+):
+    """商机详情：汇总方案管理 / 安装图设计通知（仅按商机关联字段，不含合同图纸领用）。"""
+    from app.domains.project.scheme_forms import list_project_scheme_forms as _list
+
+    await service.get_project(db, tenant_id, project_id, current_user)
+    items = await _list(
+        db, tenant_id, project_id, user=current_user, owner_ids=scope,
+    )
+    return ok({"items": items, "total": len(items)})
+
+
+@router.get("/{project_id}/quote-forms")
+async def list_project_quote_forms(
+    project_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:view", "form_data:view")),
+    scope: "list[str] | None" = Depends(get_data_scope),
+):
+    """商机详情：报价管理（按 related_project 关联）。"""
+    from app.domains.project.scheme_forms import list_project_quote_forms as _list
+
+    await service.get_project(db, tenant_id, project_id, current_user)
+    items = await _list(
+        db, tenant_id, project_id, user=current_user, owner_ids=scope,
+    )
+    return ok({"items": items, "total": len(items)})
+
+
 @router.put("/{project_id}")
 async def update_project(
     project_id: str,

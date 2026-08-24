@@ -38,4 +38,37 @@ export const projectApi = {
     client.put<unknown, ApiResponse<ProjectMember>>(`/api/v1/projects/${id}/members/${memberId}`, data),
   removeMember: (id: string, memberId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/projects/${id}/members/${memberId}`),
+  /** 商机关联的方案管理 / 安装图设计通知（不含合同图纸领用） */
+  schemeForms: (id: string) =>
+    client.get<unknown, ApiResponse<{ items: ProjectSchemeFormItem[]; total: number }>>(
+      `/api/v1/projects/${id}/scheme-forms`,
+    ),
+  quoteForms: (id: string) =>
+    client.get<unknown, ApiResponse<{ items: ProjectSchemeFormItem[]; total: number }>>(
+      `/api/v1/projects/${id}/quote-forms`,
+    ),
+}
+
+export interface ProjectSchemeFormItem {
+  id: string
+  template_code: string
+  template_name: string
+  kind_label: string
+  subtype?: string | null
+  subtype_label?: string | null
+  serial_no?: string | null
+  business_no?: string | null
+  design_card_no?: string | null
+  customer_name?: string | null
+  matter?: string | null
+  contract_no?: string | null
+  ref_contract_no?: string | null
+  price_type?: string | null
+  customer_category?: string | null
+  need_purchase?: string | null
+  apply_datetime?: string | null
+  status: string
+  status_label: string
+  initiator_name?: string | null
+  created_at: string
 }

@@ -210,6 +210,7 @@ export type ApproverType =
   | 'specified_user' | 'specified_role' | 'specified_post' | 'pickable_scope'
   | 'direct_supervisor' | 'dept_head' | 'multi_level_superior'
   | 'dept_members' | 'creator' | 'form_field_person' | 'form_field_person_dept_head' | 'form_field_dept'
+  | 'form_field_dept_members'
   | 'initiator_self_select' | 'mixed'
 
 export interface WfApproverRule {

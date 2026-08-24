@@ -29,12 +29,21 @@ PAYMENT_SERIAL_NO_RULES: list[dict[str, Any]] = [
 ]
 
 
+def _apply_date_only(field: dict) -> None:
+    """对齐简道云：日期字段只选到日，不选时分。"""
+    props = dict(field.get("props") or {})
+    props["show_time"] = False
+    props["date_only"] = True
+    field["type"] = "date"
+    field["props"] = props
+
+
 def apply_payment_registration_fields(defs: list) -> None:
     """对齐简道云：
 
     - 收款号：系统流水号（auto_number）
     - 单位名称：从客户信息选择
-    - 来款日期：只选到日（不选手选时分）
+    - 来款日期 / 来款明细「到期日」：只选到日（不选时分）
     - 来款合计 / 分配金额合计：明细汇总公式（只读）
     - 内勤填写区：仅审批可填（available_on_create=false）
     """
@@ -56,11 +65,12 @@ def apply_payment_registration_fields(defs: list) -> None:
                 f"系统收款号：{PAYMENT_SERIAL_PREFIX} + 5 位递增序号（不自动重置）。"
             )
         elif fid == "payment_date":
-            f["type"] = "date"
-            props = dict(f.get("props") or {})
-            props["show_time"] = False
-            props["date_only"] = True
-            f["props"] = props
+            _apply_date_only(f)
+        elif fid == "payment_details":
+            for col in f.get("detail_table_columns") or []:
+                if isinstance(col, dict) and col.get("id") == "due_date":
+                    _apply_date_only(col)
+                    col["label"] = col.get("label") or "到期日"
         elif fid == "customer_name":
             f["type"] = "customer"
             f["label"] = f.get("label") or "单位名称"

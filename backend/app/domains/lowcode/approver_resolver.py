@@ -357,6 +357,23 @@ class ApproverResolver:
                 out.append(leader)
         return out
 
+    async def _r_form_field_dept_members(self, rule: dict, ctx: ApprovalContext) -> list[str]:
+        """表单部门字段 → 该部门全部成员（对齐简道云抄送「部门全体成员」）。"""
+        dept_ids: list[str] = []
+        seen: set[str] = set()
+        for field in self._as_list(rule.get("value")):
+            raw = ctx.form_data.get(field, "")
+            for dept_id in self._as_list(raw):
+                if dept_id and dept_id not in seen:
+                    seen.add(dept_id)
+                    dept_ids.append(dept_id)
+        if not dept_ids:
+            return []
+        return await self._r_dept_members(
+            {"value": dept_ids, "include_sub": rule.get("include_sub")},
+            ctx,
+        )
+
     async def _r_form_field_person_dept_head(self, rule: dict, ctx: ApprovalContext) -> list[str]:
         """简道云 deptManager.userWidgets：取表单人员所属部门的负责人（业务经理等）。"""
         fields = self._as_list(rule.get("value"))

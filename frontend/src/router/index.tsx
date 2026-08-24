@@ -94,6 +94,7 @@ const FormFillPage = lazy(() => import('@/pages/lowcode/FormFillPage'))
 const FormDataListPage = lazy(() => import('@/pages/lowcode/FormDataListPage'))
 const FormModulePage = lazy(() => import('@/pages/drawing/FormModulePage'))
 const FormModuleFillPage = lazy(() => import('@/pages/drawing/FormModuleFillPage'))
+const SchemeFillRedirect = lazy(() => import('@/pages/drawing/SchemeFillRedirect'))
 const DrawingPrintDemoPage = lazy(() => import('@/pages/drawing/DrawingPrintDemoPage'))
 const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
 const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
@@ -291,8 +292,8 @@ export const router = createBrowserRouter([
       { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
       { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
       { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
-      { path: 'solutions/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="scheme_management" listPath="/solutions" title="方案管理" /></Guard> },
-      { path: 'solutions', element: <Guard permission="form_data:view"><FormModulePage templateCode="scheme_management" title="方案管理" basePath="/solutions" /></Guard> },
+      { path: 'solutions/fill', element: <Guard permission="form_data:create"><Lazy><SchemeFillRedirect /></Lazy></Guard> },
+      { path: 'solutions', element: <Guard permission="form_data:view"><FormModulePage templateCode="scheme_management" title="方案管理（历史）" basePath="/solutions" legacySchemeList /></Guard> },
       { path: 'quotes/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="quote_management" listPath="/quotes" title="报价管理" /></Guard> },
       { path: 'quotes', element: <Guard permission="form_data:view"><FormModulePage templateCode="quote_management" title="报价管理" basePath="/quotes" /></Guard> },
       { path: 'pricing-checklists/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="pricing_checklist_hjqd" listPath="/pricing-checklists" title="核价清单传递" /></Guard> },

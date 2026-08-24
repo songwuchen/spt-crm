@@ -97,6 +97,32 @@ async def _attach_current_version_status(db: AsyncSession, tenant_id: str, contr
     return rows
 
 
+def _contract_customer_name_clause(tenant_id: str, customer_name: str):
+    """按展示用客户名称筛选：直连 customer_id、商机客户、登记 JSON 兜底。"""
+    from sqlalchemy import or_, select
+    from app.domains.contract.models import Contract
+    from app.domains.customer.models import Customer
+    from app.domains.project.models import OpportunityProject
+
+    kw = (customer_name or "").strip()
+    if not kw:
+        return None
+    like = f"%{kw}%"
+    matching_customers = select(Customer.id).where(
+        Customer.tenant_id == tenant_id,
+        Customer.name.ilike(like),
+    )
+    via_direct = Contract.customer_id.in_(matching_customers)
+    via_project = Contract.project_id.in_(
+        select(OpportunityProject.id).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.customer_id.in_(matching_customers),
+        )
+    )
+    via_reg = Contract.registration_json["customer_name"].as_string().ilike(like)
+    return or_(via_direct, via_project, via_reg)
+
+
 def _apply_contract_display_status_filter(q, cq, tenant_id: str, status: str):
     """筛选「展示态」：draft/approving/pending_sign/rejected 看版本；signed/terminated 看主表。"""
     from app.domains.contract.models import Contract, ContractVersion
@@ -144,6 +170,7 @@ async def list_contracts(
     pageSize: int = Query(20, ge=1, le=100),
     status: str = Query(None),
     keyword: str = Query(None),
+    customer_name: str = Query(None, description="客户名称（模糊）"),
     filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
     sort_by: str = Query(None),
     sort_order: str = Query(None),
@@ -166,6 +193,10 @@ async def list_contracts(
         )
         q = q.where(kw_clause)
         cq = cq.where(kw_clause)
+    cust_clause = _contract_customer_name_clause(tenant_id, customer_name)
+    if cust_clause is not None:
+        q = q.where(cust_clause)
+        cq = cq.where(cust_clause)
     # 高级筛选（多字段/多条件，含自定义扩展字段）
     from app.common.search import (
         entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,

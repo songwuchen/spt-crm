@@ -387,7 +387,12 @@ def main():
     rules = build_rule_definitions(linkage, fields)
     nodes, routes, notes = build_flow(wf_raw, fields, TITLE)
     nodes, routes, notes = patch_sales_confirm_node(nodes, routes, notes)
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_design_assign_field_perms,
+    )
     from app.domains.lowcode.workflow_service import apply_prod_card_notify_production_cc
+    if apply_prod_card_design_assign_field_perms(nodes):
+        notes.append("安排设计：是否需要公司派人/技术协议评审只读")
     if apply_prod_card_notify_production_cc(nodes):
         notes.append("通知生产启用抄送：吕英萍、雷贤、吴超（对齐简道云）")
 

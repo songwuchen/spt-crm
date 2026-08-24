@@ -32,6 +32,8 @@ import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
+import OpportunitySchemeFormsPanel from '@/pages/opportunity/OpportunitySchemeFormsPanel'
+import OpportunityQuoteFormsPanel from '@/pages/opportunity/OpportunityQuoteFormsPanel'
 import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
 import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import { fmtMoney } from '@/utils/mask'
@@ -84,6 +86,8 @@ export default function OpportunityDetail() {
   const [quotes, setQuotes] = useState<QuoteItem[]>([])
   const [contracts, setContracts] = useState<ContractItem[]>([])
   const [solutions, setSolutions] = useState<SolutionItem[]>([])
+  const [schemeFormCount, setSchemeFormCount] = useState(0)
+  const [quoteFormCount, setQuoteFormCount] = useState(0)
   const [milestones, setMilestones] = useState<DeliveryMilestone[]>([])
   const [invoices, setInvoices] = useState<InvoiceItem[]>([])
   const [plans, setPlans] = useState<PaymentPlanItem[]>([])
@@ -860,85 +864,115 @@ export default function OpportunityDetail() {
             <Tabs defaultActiveKey="solutions" className="px-6 pt-2" items={[
               {
                 key: 'solutions',
-                label: <span className="font-semibold">方案 ({solutions.length})</span>,
+                label: <span className="font-semibold">方案/图纸 ({schemeFormCount})</span>,
                 children: (
                   <div className="pb-6">
-                    <div className="flex justify-end mb-3">
-                      <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateSolution}>新建方案</Button>
-                    </div>
-                    <Table rowKey="id" dataSource={solutions} pagination={false} size="small"
-                      columns={[
-                        { title: '方案编号', dataIndex: 'solution_no', render: (v: string, r: SolutionItem) => (
-                          <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="font-bold text-primary">{v}</a>
-                        )},
-                        { title: '版本', dataIndex: 'current_version_no', render: (v: number) => `V${v}` },
-                        { title: '状态', dataIndex: 'status', render: (v: string) => {
-                          const c: Record<string, string> = { draft: 'default', reviewing: 'processing', approved: 'success', rejected: 'error', obsolete: 'error' }
-                          const l: Record<string, string> = { draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃' }
-                          return <Tag color={c[v]}>{l[v] || v}</Tag>
-                        }},
-                        { title: '创建人', dataIndex: 'created_by_name' },
-                        { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-                        { title: '', key: 'actions', render: (_: unknown, r: SolutionItem) => (
-                          <Space size={4}>
-                            <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            {canDeleteSolution && <a className="text-rose-500 text-sm font-bold" onClick={() => {
-                              Modal.confirm({
-                                title: '确认删除', content: `确定要删除方案「${r.solution_no}」？`, okType: 'danger',
-                                onOk: async () => { await solutionApi.delete(r.id); message.success('已删除'); solutionApi.listByProject(id!).then((res) => setSolutions(res.data)) },
-                              })
-                            }}>删除</a>}
-                          </Space>
-                        )},
-                      ]}
-                    />
+                    {id && (
+                      <OpportunitySchemeFormsPanel
+                        projectId={id}
+                        onCountChange={setSchemeFormCount}
+                      />
+                    )}
+                    {solutions.length > 0 && (
+                      <div className="mt-6 pt-4 border-t border-slate-100">
+                        <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">
+                          旧版技术方案（CRM 内置）
+                        </div>
+                        <div className="flex justify-end mb-3">
+                          <Button type="default" size="small" icon={<PlusOutlined />} onClick={handleCreateSolution}>
+                            新建旧版方案
+                          </Button>
+                        </div>
+                        <Table rowKey="id" dataSource={solutions} pagination={false} size="small"
+                          columns={[
+                            { title: '方案编号', dataIndex: 'solution_no', render: (v: string, r: SolutionItem) => (
+                              <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="font-bold text-primary">{v}</a>
+                            )},
+                            { title: '版本', dataIndex: 'current_version_no', render: (v: number) => `V${v}` },
+                            { title: '状态', dataIndex: 'status', render: (v: string) => {
+                              const c: Record<string, string> = { draft: 'default', reviewing: 'processing', approved: 'success', rejected: 'error', obsolete: 'error' }
+                              const l: Record<string, string> = { draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃' }
+                              return <Tag color={c[v]}>{l[v] || v}</Tag>
+                            }},
+                            { title: '创建人', dataIndex: 'created_by_name' },
+                            { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+                            { title: '', key: 'actions', render: (_: unknown, r: SolutionItem) => (
+                              <Space size={4}>
+                                <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
+                                {canDeleteSolution && <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                                  Modal.confirm({
+                                    title: '确认删除', content: `确定要删除方案「${r.solution_no}」？`, okType: 'danger',
+                                    onOk: async () => { await solutionApi.delete(r.id); message.success('已删除'); solutionApi.listByProject(id!).then((res) => setSolutions(res.data)) },
+                                  })
+                                }}>删除</a>}
+                              </Space>
+                            )},
+                          ]}
+                        />
+                      </div>
+                    )}
                   </div>
                 ),
               },
               {
                 key: 'quotes',
-                label: <span className="font-semibold">报价 ({quotes.length})</span>,
+                label: <span className="font-semibold">报价 ({quoteFormCount})</span>,
                 children: (
                   <div className="pb-6">
-                    <div className="flex justify-end mb-3">
-                      {quotes.length > 0 && (
-                        <Button size="small" icon={<FilePdfOutlined />} loading={exportingPdf === 'quotes'} onClick={async () => {
-                          setExportingPdf('quotes')
-                          try {
-                            const res = await quoteApi.batchExportPdf(quotes.map(q => q.id)) as any
-                            const url = window.URL.createObjectURL(new Blob([res]))
-                            const a = document.createElement('a'); a.href = url; a.download = 'quotes_export.zip'; a.click()
-                            window.URL.revokeObjectURL(url)
-                          } catch { message.error('导出失败') }
-                          finally { setExportingPdf(null) }
-                        }}>批量导出PDF</Button>
-                      )}
-                      <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateQuote}>新建报价</Button>
-                    </div>
-                    <Table rowKey="id" dataSource={quotes} pagination={false} size="small"
-                      columns={[
-                        { title: '报价编号', dataIndex: 'quote_no', render: (v, r) => (
-                          <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="font-bold text-primary">{v}</a>
-                        )},
-                        { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
-                        { title: '状态', dataIndex: 'status', render: (v) => (
-                          <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>
-                        )},
-                        { title: '创建人', dataIndex: 'created_by_name' },
-                        { title: '创建时间', dataIndex: 'created_at', render: (v) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-                        { title: '', key: 'actions', render: (_, r) => (
-                          <Space size={4}>
-                            <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            {canDeleteQuote && <a className="text-rose-500 text-sm font-bold" onClick={() => {
-                              Modal.confirm({
-                                title: '确认删除', content: `确定要删除报价「${r.quote_no}」？`, okType: 'danger',
-                                onOk: async () => { await quoteApi.delete(r.id); message.success('已删除'); quoteApi.listByProject(id!).then((res) => setQuotes(res.data)) },
-                              })
-                            }}>删除</a>}
-                          </Space>
-                        )},
-                      ]}
-                    />
+                    {id && (
+                      <OpportunityQuoteFormsPanel
+                        projectId={id}
+                        onCountChange={setQuoteFormCount}
+                      />
+                    )}
+                    {quotes.length > 0 && (
+                      <div className="mt-6 pt-4 border-t border-slate-100">
+                        <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">
+                          旧版报价（CRM 内置）
+                        </div>
+                        <div className="flex justify-end mb-3">
+                          {quotes.length > 0 && (
+                            <Button size="small" icon={<FilePdfOutlined />} loading={exportingPdf === 'quotes'} onClick={async () => {
+                              setExportingPdf('quotes')
+                              try {
+                                const res = await quoteApi.batchExportPdf(quotes.map(q => q.id)) as any
+                                const url = window.URL.createObjectURL(new Blob([res]))
+                                const a = document.createElement('a'); a.href = url; a.download = 'quotes_export.zip'; a.click()
+                                window.URL.revokeObjectURL(url)
+                              } catch { message.error('导出失败') }
+                              finally { setExportingPdf(null) }
+                            }}>批量导出PDF</Button>
+                          )}
+                          <Button type="default" size="small" icon={<PlusOutlined />} onClick={handleCreateQuote} className="ml-2">
+                            新建旧版报价
+                          </Button>
+                        </div>
+                        <Table rowKey="id" dataSource={quotes} pagination={false} size="small"
+                          columns={[
+                            { title: '报价编号', dataIndex: 'quote_no', render: (v, r) => (
+                              <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="font-bold text-primary">{v}</a>
+                            )},
+                            { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
+                            { title: '状态', dataIndex: 'status', render: (v) => (
+                              <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>
+                            )},
+                            { title: '创建人', dataIndex: 'created_by_name' },
+                            { title: '创建时间', dataIndex: 'created_at', render: (v) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+                            { title: '', key: 'actions', render: (_, r) => (
+                              <Space size={4}>
+                                <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
+                                {canDeleteQuote && <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                                  Modal.confirm({
+                                    title: '确认删除', content: `确定要删除报价「${r.quote_no}」？`, okType: 'danger',
+                                    onOk: async () => { await quoteApi.delete(r.id); message.success('已删除'); quoteApi.listByProject(id!).then((res) => setQuotes(res.data)) },
+                                  })
+                                }}>删除</a>}
+                              </Space>
+                            )},
+                          ]}
+                        />
+                      </div>
+                    )}
                   </div>
                 ),
               },

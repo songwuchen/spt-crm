@@ -154,6 +154,7 @@ class ApproverType(StrEnum):
     FORM_FIELD_PERSON = "form_field_person"
     FORM_FIELD_PERSON_DEPT_HEAD = "form_field_person_dept_head"
     FORM_FIELD_DEPT = "form_field_dept"
+    FORM_FIELD_DEPT_MEMBERS = "form_field_dept_members"
     DEPT_MEMBERS = "dept_members"
     CREATOR = "creator"
     MIXED = "mixed"

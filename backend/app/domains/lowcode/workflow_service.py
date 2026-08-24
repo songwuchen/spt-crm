@@ -694,6 +694,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(XUNHAN_CONTRACT_REVIEW_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._tech_feedback_outsource_generated import TECH_FEEDBACK_OUTSOURCE_JDY
+        packs.update(TECH_FEEDBACK_OUTSOURCE_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
@@ -717,6 +722,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_invoice_sales_cc(nodes, routes)
     if form_code in _CS_SALES_CC_FORM_CODES:
         apply_cs_sales_cc_on_start(nodes, routes)
+    if form_code == "tech_agreement_feedback":
+        apply_tech_agreement_feedback_flow(nodes, routes)
     if form_code == "cs_product_return":
         apply_cs_product_return_approvers(nodes)
         apply_cs_product_return_logistics_field_perms(nodes)
@@ -870,6 +877,12 @@ _CS_SALES_CC_FORM_CODES = frozenset({
     "cs_product_replace",
     "cs_product_return",
 })
+
+# 技术协议反馈单：发起旁路抄送业务员；业务员反馈后旁路抄送申请人
+_TECH_FB_CC_SALES = "cc_salesperson"
+_TECH_FB_CC_APPLICANT = "cc_applicant"
+_TECH_FB_CC_SALES_NAME = "抄送业务员"
+_TECH_FB_CC_APPLICANT_NAME = "抄送申请人"
 
 
 def _invoice_node_id(nodes: list | None, name: str) -> str | None:
@@ -1080,6 +1093,198 @@ def apply_cs_sales_cc_on_start(nodes: list[dict], routes: list[dict]) -> bool:
         })
         changed = True
     return changed
+
+
+def _tech_fb_cc_applicant_rule() -> dict:
+    return {
+        "type": "mixed",
+        "value": [
+            {"type": "creator"},
+            {"type": "form_field_person", "value": "applicant"},
+        ],
+    }
+
+
+def _tech_fb_cc_notify1_rule() -> dict:
+    return {
+        "type": "mixed",
+        "value": [
+            {"type": "form_field_person", "value": "order_person"},
+            {"type": "form_field_person", "value": "applicant"},
+        ],
+    }
+
+
+def build_tech_agreement_feedback_flow() -> tuple[list[dict], list[dict]]:
+    """技术协议反馈单：对齐简道云流程设计（中央研究院；workflow API 未取到时按实单拓扑）。"""
+    fb_fields = ["business_feedback", "feedback_suggestion"]
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        _cc_node(
+            _TECH_FB_CC_SALES, _TECH_FB_CC_SALES_NAME,
+            {"type": "form_field_person", "value": "salesperson"},
+        ),
+        {
+            "id": "n_design_review", "type": "approval", "name": "设计审核",
+            "approver_rule": {"type": "form_field_person", "value": "design_reviewer"},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_chief_opinion", "type": "approval", "name": "总工意见",
+            "approver_rule": {
+                "type": "specified_user", "value": "02364335378133",
+                "exclude_initiator": True, "jdy_role_hint": "总工意见",
+            },
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_clerk_arrange", "type": "approval", "name": "内勤安排",
+            "approver_rule": {"type": "form_field_person", "value": "dept_clerk"},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_clerk_verify", "type": "approval", "name": "内勤核查",
+            "approver_rule": {"type": "form_field_person", "value": "dept_clerk"},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_sales", "type": "approval", "name": "业务员",
+            "approver_rule": {"type": "form_field_person", "value": "salesperson"},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+            "field_perms": [{"field": f, "access": "editable"} for f in fb_fields],
+        },
+        {
+            "id": "n_finance", "type": "approval", "name": "财务核算",
+            "approver_rule": {
+                "type": "specified_user", "value": "0433406811775721",
+                "exclude_initiator": True, "jdy_role_hint": "财务核算",
+            },
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_dept_opinion", "type": "approval", "name": "部门意见",
+            "approver_rule": {"type": "dept_head", "exclude_initiator": True},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        {
+            "id": "n_gm", "type": "approval", "name": "总经理审批",
+            "approver_rule": {
+                "type": "specified_user", "value": "02336214315748",
+                "exclude_initiator": True, "jdy_role_hint": "总经理审批",
+            },
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        _cc_node("cc_notify_dist", "通知分发", {
+            "type": "specified_role", "value": "procurement",
+            "exclude_initiator": True, "jdy_role_hint": "通知采购",
+        }),
+        _cc_node("cc_notify1", "通知1", _tech_fb_cc_notify1_rule()),
+        _cc_node(
+            "cc_notify2", "通知2",
+            {"type": "form_field_person_multi", "value": "transfer_rd_centers"},
+        ),
+        _cc_node(
+            _TECH_FB_CC_APPLICANT, _TECH_FB_CC_APPLICANT_NAME,
+            _tech_fb_cc_applicant_rule(),
+        ),
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    routes: list[dict] = [
+        {"id": "r_start_cc_sales", "source": "start", "target": _TECH_FB_CC_SALES, "always": True},
+        {"id": "r_start_design", "source": "start", "target": "n_design_review"},
+        {"id": "r_design_chief", "source": "n_design_review", "target": "n_chief_opinion"},
+        {"id": "r_chief_arrange", "source": "n_chief_opinion", "target": "n_clerk_arrange", "always": True},
+        {"id": "r_chief_verify", "source": "n_chief_opinion", "target": "n_clerk_verify", "always": True},
+        {"id": "r_arrange_verify", "source": "n_clerk_arrange", "target": "n_clerk_verify"},
+        {
+            "id": "r_verify_finance_empty", "source": "n_clerk_verify", "target": "n_finance",
+            "exclusive_group": "ex_sales",
+            "condition": {"field": "salesperson", "operator": "is_empty"},
+        },
+        {
+            "id": "r_verify_sales", "source": "n_clerk_verify", "target": "n_sales",
+            "exclusive_group": "ex_sales",
+            "condition": {"field": "salesperson", "operator": "is_not_empty"},
+        },
+        {"id": "r_sales_finance", "source": "n_sales", "target": "n_finance"},
+        {"id": "r_sales_cc_app", "source": "n_sales", "target": _TECH_FB_CC_APPLICANT, "always": True},
+        {"id": "r_finance_dept", "source": "n_finance", "target": "n_dept_opinion"},
+        {"id": "r_dept_gm", "source": "n_dept_opinion", "target": "n_gm"},
+        {"id": "r_gm_end", "source": "n_gm", "target": "end"},
+        {
+            "id": "r_gm_notify_dist", "source": "n_gm", "target": "cc_notify_dist",
+            "always": True,
+            "condition": {"field": "notify_purchase", "operator": "eq", "value": "需要"},
+        },
+        {"id": "r_gm_notify1", "source": "n_gm", "target": "cc_notify1", "always": True},
+        {
+            "id": "r_notify1_notify2", "source": "cc_notify1", "target": "cc_notify2",
+            "always": True,
+            "condition": {"field": "transfer_rd_centers", "operator": "is_not_empty"},
+        },
+    ]
+    return nodes, routes
+
+
+def _flow_is_jdy_tech_agreement_feedback(
+    nodes: list | None, routes: list | None = None,
+) -> bool:
+    """已对齐简道云技术协议反馈单完整拓扑。"""
+    if not isinstance(nodes, list):
+        return False
+    names = {n.get("name") for n in nodes if isinstance(n, dict)}
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    cc = by_id.get(_TECH_FB_CC_SALES) or {}
+    rule = cc.get("approver_rule") or {}
+    need_names = (
+        "设计审核", "总工意见", "内勤核查", "财务核算", "部门意见", "总经理审批",
+    )
+    if not all(n in names for n in need_names):
+        return False
+    if cc.get("type") != "cc":
+        return False
+    if rule.get("type") != "form_field_person" or rule.get("value") != "salesperson":
+        return False
+    if by_id.get("n_chief_opinion", {}).get("type") != "approval":
+        return False
+    if routes is None:
+        return len(nodes) >= 14
+    pairs = {
+        (r.get("source"), r.get("target"))
+        for r in (routes or []) if isinstance(r, dict)
+    }
+    if ("start", _TECH_FB_CC_SALES) not in pairs:
+        return False
+    if ("n_clerk_verify", "n_finance") not in pairs and ("n_sales", "n_finance") not in pairs:
+        return False
+    if ("n_gm", "end") not in pairs:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        src, tgt = r.get("source"), r.get("target")
+        if src in (_TECH_FB_CC_SALES, _TECH_FB_CC_APPLICANT, "cc_notify_dist", "cc_notify1", "cc_notify2") and tgt == "end":
+            return False
+    return len(nodes) >= 14
+
+
+def _flow_missing_tech_agreement_feedback_flow(
+    nodes: list | None, routes: list | None = None,
+) -> bool:
+    """技术协议反馈单：未对齐简道云完整拓扑。"""
+    return not _flow_is_jdy_tech_agreement_feedback(nodes, routes)
+
+
+def apply_tech_agreement_feedback_flow(nodes: list[dict], routes: list[dict]) -> bool:
+    """技术协议反馈单：旧拓扑/兜底图 → 简道云对齐完整流程。"""
+    if not isinstance(nodes, list) or not isinstance(routes, list):
+        return False
+    if _flow_is_jdy_tech_agreement_feedback(nodes, routes):
+        return False
+    built_nodes, built_routes = build_tech_agreement_feedback_flow()
+    nodes[:] = built_nodes
+    routes[:] = built_routes
+    return True
 
 
 def _flow_is_jdy_payment(nodes: list | None) -> bool:
@@ -2907,13 +3112,6 @@ def _flow_is_jdy_research_coop_card(nodes: list | None) -> bool:
     names = {n.get("name") for n in (nodes or [])}
     types = {n.get("type") for n in (nodes or [])}
     return "设计安排" in names and "cc" in types and len(nodes or []) >= 6
-
-
-def _flow_is_jdy_tech_agreement_feedback(nodes: list | None) -> bool:
-    """已对齐简道云技术协议反馈单（或 CRM 兜底拓扑）：设计审核 + 部门内勤。"""
-    names = {n.get("name") for n in (nodes or [])}
-    types = {n.get("type") for n in (nodes or [])}
-    return "设计审核" in names and "部门内勤" in names and "approval" in types and len(nodes or []) >= 5
 
 
 def _flow_is_jdy_contract_outsource_early(nodes: list | None) -> bool:

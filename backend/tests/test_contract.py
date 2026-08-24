@@ -323,3 +323,66 @@ async def test_contract_customer_id_required(client: AsyncClient, auth_headers: 
 
     await client.delete(f"/api/v1/contracts/{cid}", headers=h)
     await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
+
+
+async def test_contract_list_filter_by_customer_name(client: AsyncClient, auth_headers: dict):
+    """合同列表支持按客户名称模糊筛选（商机客户 / 直连客户 / 登记 JSON）。"""
+    import uuid
+    h = auth_headers
+    suffix = uuid.uuid4().hex[:10]
+
+    cust_a = (await client.post("/api/v1/customers", json={
+        "name": f"筛选客户甲-{suffix}", "industry": "IT", "level": "B",
+    }, headers=h)).json()["data"]["id"]
+    cust_b = (await client.post("/api/v1/customers", json={
+        "name": f"筛选客户乙-{suffix}", "industry": "IT", "level": "B",
+    }, headers=h)).json()["data"]["id"]
+
+    proj = (await client.post("/api/v1/projects", json={
+        "name": f"筛选商机-{suffix}", "customer_id": cust_a, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+
+    via_proj = (await client.post(f"/api/v1/projects/{proj}/contracts", json={
+        "as_draft": True,
+        "contract_no": f"CT-FILT-P-{suffix}",
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    via_direct = (await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "contract_no": f"CT-FILT-D-{suffix}",
+        "customer_id": cust_b,
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    via_reg = (await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "contract_no": f"CT-FILT-R-{suffix}",
+        "registration_json": {"customer_name": f"登记兜底-{suffix}"},
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    hit_a = await client.get("/api/v1/contracts", params={
+        "pageNo": 1, "pageSize": 50, "customer_name": f"筛选客户甲-{suffix}",
+    }, headers=h)
+    assert hit_a.json()["code"] == 0, hit_a.text
+    ids_a = {x["id"] for x in hit_a.json()["data"]["items"]}
+    assert via_proj in ids_a
+    assert via_direct not in ids_a
+    assert via_reg not in ids_a
+
+    hit_b = await client.get("/api/v1/contracts", params={
+        "pageNo": 1, "pageSize": 50, "customer_name": f"筛选客户乙-{suffix}",
+    }, headers=h)
+    ids_b = {x["id"] for x in hit_b.json()["data"]["items"]}
+    assert via_direct in ids_b
+    assert via_proj not in ids_b
+
+    hit_reg = await client.get("/api/v1/contracts", params={
+        "pageNo": 1, "pageSize": 50, "customer_name": f"登记兜底-{suffix}",
+    }, headers=h)
+    ids_reg = {x["id"] for x in hit_reg.json()["data"]["items"]}
+    assert via_reg in ids_reg
+
+    for cid in (via_proj, via_direct, via_reg):
+        await client.delete(f"/api/v1/contracts/{cid}", headers=h)
+    await client.delete(f"/api/v1/projects/{proj}", headers=h)
+    await client.delete(f"/api/v1/customers/{cust_a}", headers=h)
+    await client.delete(f"/api/v1/customers/{cust_b}", headers=h)

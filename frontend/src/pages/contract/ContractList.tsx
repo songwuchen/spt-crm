@@ -35,6 +35,7 @@ export default function ContractList() {
   const [loading, setLoading] = useState(false)
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [filterCustomerName, setFilterCustomerName] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
@@ -279,10 +280,22 @@ export default function ContractList() {
     } finally { setCreating(false) }
   }
 
-  const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {
+  const fetchData = async (
+    page = pageNo,
+    kw = keyword,
+    st = filterStatus,
+    cust = filterCustomerName,
+  ) => {
     setLoading(true)
     try {
-      const r = await contractApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, ...view.buildParams() }) as any
+      const r = await contractApi.list({
+        pageNo: page,
+        pageSize: 20,
+        keyword: kw || undefined,
+        customer_name: cust || undefined,
+        status: st,
+        ...view.buildParams(),
+      }) as any
       setData(r.data?.items || [])
       setTotal(r.data?.total || 0)
     } finally { setLoading(false) }
@@ -317,11 +330,12 @@ export default function ContractList() {
       pageSize: 20,
       listQuery: {
         keyword: keyword || undefined,
+        customer_name: filterCustomerName || undefined,
         status: filterStatus,
       },
     })
     navigate(`/contracts/${rid}`)
-  }, [data, total, pageNo, keyword, filterStatus, navigate])
+  }, [data, total, pageNo, keyword, filterCustomerName, filterStatus, navigate])
 
   const columns: ColumnsType<ContractItem> = useMemo(() => {
     const cols: ColumnsType<ContractItem> = [
@@ -398,10 +412,14 @@ export default function ContractList() {
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索合同号 / 图纸号 / 对方合同号"
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            onPressEnter={() => { setPageNo(1); fetchData(1, keyword, filterStatus) }}
+            onPressEnter={() => { setPageNo(1); fetchData(1, keyword, filterStatus, filterCustomerName) }}
             allowClear style={{ width: 280 }} />
+          <Input placeholder="客户名称" value={filterCustomerName}
+            onChange={(e) => setFilterCustomerName(e.target.value)}
+            onPressEnter={() => { setPageNo(1); fetchData(1, keyword, filterStatus, filterCustomerName) }}
+            allowClear style={{ width: 160 }} />
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
-            onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
+            onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v, filterCustomerName) }}
             options={Object.entries(contractDisplayStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
           <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
