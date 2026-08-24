@@ -141,7 +141,10 @@ function sanitizePrintFileName(name: string, fallback: string): string {
 }
 
 function metaLine(items: [string, string][]): string {
-  return `<div class="meta">${items.map(([k, v]) => `<span><b>${escHtml(k)}：</b>${escHtml(v || '')}</span>`).join('')}</div>`
+  // 一行均分：每项占等宽 flex
+  return `<div class="meta meta-even">${items.map(([k, v]) =>
+    `<span class="meta-item"><b>${escHtml(k)}：</b>${escHtml(v || '')}</span>`,
+  ).join('')}</div>`
 }
 
 function isSupplementForm(form: Record<string, unknown>): boolean {
@@ -200,6 +203,8 @@ function isPrintableApprovalStep(s: WfFlowStep): boolean {
   if (s.node_type === 'start' || name === '流程发起' || name === '发起') return false
   if (s.node_type === 'end' || name === '结束') return false
   if (s.node_type === 'cc') return false
+  // 通知生产（抄送/系统）不进入打印意见区
+  if (name.includes('通知生产')) return false
   if (s.is_current || s.status === 'running' || s.status === 'pending') return false
   return !!(
     s.action
@@ -275,13 +280,20 @@ function printCss(variant: 'notice' | 'supplement'): string {
     }
     .meta {
       display: flex;
-      flex-wrap: wrap;
-      gap: 2pt 14pt;
+      flex-wrap: nowrap;
+      gap: 2pt 6pt;
       margin: 0 0 4pt;
       font-size: ${variant === 'notice' ? '9pt' : '10pt'};
       line-height: 1.35;
+      width: 100%;
     }
-    .meta span { white-space: nowrap; }
+    .meta.meta-even .meta-item {
+      flex: 1 1 0;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     table.form, table.equip, table.kv, table.sign-block {
       width: 100%;
       border-collapse: collapse;
@@ -318,6 +330,7 @@ function printCss(variant: 'notice' | 'supplement'): string {
       vertical-align: top;
     }
     .idea { min-height: 22pt; vertical-align: top; text-align: left; }
+    .idea-tall { min-height: 48pt; height: 48pt; vertical-align: top; text-align: left; }
     .chk-stack {
       display: inline-flex;
       flex-direction: column;
@@ -328,20 +341,34 @@ function printCss(variant: 'notice' | 'supplement'): string {
       gap: 1pt;
     }
     .approval-foot { margin-top: 6pt; }
+    .approval-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12pt;
+      margin-bottom: 2pt;
+    }
     .approval-label {
       font-size: 10.5pt;
-      margin-bottom: 2pt;
+      margin: 0;
     }
     .ops { font-size: 9.5pt; line-height: 1.45; }
     .op { margin: 1pt 0; }
     .print-at {
-      margin-top: 4pt;
       font-size: 9.5pt;
-      text-align: left;
+      text-align: right;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     table.kv td.kl { width: 22%; white-space: nowrap; }
     table.kv td.kvv { text-align: left; }
     table.kv tr.tall td { min-height: 28pt; height: 28pt; vertical-align: top; }
+    table.kv td.kl-span {
+      vertical-align: middle;
+      font-family: "SimHei","Heiti SC","STHeiti","Microsoft YaHei","PingFang SC",sans-serif;
+      font-weight: 700;
+      text-align: center;
+    }
   `
 }
 
@@ -477,8 +504,8 @@ function buildNoticeHtml(ctx: {
         <td colspan="12" style="padding:0">
           <table class="sign-block" style="border:none">
             <colgroup>
-              <col style="width:10%"><col style="width:10%"><col style="width:9%"><col style="width:12%">
-              <col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:12%"><col style="width:15%">
+              <col style="width:9%"><col style="width:14%"><col style="width:8%"><col style="width:11%">
+              <col style="width:10%"><col style="width:14%"><col style="width:10%"><col style="width:14%"><col style="width:10%">
             </colgroup>
             <tr class="sign-head">
               <td class="lbl">设计<span class="sub">（主设签）</span></td>
@@ -510,8 +537,8 @@ function buildNoticeHtml(ctx: {
         <td class="val-left idea" colspan="11"></td>
       </tr>
       <tr>
-        <td class="lbl idea" colspan="1">设计思路描述</td>
-        <td class="val-left idea" colspan="11"></td>
+        <td class="lbl idea-tall" colspan="1">设计思路描述</td>
+        <td class="val-left idea-tall" colspan="11"></td>
       </tr>
       <tr>
         <td class="lbl idea" colspan="1">交图路径</td>
@@ -519,9 +546,11 @@ function buildNoticeHtml(ctx: {
       </tr>
     </table>
     <div class="approval-foot">
-      <div class="approval-label">审批意见</div>
+      <div class="approval-head">
+        <div class="approval-label">审批意见</div>
+        <div class="print-at">打印时间：  ${escHtml(printAt)}</div>
+      </div>
       <div class="ops">${ops.map((l) => `<div class="op">${escHtml(l)}</div>`).join('') || '<div class="op"></div>'}</div>
-      <div class="print-at">打印时间：  ${escHtml(printAt)}</div>
     </div>`
 
   const fileTitle = sanitizePrintFileName(
@@ -564,9 +593,13 @@ function buildSupplementHtml(ctx: {
   const kv = (label: string, value: string, tall = false) =>
     `<tr class="${tall ? 'tall' : ''}"><td class="kl">${escHtml(label)}</td><td class="kvv" colspan="3">${cell(value)}</td></tr>`
 
-  const approvalRows = (ops.length ? ops : ['']).map((line) =>
-    `<tr class="tall"><td class="kl">审批意见：</td><td class="kvv" colspan="3">${escHtml(line)}</td></tr>`,
-  ).join('')
+  const opLines = ops.length ? ops : ['']
+  const approvalRows = opLines.map((line, idx) => {
+    const labelCell = idx === 0
+      ? `<td class="kl kl-span" rowspan="${opLines.length}">审批意见：</td>`
+      : ''
+    return `<tr class="tall">${labelCell}<td class="kvv" colspan="3">${escHtml(line)}</td></tr>`
+  }).join('')
 
   const body = `
     <h1>生产补充卡</h1>

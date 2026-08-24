@@ -132,3 +132,55 @@ async def test_contract_filter_matches_drawing_no(db):
         await db.delete(tpl)
         await db.delete(contract)
         await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_contract_filter_matches_detail_table_column(db):
+    """明细子表内合同号（如售出产品更换 field_12.contract_no）也可按图纸号筛选。"""
+    token = generate_uuid()[:8]
+    drawing_no = f"WMGFDT{token}"
+    contract = Contract(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        contract_no=f"YJ-DT-{token}", drawing_no=drawing_no, status="draft",
+    )
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-detail-contract-filter-{token}", code=f"ut_dcf_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[{
+            "id": "field_12", "type": "detail_table", "label": "换货（含补发）",
+            "detail_table_columns": [
+                {"id": "contract_no", "type": "contract", "label": "合同号"},
+                {"id": "field_13", "type": "text", "label": "设备名称"},
+            ],
+        }],
+        layout_definition={}, rule_definitions=[],
+    )
+    inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="ut-detail", status="running", initiator_id="ut-admin",
+        form_data={"field_12": [{"contract_no": contract.id, "field_13": "泵"}]},
+        field_definitions=[],
+    )
+    db.add_all([contract, tpl, ver, inst])
+    await db.commit()
+    try:
+        rows, total = await list_instances(
+            db, DEMO_TENANT, tpl.id, 1, 20,
+            filters={"match": "all", "rules": [
+                {"field": "contract_no", "op": "contains", "value": token},
+            ]},
+        )
+        assert total >= 1
+        assert any(r.id == inst.id for r in rows)
+    finally:
+        await db.delete(inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.delete(contract)
+        await db.commit()

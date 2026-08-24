@@ -558,14 +558,36 @@ export default function FormDataListPage({
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
 
-  /** 列表筛选：业务字段 + 系统字段（提交人） */
-  const filterFields = useMemo<FieldDefinition[]>(
-    () => [
+  /** 列表筛选：业务字段 + 明细子表可筛列（如换货明细·合同号）+ 系统字段（提交人） */
+  const filterFields = useMemo<FieldDefinition[]>(() => {
+    const nested: FieldDefinition[] = []
+    const seen = new Set<string>(['__sys_initiator'])
+    const labelCount = new Map<string, number>()
+    const pending: { col: FieldDefinition, parentLabel: string }[] = []
+    for (const f of schemaFields) {
+      seen.add(f.id)
+      if (f.type !== 'detail_table') continue
+      for (const col of f.detail_table_columns || []) {
+        if (!col?.id || seen.has(col.id)) continue
+        seen.add(col.id)
+        labelCount.set(col.label, (labelCount.get(col.label) || 0) + 1)
+        pending.push({ col, parentLabel: f.label })
+      }
+    }
+    for (const { col, parentLabel } of pending) {
+      nested.push({
+        ...col,
+        label: (labelCount.get(col.label) || 0) > 1
+          ? `${parentLabel}·${col.label}`
+          : col.label,
+      })
+    }
+    return [
       { id: '__sys_initiator', type: 'person', label: '提交人' },
       ...schemaFields,
-    ],
-    [schemaFields],
-  )
+      ...nested,
+    ]
+  }, [schemaFields])
   /** 列配置可选的全部可列表字段 */
   const [allColFields, setAllColFields] = useState<FieldDefinition[]>([])
   /** 默认可见列 id（listColumns / 启发式）；其余为 optIn */

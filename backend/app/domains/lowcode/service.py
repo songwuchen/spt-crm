@@ -1777,30 +1777,42 @@ _REF_FILTER_TYPES = frozenset({
 
 
 def _form_data_filter_clause(rule: dict):
-    """单条规则 → SQL 条件（form_data->>field 文本语义）。"""
+    """单条规则 → SQL 条件（form_data->>field 文本语义）。
+
+    同时匹配明细子表行内同名字段（JSON 全文包含），便于「合同号」等列筛选。
+    """
     field = rule["field"]
     op = rule["op"]
     value = rule.get("value")
     txt = FormInstance.form_data.op("->>")(field)
+    blob = cast(FormInstance.form_data, String)
     empty = or_(txt.is_(None), txt == "", txt == "null", txt == "[]", txt == "{}")
 
     if op == "is_empty":
-        return empty
+        # 顶层空，且 JSON 中未见该键（明细行也无）
+        return and_(empty, or_(blob.is_(None), not_(blob.ilike(f'%"{field}"%'))))
     if op == "is_not_empty":
-        return not_(empty)
+        return or_(not_(empty), blob.ilike(f'%"{field}"%'))
     if op == "eq":
-        return txt == str(value)
+        return or_(txt == str(value), blob.ilike(f"%{value}%"))
     if op == "ne":
-        return or_(txt.is_(None), txt != str(value))
+        return and_(
+            or_(txt.is_(None), txt != str(value)),
+            or_(blob.is_(None), not_(blob.ilike(f"%{value}%"))),
+        )
     if op == "contains":
-        return txt.ilike(f"%{value}%")
+        return or_(txt.ilike(f"%{value}%"), blob.ilike(f"%{value}%"))
     if op == "not_contains":
-        return or_(txt.is_(None), not_(txt.ilike(f"%{value}%")))
+        return and_(
+            or_(txt.is_(None), not_(txt.ilike(f"%{value}%"))),
+            or_(blob.is_(None), not_(blob.ilike(f"%{value}%"))),
+        )
     if op == "in":
         vals = value if isinstance(value, list) else [value]
         parts = [txt == str(v) for v in vals if v is not None and str(v) != ""]
-        # 人员/对象字段可能以 JSON 文本存储，额外做包含匹配
+        # 人员/对象字段可能以 JSON 文本存储，额外做包含匹配（含明细行）
         parts += [txt.ilike(f"%{v}%") for v in vals if v is not None and str(v) != ""]
+        parts += [blob.ilike(f"%{v}%") for v in vals if v is not None and str(v) != ""]
         return or_(*parts) if parts else False
     if op == "between":
         if not isinstance(value, (list, tuple)) or len(value) < 2:
@@ -1821,14 +1833,18 @@ def _form_data_filter_clause(rule: dict):
         return and_(txt.isnot(None), txt < str(value))
     if op == "lte":
         return and_(txt.isnot(None), txt <= str(value))
-    return txt.ilike(f"%{value}%")
+    return or_(txt.ilike(f"%{value}%"), blob.ilike(f"%{value}%"))
 
 
 def _form_data_ids_match_clause(field: str, ids: list[str]):
-    """form_data 字段命中任一 id（纯字符串 / {id} / JSON 文本含 id）。"""
+    """form_data 字段命中任一 id（纯字符串 / {id} / JSON 文本含 id）。
+
+    含明细子表行内引用（如售出产品更换「换货明细.合同号」存 UUID）。
+    """
     parts = []
     txt = FormInstance.form_data.op("->>")(field)
     obj_id = FormInstance.form_data.op("->")(field).op("->>")("id")
+    blob = cast(FormInstance.form_data, String)
     for raw in ids:
         sid = str(raw or "").strip()
         if not sid:
@@ -1836,6 +1852,8 @@ def _form_data_ids_match_clause(field: str, ids: list[str]):
         parts.append(txt == sid)
         parts.append(obj_id == sid)
         parts.append(txt.ilike(f"%{sid}%"))
+        # UUID 足够特异，整份 form_data JSON 文本匹配即可覆盖明细行
+        parts.append(blob.ilike(f"%{sid}%"))
     return or_(*parts) if parts else False
 
 
@@ -1852,8 +1870,14 @@ async def _template_field_type_map(
         ver = await _get_latest_version(db, tenant_id, template_id)
     out: dict[str, str] = {}
     for f in (ver.field_definitions if ver else []) or []:
-        if isinstance(f, dict) and f.get("id") and f.get("type"):
-            out[str(f["id"])] = str(f["type"])
+        if not isinstance(f, dict) or not f.get("id") or not f.get("type"):
+            continue
+        out[str(f["id"])] = str(f["type"])
+        # 明细子表列也可筛选（如换货明细.合同号）
+        if str(f.get("type")) == "detail_table":
+            for col in f.get("detail_table_columns") or []:
+                if isinstance(col, dict) and col.get("id") and col.get("type"):
+                    out[str(col["id"])] = str(col["type"])
     return out
 
 
@@ -1981,8 +2005,13 @@ async def _form_data_filter_clause_resolved(
 
     txt = FormInstance.form_data.op("->>")(field)
     id_hit = _form_data_ids_match_clause(field, ids) if ids else False
-    # 名称也可能嵌在 JSON 文本里（{id,name}），保留原文包含
-    name_hit = or_(*[txt.ilike(f"%{v}%") for v in values]) if values else False
+    # 名称也可能嵌在 JSON 文本里（{id,name} / 明细行），保留原文包含
+    blob = cast(FormInstance.form_data, String)
+    name_parts = []
+    for v in values:
+        name_parts.append(txt.ilike(f"%{v}%"))
+        name_parts.append(blob.ilike(f"%{v}%"))
+    name_hit = or_(*name_parts) if name_parts else False
 
     if op == "contains":
         return or_(id_hit, name_hit)
