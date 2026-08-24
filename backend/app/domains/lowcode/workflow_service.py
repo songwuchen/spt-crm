@@ -698,7 +698,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code == "cs_drawing_request":
         apply_cs_drawing_approvers(nodes)
     if form_code == "shipment_notice":
+        from app.domains.lowcode.shipment_notice_fields import (
+            patch_shipment_notice_parallel_routes,
+        )
         apply_shipment_notice_approvers(nodes)
+        patch_shipment_notice_parallel_routes(routes)
     if form_code == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import (
             apply_prod_card_design_assign_field_perms,
@@ -711,6 +715,9 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_prod_card_notify_production_cc(nodes)
         apply_prod_card_finance_branch_parallel(nodes, routes)
         apply_prod_card_xiaomeng_yangshuang_cc(nodes, routes)
+    if form_code == "xunhan_contract_review":
+        apply_xunhan_contract_review_approvers(nodes)
+        patch_xunhan_contract_review_feedback_routes(routes)
     return nodes, routes
 
 
@@ -986,8 +993,8 @@ def _flow_is_jdy_shipment_notice(nodes: list | None) -> bool:
 
 
 _SHIPMENT_LOGISTICS_APPROVER = {
-    "type": "specified_user",
-    "value": ["575448583538947351", "02362440128774"],  # 马瑞草、李娜
+    "type": "specified_role",
+    "value": "logistics_approval",
     "exclude_initiator": True,
     "jdy_role_hint": "物流审批",
 }
@@ -1018,7 +1025,10 @@ _SHIPMENT_APPROVER_BY_NAME: dict[str, dict] = {
 
 
 def apply_shipment_notice_approvers(nodes: list[dict]) -> bool:
-    """发货通知：物流具名；仓库/仓库判定→ship_sales_outbound；抄送门岗→gate_guard。"""
+    """发货通知：物流→logistics_approval；仓库/仓库判定→ship_sales_outbound；抄送门岗→gate_guard。"""
+    from app.domains.lowcode.shipment_notice_fields import (
+        apply_shipment_notice_sales_accept_field_perms,
+    )
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
@@ -1034,6 +1044,8 @@ def apply_shipment_notice_approvers(nodes: list[dict]) -> bool:
         n["approver_rule"] = dict(want)
         if want is _SHIPMENT_LOGISTICS_APPROVER:
             n["multi_mode"] = "or_sign"
+        changed = True
+    if apply_shipment_notice_sales_accept_field_perms(nodes):
         changed = True
     return changed
 
@@ -1587,6 +1599,8 @@ _XUNHAN_APPROVER_BY_NAME: dict[str, dict] = {
 
 
 def _flow_xunhan_contract_review_needs_approver_fix(nodes: list | None) -> bool:
+    if _legal_sup_approver_needs_fix(nodes):
+        return True
     for n in nodes or []:
         if not isinstance(n, dict):
             continue
@@ -1601,7 +1615,7 @@ def _flow_xunhan_contract_review_needs_approver_fix(nodes: list | None) -> bool:
 
 
 def apply_xunhan_contract_review_approvers(nodes: list[dict]) -> bool:
-    """迅焊公司合同评审：法务审批→legal。"""
+    """迅焊公司合同评审：法务审批→legal；法务主管→袁文俊。"""
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
@@ -1616,7 +1630,42 @@ def apply_xunhan_contract_review_approvers(nodes: list[dict]) -> bool:
             continue
         n["approver_rule"] = dict(want)
         changed = True
+    if apply_legal_sup_named_approver(nodes):
+        changed = True
     return changed
+
+
+_XUNHAN_FEEDBACK_REENTER_EDGES: tuple[tuple[str, str], ...] = (
+    ("n12", "n1__2"),      # 信息反馈 → 业务部门2
+    ("n1__2", "n28__1"),   # 业务部门2 → 设计审批1（反馈回路）
+    ("n28__1", "n5"),      # 设计审批1 → 总经理（第二轮）
+    ("n5", "n6"),          # 总经理 → 财务意见（第二轮）
+    ("n6", "n12"),         # 财务意见 → 信息反馈（多轮反馈）
+)
+
+
+def patch_xunhan_contract_review_feedback_routes(routes: list[dict]) -> bool:
+    """反馈回路/第二轮主干：已完成节点须 reenter，否则 skip_reactivate 卡死。"""
+    changed = False
+    want = set(_XUNHAN_FEEDBACK_REENTER_EDGES)
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        edge = (str(r.get("source") or ""), str(r.get("target") or ""))
+        if edge in want and not r.get("reenter"):
+            r["reenter"] = True
+            changed = True
+    return changed
+
+
+def _flow_xunhan_feedback_routes_need_fix(routes: list | None) -> bool:
+    want = set(_XUNHAN_FEEDBACK_REENTER_EDGES)
+    got = {
+        (str(r.get("source") or ""), str(r.get("target") or ""))
+        for r in (routes or [])
+        if isinstance(r, dict) and r.get("reenter")
+    }
+    return bool(want - got)
 
 
 # 通知生产：简道云启用抄送（吕英萍、雷贤、吴超）
@@ -3094,6 +3143,61 @@ _JDY_REVIEW_USER = {
     "cc_xunhan": "01670210101135172",         # 许曼（简道云迅焊）
 }
 
+_LEGAL_SUP_NODE_IDS = frozenset({"approval_legal_sup", "n29"})
+_LEGAL_SUP_NODE_NAMES = frozenset({"法务主管审批"})
+
+
+def _legal_sup_want_username(want: str | None = None) -> str:
+    if want:
+        return want
+    v = _JDY_REVIEW_USER["legal_sup"]
+    return v[0] if isinstance(v, list) else v
+
+
+def _legal_sup_user_rule(want: str | None = None) -> dict:
+    return {
+        "type": "specified_user",
+        "value": _legal_sup_want_username(want),
+        "exclude_initiator": True,
+    }
+
+
+def _is_legal_sup_node(n: dict) -> bool:
+    return (
+        str(n.get("id") or "") in _LEGAL_SUP_NODE_IDS
+        or str(n.get("name") or "").strip() in _LEGAL_SUP_NODE_NAMES
+    )
+
+
+def _legal_sup_approver_needs_fix(
+    nodes: list | None, want: str | None = None,
+) -> bool:
+    want_rule = _legal_sup_user_rule(want)
+    for n in nodes or []:
+        if not isinstance(n, dict) or not _is_legal_sup_node(n):
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want_rule):
+            return True
+    return False
+
+
+def apply_legal_sup_named_approver(
+    nodes: list[dict], *, username: str | None = None,
+) -> bool:
+    """合同评审/迅焊等：法务主管审批→袁文俊（具名用户）。"""
+    want_rule = _legal_sup_user_rule(username)
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or not _is_legal_sup_node(n):
+            continue
+        if _approver_rule_matches(n.get("approver_rule") or {}, want_rule):
+            continue
+        n["approver_rule"] = dict(want_rule)
+        n.setdefault("empty_strategy", "auto_approve")
+        changed = True
+    return changed
+
+
 # 简道云「合同技术协议评审」chargers / 抄送 → CRM username
 _JDY_TAR_USER = {
     "market_support": "023641581817",         # 李巧芳（市场支持中心）
@@ -4356,21 +4460,26 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"往来函件内勤改为cs_office({form_code})",
         )
         return
-    # 迅焊公司合同评审：法务审批 → legal
-    if (
-        form_code == "xunhan_contract_review"
-        and _flow_xunhan_contract_review_needs_approver_fix(version.node_definitions)
+    # 迅焊公司合同评审：法务审批 → legal；法务主管 → 袁文俊；信息反馈回路 reenter
+    if form_code == "xunhan_contract_review" and (
+        _flow_xunhan_contract_review_needs_approver_fix(version.node_definitions)
+        or _flow_xunhan_feedback_routes_need_fix(version.route_definitions)
     ):
         import copy
         from app.common.rbac_sync import ensure_legal_role_members
         await ensure_legal_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
+        patched_routes = copy.deepcopy(version.route_definitions or [])
         apply_xunhan_contract_review_approvers(patched)
+        patch_xunhan_contract_review_feedback_routes(patched_routes)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
-            patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"迅焊法务审批改为legal({form_code})",
+            patched, patched_routes,
+            DRAWING_FORM_FLOW_DESC, f"迅焊法务+反馈回路+法务主管袁文俊({form_code})",
         )
+        n_reassign = await _reassign_pending_legal_sup_tasks(db, tenant_id)
+        if n_reassign:
+            await db.commit()
         return
     # 生产卡补充：物料编码 / 法务审核
     if (
@@ -4438,26 +4547,43 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"客服领图部门指派对齐图纸领用({form_code})",
         )
         return
-    # 发货通知：物流具名 + 仓库/门岗角色
-    if (
-        form_code == "shipment_notice"
-        and _flow_shipment_logistics_needs_fix(version.node_definitions)
-    ):
-        import copy
-        from app.common.rbac_sync import (
-            ensure_gate_guard_role_members,
-            ensure_ship_sales_outbound_role_members,
+    # 发货通知：并行分叉 + 业务员验收单 + 物流/门岗角色
+    if form_code == "shipment_notice":
+        from app.domains.lowcode.shipment_notice_fields import (
+            patch_shipment_notice_parallel_routes,
+            shipment_parallel_fork_broken,
+            shipment_sales_accept_perms_ok,
         )
-        await ensure_ship_sales_outbound_role_members(db, tenant_id)
-        await ensure_gate_guard_role_members(db, tenant_id)
-        patched = copy.deepcopy(version.node_definitions or [])
-        apply_shipment_notice_approvers(patched)
-        await _publish_system_default_upgrade(
-            db, tenant_id, d, version,
-            patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"发货通知仓库/门岗改为指定角色({form_code})",
+        need_nodes = (
+            _flow_shipment_logistics_needs_fix(version.node_definitions)
+            or not shipment_sales_accept_perms_ok(version.node_definitions)
         )
-        return
+        need_routes = shipment_parallel_fork_broken(version.route_definitions)
+        if need_nodes or need_routes:
+            import copy
+            from app.common.rbac_sync import (
+                ensure_gate_guard_role_members,
+                ensure_logistics_approval_role_members,
+                ensure_ship_sales_outbound_role_members,
+            )
+            await ensure_logistics_approval_role_members(db, tenant_id)
+            await ensure_ship_sales_outbound_role_members(db, tenant_id)
+            await ensure_gate_guard_role_members(db, tenant_id)
+            patched_nodes = copy.deepcopy(version.node_definitions or [])
+            patched_routes = copy.deepcopy(version.route_definitions or [])
+            apply_shipment_notice_approvers(patched_nodes)
+            patch_shipment_notice_parallel_routes(patched_routes)
+            reason = "发货通知开具提货单后生产领料与仓库判定并行"
+            if need_nodes and need_routes:
+                reason = "发货通知并行分叉与业务员验收单字段权限"
+            elif need_nodes:
+                reason = "发货通知业务员验收单字段权限与审批角色"
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched_nodes, patched_routes,
+                DRAWING_FORM_FLOW_DESC, f"{reason}({form_code})",
+            )
+            return
     # 售前服务通知：总工审批 sales_manager → 曹修国
     if (
         topology_ok
@@ -5289,21 +5415,11 @@ def _contract_review_legal_sup_user_aligned(
     nodes: list | None, want: str | None = None,
 ) -> bool:
     """法务主管审批人是否为当前配置的具名用户。"""
-    want = want or (
-        _JDY_REVIEW_USER["legal_sup"][0]
-        if isinstance(_JDY_REVIEW_USER["legal_sup"], list)
-        else _JDY_REVIEW_USER["legal_sup"]
-    )
+    want_rule = _legal_sup_user_rule(want)
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("id") != "approval_legal_sup":
             continue
-        rule = n.get("approver_rule") or {}
-        if rule.get("type") != "specified_user":
-            return False
-        v = rule.get("value")
-        if isinstance(v, list):
-            return v == [want]
-        return v == want
+        return _approver_rule_matches(n.get("approver_rule") or {}, want_rule)
     return False
 
 
@@ -5417,10 +5533,9 @@ async def _reassign_pending_legal_sup_tasks(db, tenant_id: str) -> int:
         JOIN wf_node_instance ni ON ni.id = t.node_instance_id
         JOIN wf_process_instance pi ON pi.id = t.process_instance_id
         WHERE pi.tenant_id = :tid
-          AND pi.biz_type = 'contract_review'
           AND pi.status = 'running'
           AND t.status IN ('pending', 'waiting')
-          AND ni.node_def_id = 'approval_legal_sup'
+          AND ni.node_def_id IN ('approval_legal_sup', 'n29')
           AND t.assignee_id IS DISTINCT FROM :uid
     """), {"tid": tenant_id, "uid": uid})).mappings().all()
     for r in rows:
@@ -7532,6 +7647,18 @@ async def get_instance_detail(
             if fi and not getattr(fi, "is_deleted", False):
                 form_fields = list(fi.field_definitions or [])
                 form_data = dict(fi.form_data or {}) if isinstance(fi.form_data, dict) else {}
+                try:
+                    from app.domains.lowcode.models import FormTemplate
+                    from app.domains.lowcode.prod_card_contract_fill import (
+                        overlay_prod_card_contract_live,
+                    )
+                    tpl = await db.get(FormTemplate, fi.template_id)
+                    if tpl and tpl.code == "prod_card_supplement":
+                        form_data = await overlay_prod_card_contract_live(
+                            db, tenant_id, form_data,
+                        )
+                except Exception:
+                    pass
                 ver = await db.get(FormTemplateVersion, fi.template_version_id) if fi.template_version_id else None
                 if ver:
                     if not form_fields:

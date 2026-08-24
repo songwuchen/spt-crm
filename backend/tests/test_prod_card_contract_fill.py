@@ -238,6 +238,34 @@ def test_apply_prod_card_sales_before_region():
     assert apply_prod_card_sales_before_region(nodes, routes) is False
 
 
+def test_strip_and_resolve_prod_card_contract_live():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        strip_prod_card_contract_snapshot,
+        resolve_prod_card_contract_pick,
+        PROD_CARD_CONTRACT_LIVE_KEYS,
+    )
+    raw = {
+        "is_supplement": "否",
+        "drawing_no_query": "cid-1",
+        "no_drawing_no": "D1",
+        "yes_customer_name": "甲公司",
+        "prod_card_line_items": [{"product_name_3": "筛"}],
+        "remark": "手填备注应保留",
+    }
+    stripped = strip_prod_card_contract_snapshot(raw)
+    assert stripped["drawing_no_query"] == "cid-1"
+    assert stripped["remark"] == "手填备注应保留"
+    for k in ("no_drawing_no", "yes_customer_name", "prod_card_line_items"):
+        assert k not in stripped
+        assert k in PROD_CARD_CONTRACT_LIVE_KEYS
+    assert resolve_prod_card_contract_pick({
+        "is_supplement": "是", "contract_no_select": "c-yes", "drawing_no_query": "c-no",
+    }) == ("c-yes", "contract_no_select")
+    assert resolve_prod_card_contract_pick({
+        "is_supplement": "否", "drawing_no_query": "c-no",
+    }) == ("c-no", "drawing_no_query")
+
+
 def test_build_fill_contract_no_select_falls_back_reg_customer():
     fill = build_prod_card_fill_from_contract(
         contract_no="C9",

@@ -564,6 +564,17 @@ input, textarea, select {
 .detail-table-resizable-wrap .ant-table-cell {
   vertical-align: top;
 }
+/* 发货明细「公司型号」等长文本：单元格自动换行，审批可见全文 */
+.detail-table-resizable-wrap .ant-table-cell.detail-cell-wrap {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.detail-table-resizable-wrap .ant-table-cell.detail-cell-wrap .ant-table-cell-content {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+}
 
 body.spt-col-resizing,
 body.spt-col-resizing * {

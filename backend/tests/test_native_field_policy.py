@@ -688,10 +688,11 @@ async def test_export_respects_field_policy(
         idx = header.index("行业")
         return [row[idx].value for row in ws.iter_rows(min_row=2)]
 
-    # 未配置时导出明文
+    # 未配置时导出明文中文标签（库内存英文码）
     plain = (await client.get("/api/v1/leads/export/excel", headers=h,
                               params={"keyword": "导出脱敏线索"})).content
-    assert "screening_mining" in industry_cells(plain)
+    assert "筛分分选-矿山" in industry_cells(plain)
+    assert "screening_mining" not in industry_cells(plain)
 
     # 配置为仅特定角色可见明文 → 导出应变成 ***
     await _publish_lead_native_override(client, h, [
@@ -702,6 +703,7 @@ async def test_export_respects_field_policy(
                                params={"keyword": "导出脱敏线索"})).content
     cells = industry_cells(masked)
     assert "screening_mining" not in cells, "导出泄露了页面上已脱敏的字段"
+    assert "筛分分选-矿山" not in cells, "脱敏后不应再出现明文行业"
     assert "***" in cells
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)

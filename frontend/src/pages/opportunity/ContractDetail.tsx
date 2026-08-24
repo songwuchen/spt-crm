@@ -933,12 +933,15 @@ export default function ContractDetail() {
             return sw.equals.includes(raw == null ? '' : String(raw))
           }
           const resolve = (f: (typeof sec.fields)[0]) => {
-            // 组织架构字段详情展示名称，不展示裸 id
+            // 组织架构 / 客户字段详情展示名称，不展示裸 id
             if (f.key === 'assignee_id') {
               return contract.assignee_name || contract.assignee_id || '-'
             }
             if (f.key === 'department_id') {
               return contract.department_name || contract.department_id || '-'
+            }
+            if (f.key === 'customer_id') {
+              return contract.customer_name || contract.customer_id || '-'
             }
             const raw = f.source === 'native'
               ? (contract as unknown as Record<string, unknown>)[f.key]

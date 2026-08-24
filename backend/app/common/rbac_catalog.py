@@ -427,6 +427,15 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "logistics_approval", "name": "物流审批", "scope": "dept",
+        "scope_by_resource": {"shipment_notice": "all"},
+        "desc": "发货通知「物流审批」节点；发货通知列表看全部",
+        "perms": [
+            "delivery:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
         "code": "ship_sales_outbound", "name": "24.1发货通知流程-销售出库", "scope": "dept",
         "desc": "简道云发货通知销售出库仓:仓库/仓库判定节点审批",
         "perms": [

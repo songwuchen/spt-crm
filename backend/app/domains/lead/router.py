@@ -188,6 +188,82 @@ async def _lead_products_text(db: AsyncSession, tenant_id: str, items) -> dict:
     return {lid: "; ".join(v) for lid, v in grouped.items()}
 
 
+# 与列表/详情展示一致；字典未命中时兜底，避免导出裸英文码
+_LEAD_STATUS_LABELS = {
+    "new": "新建",
+    "following": "跟进中",
+    "qualified": "已转化",
+    "discarded": "已废弃",
+}
+_LEAD_CUSTOMER_TYPE_FALLBACK = {
+    "terminal_soe": "终端客户-央企/国企",
+    "terminal_large_private": "终端客户-大型民企（注册资本10亿以上）",
+    "terminal_private": "终端客户-一般民企",
+    "design_institute": "设计院",
+    "general_contractor": "总包商",
+    "supporting_trader": "配套商、贸易商",
+    "supporting_vendor": "配套商、贸易商",
+    "trader": "配套商、贸易商",
+    "other": "其他",
+}
+_LEAD_INDUSTRY_FALLBACK = {
+    "screening_metallurgy": "筛分分选-冶金",
+    "screening_mining": "筛分分选-矿山",
+    "screening_aggregate": "筛分分选-砂石",
+    "screening_coking": "筛分分选-焦化",
+    "screening_coal": "筛分分选-煤炭",
+    "screening_power": "筛分分选-电力",
+    "screening_chemical": "筛分分选-化工",
+    "screening_pharma": "筛分分选-医药",
+    "screening_food": "筛分分选-食品",
+    "screening_spare_parts": "筛分分选-备件",
+    "circular_economy": "循环经济",
+    "scrap_steel": "废钢利用",
+    "bulk_material_intelligent": "智能化大宗物料管理",
+}
+_LEAD_SOURCE_FALLBACK = {
+    "import": "导入",
+    "website": "网站",
+    "expo": "展会",
+    "referral": "转介绍",
+    "cold_call": "陌拜",
+    "other": "其他",
+}
+
+
+async def _lead_export_label_maps(db: AsyncSession, tenant_id: str) -> dict[str, dict[str, str]]:
+    """批量加载线索导出用字典码→中文标签。"""
+    from sqlalchemy import select
+    from app.domains.admin.models import DataDictionary
+
+    want = ("customer_type", "industry", "lead_source")
+    rows = (await db.execute(select(
+        DataDictionary.dict_type, DataDictionary.dict_code, DataDictionary.dict_label,
+    ).where(
+        DataDictionary.tenant_id == tenant_id,
+        DataDictionary.dict_type.in_(want),
+        DataDictionary.enabled == True,  # noqa: E712
+    ))).all()
+    maps: dict[str, dict[str, str]] = {t: {} for t in want}
+    for dtype, code, label in rows:
+        if code and label:
+            maps[str(dtype)][str(code)] = str(label)
+    # 兜底补齐种子选项，租户未 seed 时仍能导出中文
+    for code, label in _LEAD_CUSTOMER_TYPE_FALLBACK.items():
+        maps["customer_type"].setdefault(code, label)
+    for code, label in _LEAD_INDUSTRY_FALLBACK.items():
+        maps["industry"].setdefault(code, label)
+    for code, label in _LEAD_SOURCE_FALLBACK.items():
+        maps["lead_source"].setdefault(code, label)
+    return maps
+
+
+def _lead_export_label(maps: dict[str, dict[str, str]], dict_type: str, code: str | None) -> str:
+    if not code:
+        return ""
+    return (maps.get(dict_type) or {}).get(code) or code
+
+
 @router.get("/export/excel")
 async def export_leads_excel(
     keyword: str = Query(None),
@@ -223,6 +299,7 @@ async def export_leads_excel(
     ]
     category_label = {"self_reported": "自报", "distributed": "分发"}
     country_label = {"domestic": "国内", "overseas": "国外"}
+    label_maps = await _lead_export_label_maps(db, tenant_id)
     # 导出与列表/详情同口径：隐藏字段导空、脱敏字段导 "***"。
     # 否则「页面看不到但能导出来」就是一条绕过字段权限的后门。
     from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
@@ -233,14 +310,14 @@ async def export_leads_excel(
         rows.append([
             l.lead_code or "", c("title", l.title or ""), c("company_name", l.company_name or ""),
             c("department_id", dept_names.get(l.department_id, "") if l.department_id else ""),
-            c("source", l.source or ""),
+            c("source", _lead_export_label(label_maps, "lead_source", l.source)),
             c("category", category_label.get(l.category or "", l.category or "")),
-            c("customer_type", l.customer_type or ""),
-            c("industry", l.industry or ""),
+            c("customer_type", _lead_export_label(label_maps, "customer_type", l.customer_type)),
+            c("industry", _lead_export_label(label_maps, "industry", l.industry)),
             c("biz_date", str(l.biz_date) if l.biz_date else ""),
             c("reporter_id", getattr(l, "reporter_name", None) or ""),
             c("reported_at", l.reported_at.strftime("%Y-%m-%d %H:%M") if getattr(l, "reported_at", None) else ""),
-            l.status or "", l.score or "",
+            _LEAD_STATUS_LABELS.get(l.status or "", l.status or ""), l.score or "",
             c("contact_name", l.contact_name or ""), c("contact_phone", l.contact_phone or ""),
             c("contact_email", l.contact_email or ""),
             c("country_type", country_label.get(l.country_type or "", l.country_type or "")),

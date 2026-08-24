@@ -48,6 +48,7 @@ export default function ContractRegistrationReadonly({
   const resolve = (f: RegFieldDef) => {
     if (f.key === 'assignee_id') return contract.assignee_name || contract.assignee_id || '-'
     if (f.key === 'department_id') return contract.department_name || contract.department_id || '-'
+    if (f.key === 'customer_id') return contract.customer_name || contract.customer_id || '-'
     const raw = f.source === 'native'
       ? (contract as unknown as Record<string, unknown>)[f.key]
       : reg[f.key]

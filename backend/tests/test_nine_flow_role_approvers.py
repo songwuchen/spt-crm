@@ -17,6 +17,7 @@ from app.domains.lowcode.workflow_service import (
 
 
 def test_jdy_role_crm_code_mapping():
+    assert JDY_ROLE_TO_CRM_CODE["5f699f9a4f8b410006f2819f"] == "logistics_approval"
     assert JDY_ROLE_TO_CRM_CODE["5f69a16377e34d0006f13047"] == "ship_sales_outbound"
     assert JDY_ROLE_TO_CRM_CODE["66889a1cdc970f6d8b318231"] == "gate_guard"
     assert JDY_ROLE_TO_CRM_CODE["5f6c3e539a4cbe0006b74d65"] == "cs_office"
@@ -51,6 +52,7 @@ def test_legal_member_roster():
 
 def test_charger_rule_maps_new_roles():
     cases = [
+        ("5f699f9a4f8b410006f2819f", "物流审批", "logistics_approval"),
         ("5f69a16377e34d0006f13047", "24.1发货通知流程-销售出库", "ship_sales_outbound"),
         ("66889a1cdc970f6d8b318231", "240706门岗保卫组", "gate_guard"),
         ("5f6c3e74bb221e00067d4f39", "7.5客户服务延期申请-客服审批", "cs_delay_approve"),
@@ -63,6 +65,22 @@ def test_charger_rule_maps_new_roles():
         assert rule["value"] == code, (rid, rule)
 
 
+def test_logistics_approval_member_roster():
+    from app.common.rbac_catalog import STANDARD_ROLES
+    from app.common.rbac_sync import (
+        LOGISTICS_APPROVAL_MEMBER_REAL_NAMES,
+        LOGISTICS_APPROVAL_MEMBER_USERNAMES,
+    )
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "logistics_approval")
+    assert role["name"] == "物流审批"
+    assert (role.get("scope_by_resource") or {}).get("shipment_notice") == "all"
+    assert set(LOGISTICS_APPROVAL_MEMBER_REAL_NAMES) == {
+        "孔令山", "李娜", "马瑞草", "韩文祯", "张冠杰",
+    }
+    assert len(LOGISTICS_APPROVAL_MEMBER_USERNAMES) == 5
+
+
 def test_apply_shipment_notice_roles_idempotent():
     nodes = [
         {"id": "n1", "name": "物流审批", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},
@@ -72,7 +90,9 @@ def test_apply_shipment_notice_roles_idempotent():
     ]
     assert _flow_shipment_logistics_needs_fix(nodes)
     assert apply_shipment_notice_approvers(nodes)
-    assert nodes[0]["approver_rule"]["type"] == "specified_user"
+    assert nodes[0]["approver_rule"]["type"] == "specified_role"
+    assert nodes[0]["approver_rule"]["value"] == "logistics_approval"
+    assert nodes[0].get("multi_mode") == "or_sign"
     assert nodes[1]["approver_rule"]["value"] == "ship_sales_outbound"
     assert nodes[2]["approver_rule"]["value"] == "ship_sales_outbound"
     assert nodes[3]["approver_rule"]["value"] == "gate_guard"
@@ -100,6 +120,34 @@ def test_apply_xunhan_and_prod_card_roles():
     assert apply_xunhan_contract_review_approvers(xnodes)
     assert xnodes[0]["approver_rule"]["value"] == "legal"
     assert not apply_xunhan_contract_review_approvers(xnodes)
+
+    xnodes2 = [{
+        "id": "n29", "name": "法务主管审批",
+        "approver_rule": {"type": "specified_user", "value": "492105073721398323"},
+    }]
+    assert _flow_xunhan_contract_review_needs_approver_fix(xnodes2)
+    assert apply_xunhan_contract_review_approvers(xnodes2)
+    assert xnodes2[0]["approver_rule"]["value"] == "02364840011125"
+    assert not apply_xunhan_contract_review_approvers(xnodes2)
+    assert not _flow_xunhan_contract_review_needs_approver_fix(xnodes2)
+
+    from app.domains.lowcode.workflow_service import (
+        _XUNHAN_FEEDBACK_REENTER_EDGES,
+        patch_xunhan_contract_review_feedback_routes,
+        _flow_xunhan_feedback_routes_need_fix,
+    )
+    routes = [{"id": "r_6", "source": "n12", "target": "n1__2"}]
+    assert _flow_xunhan_feedback_routes_need_fix(routes)
+    assert patch_xunhan_contract_review_feedback_routes(routes)
+    assert routes[0].get("reenter") is True
+    routes2 = [
+        {"id": f"r_{s}_{t}", "source": s, "target": t}
+        for s, t in _XUNHAN_FEEDBACK_REENTER_EDGES
+    ]
+    assert patch_xunhan_contract_review_feedback_routes(routes2)
+    assert all(r.get("reenter") for r in routes2)
+    assert not _flow_xunhan_feedback_routes_need_fix(routes2)
+    assert not patch_xunhan_contract_review_feedback_routes(routes2)
 
     pnodes = [
         {"id": "n5", "name": "物料编码", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},

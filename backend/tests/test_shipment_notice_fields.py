@@ -139,10 +139,40 @@ def test_shipment_notice_flow_topology():
     assert "仓库" in names and "发货完毕" in names
     logi = next(n for n in nodes if n.get("name") == "物流审批")
     apply_shipment_notice_approvers(nodes)
-    assert logi["approver_rule"]["type"] == "specified_user"
+    assert logi["approver_rule"]["type"] == "specified_role"
+    assert logi["approver_rule"]["value"] == "logistics_approval"
 
 
-def test_shipment_notice_jdy_visibility_rules():
+def test_shipment_notice_parallel_fork_after_pick():
+    from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
+    from app.domains.lowcode.shipment_notice_fields import (
+        patch_shipment_notice_parallel_routes,
+        shipment_parallel_fork_broken,
+    )
+    routes = [dict(r) for r in SHIPMENT_NOTICE_JDY["shipment_notice"]["flow_routes"]]
+    # 生成器补丁后应已并行；若仍互斥则补丁可修
+    if shipment_parallel_fork_broken(routes):
+        assert patch_shipment_notice_parallel_routes(routes)
+    pick_routes = [r for r in routes if r.get("source") == "n3" and r.get("target") in ("n9", "n10")]
+    assert len(pick_routes) == 2
+    assert all(not r.get("exclusive_group") for r in pick_routes)
+
+
+def test_shipment_notice_sales_accept_field_perms():
+    from app.domains.lowcode.shipment_notice_fields import (
+        apply_shipment_notice_sales_accept_field_perms,
+        shipment_sales_accept_perms_ok,
+    )
+    nodes = [
+        {"id": "n18__4", "name": "通知业务员4", "type": "approval", "field_perms": []},
+        {"id": "n9", "name": "生产领料", "type": "approval"},
+    ]
+    assert apply_shipment_notice_sales_accept_field_perms(nodes)
+    perms = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
+    assert perms["accept_attachments"] == "editable"
+    assert perms["accept_method"] == "readonly"
+    assert perms["accept_docs"] == "readonly"
+    assert shipment_sales_accept_perms_ok(nodes)
     pack = SHIPMENT_NOTICE_JDY["shipment_notice"]
     vis = [r for r in pack["rule_definitions"] if r.get("type") == "visibility"]
     targets = {r.get("target_field_id") for r in vis}

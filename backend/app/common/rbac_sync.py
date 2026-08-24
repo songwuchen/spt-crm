@@ -267,6 +267,7 @@ BUSINESS_ROLE_CODES = (
     "loan_eng_mgmt",
     "biz_backoffice",
     "jdy_sub_admin",
+    "logistics_approval",
     "ship_sales_outbound",
     "gate_guard",
     "prod_material_code",
@@ -663,6 +664,29 @@ async def ensure_cs_delay_approve_role_members(db, tenant_id: str) -> dict:
     )
 
 
+# 发货通知「物流审批」：孔令山、李娜、马瑞草、韩文祯、张冠杰（或签）
+LOGISTICS_APPROVAL_MEMBER_USERNAMES: tuple[str, ...] = (
+    "0236433705597",         # 孔令山
+    "02362440128774",        # 李娜
+    "575448583538947351",    # 马瑞草
+    "196558292138209137",    # 韩文祯
+    "221707676324076528",    # 张冠杰
+)
+LOGISTICS_APPROVAL_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "孔令山", "李娜", "马瑞草", "韩文祯", "张冠杰",
+)
+
+
+async def ensure_logistics_approval_role_members(db, tenant_id: str) -> dict:
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "logistics_approval",
+        LOGISTICS_APPROVAL_MEMBER_USERNAMES,
+        LOGISTICS_APPROVAL_MEMBER_REAL_NAMES,
+    )
+
+
 # 发货通知「销售出库」：仓库/仓库判定（历史办理人抽样）
 SHIP_SALES_OUTBOUND_MEMBER_USERNAMES: tuple[str, ...] = (
     "02366368263850",  # 司丹丹
@@ -891,6 +915,7 @@ async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:
         "cs_office": await ensure_cs_office_role_members(db, tenant_id),
         "cs_arrange": await ensure_cs_arrange_role_members(db, tenant_id),
         "cs_delay_approve": await ensure_cs_delay_approve_role_members(db, tenant_id),
+        "logistics_approval": await ensure_logistics_approval_role_members(db, tenant_id),
         "ship_sales_outbound": await ensure_ship_sales_outbound_role_members(db, tenant_id),
         "gate_guard": await ensure_gate_guard_role_members(db, tenant_id),
         "prod_material_code": await ensure_prod_material_code_role_members(db, tenant_id),

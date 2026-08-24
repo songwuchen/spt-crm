@@ -1951,7 +1951,21 @@ class WorkflowEngine:
         if inst.form_instance_id:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
-                return dict(fi.form_data or {})
+                data = dict(fi.form_data or {})
+                # 生产卡：审批上下文实时引用合同（区域经理分支等依赖带出字段）
+                try:
+                    from app.domains.lowcode.models import FormTemplate
+                    from app.domains.lowcode.prod_card_contract_fill import (
+                        overlay_prod_card_contract_live,
+                    )
+                    tpl = await self.db.get(FormTemplate, fi.template_id)
+                    if tpl and tpl.code == "prod_card_supplement":
+                        data = await overlay_prod_card_contract_live(
+                            self.db, self.tenant_id, data,
+                        )
+                except Exception:
+                    pass
+                return data
         # 业务单据流（线索/报价等）没有 FormInstance：按 biz 重建字段上下文，
         # 供审批通过后的抄送节点「表单人员字段」等规则解析（如 owner_id）。
         if inst.biz_type and inst.biz_id:

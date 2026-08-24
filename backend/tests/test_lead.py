@@ -120,6 +120,40 @@ async def test_lead_export(client: AsyncClient, auth_headers: dict):
     assert resp.status_code == 200
 
 
+async def test_lead_export_maps_codes_to_chinese(client: AsyncClient, auth_headers: dict):
+    """导出客户类型/行业/状态应为中文，不能裸出字典码。"""
+    import io
+    from openpyxl import load_workbook
+
+    h = auth_headers
+    lid = (await client.post("/api/v1/leads", headers=h, json={
+        "title": "导出中文映射线索",
+        "company_name": "映射测试公司",
+        "source": "import",
+        "customer_type": "terminal_private",
+        "industry": "screening_chemical",
+    })).json()["data"]["id"]
+
+    resp = await client.get(
+        "/api/v1/leads/export/excel", headers=h,
+        params={"keyword": "导出中文映射线索"},
+    )
+    assert resp.status_code == 200
+    wb = load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    row = next(ws.iter_rows(min_row=2, max_row=2))
+    by = {header[i]: row[i].value for i in range(len(header))}
+    assert by["客户类型"] == "终端客户-一般民企"
+    assert by["行业"] == "筛分分选-化工"
+    assert by["状态"] == "新建"
+    assert by["来源"] == "导入"
+    assert by["客户类型"] != "terminal_private"
+    assert by["行业"] != "screening_chemical"
+
+    await client.delete(f"/api/v1/leads/{lid}", headers=h)
+
+
 async def test_qualify_creates_customer_only_by_default(
     client: AsyncClient, auth_headers: dict, db, lead_intel_user,
 ):

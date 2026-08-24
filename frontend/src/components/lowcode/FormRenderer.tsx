@@ -763,7 +763,23 @@ function ReadonlyValue({ field, value }: { field: FieldDefinition; value: unknow
   else if (field.type === 'select' || field.type === 'radio') display = labelOf(value)
   else if (field.type === 'amount') display = `¥${Number(value).toFixed(2)}`
   else display = String(value)
-  return <div style={{ paddingTop: 4, minHeight: 22 }}>{display}</div>
+  // 长文本（如发货明细「公司型号」）审批只读时需换行，避免 ellipsis 截断看不到全文
+  const wrapLong = field.type === 'text' || field.type === 'textarea'
+    || field.id === 'company_model'
+    || (field.label || '').includes('公司型号')
+  return (
+    <div
+      style={{
+        paddingTop: 4,
+        minHeight: 22,
+        ...(wrapLong
+          ? { whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }
+          : undefined),
+      }}
+    >
+      {display}
+    </div>
+  )
 }
 
 // ===== 明细子表 =====
@@ -850,9 +866,16 @@ function DetailTable({
 
   const defaultColWidth = (c: FieldDefinition) => {
     if (c.type === 'image' || c.type === 'file') return 200
-    if (c.id === 'company_model' || (c.label || '').includes('公司型号')) return 220
+    if (c.id === 'company_model' || (c.label || '').includes('公司型号')) return 320
     if ((c.label || '').includes('货物') || (c.label || '').includes('名称')) return 180
     return 140
+  }
+  /** 长文本列关闭 ellipsis，单元格内自动换行（审批人要看全「公司型号」等） */
+  const detailColWraps = (c: FieldDefinition) => {
+    if (c.type === 'textarea') return true
+    if (c.id === 'company_model' || (c.label || '').includes('公司型号')) return true
+    if (c.type === 'text' && /备注|说明|型号|描述|要求|内容/.test(c.label || '')) return true
+    return false
   }
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const widthOf = (c: FieldDefinition) => colWidths[c.id] ?? defaultColWidth(c)
@@ -910,16 +933,19 @@ function DetailTable({
   const columns: ColumnType<Record<string, unknown>>[] = [
     ...cols.map((c) => {
       const w = widthOf(c)
+      const wrap = detailColWraps(c)
       return {
         title: (<span>{c.required && <span style={{ color: '#ff4d4f' }}>*</span>}{c.label}</span>),
         dataIndex: c.id,
         key: c.id,
         width: w,
-        ellipsis: true,
+        // 长文本列禁止截断，否则审批抽屉里「公司型号」只显示半截
+        ellipsis: wrap ? false : true,
         onHeaderCell: () => ({
           width: w,
           colKey: c.id,
         }),
+        onCell: wrap ? () => ({ className: 'detail-cell-wrap' }) : undefined,
         render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
           const row = rows[idx] || {}
           const visible = isDetailColVisibleInRow(

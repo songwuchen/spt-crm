@@ -1571,6 +1571,10 @@ async def create_instance(
         form_data = await _ensure_cdm_drawing_no(
             db, tenant_id, data.template_id, field_defs, form_data or {},
         )
+    # 生产卡：校验后再剥带出快照，落库仅保留合同引用
+    if tpl.code == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import strip_prod_card_contract_snapshot
+        form_data = strip_prod_card_contract_snapshot(form_data)
 
     title = (data.title or "").strip() or None
     if not title or is_weak_form_title(title, tpl.name):
@@ -1602,7 +1606,11 @@ async def create_instance(
     # 表单绑定了已发布流程 → 提交即起审批(草稿不触发)。流程状态回写到实例(running/completed/rejected)。
     if not data.as_draft:
         from app.domains.lowcode import workflow_service as wsvc
-        pinst = await wsvc.maybe_start_for_form(db, tenant_id, data.template_id, inst, user, form_data)
+        wf_form_data = form_data
+        if tpl.code == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import overlay_prod_card_contract_live
+            wf_form_data = await overlay_prod_card_contract_live(db, tenant_id, form_data, user)
+        pinst = await wsvc.maybe_start_for_form(db, tenant_id, data.template_id, inst, user, wf_form_data)
         if pinst is not None:
             inst.status = pinst.status
             inst.process_instance_id = pinst.id
@@ -1667,6 +1675,18 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     published_acl = await _get_published_version(db, tenant_id, inst.template_id)
     if published_acl and published_acl.field_definitions:
         field_defs = _overlay_download_acl(field_defs, published_acl.field_definitions)
+    # 生产卡：选合同带出字段实时引用合同当前数据（不读库内快照）
+    tpl_code = (await db.execute(
+        select(FormTemplate.code).where(
+            FormTemplate.id == inst.template_id,
+            FormTemplate.tenant_id == tenant_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if tpl_code == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import overlay_prod_card_contract_live
+        out["form_data"] = await overlay_prod_card_contract_live(
+            db, tenant_id, out.get("form_data"), user,
+        )
     field_defs, out["form_data"] = filter_read(
         field_defs, out.get("form_data"), (user or {}).get("roles"),
         is_creator=is_creator,
@@ -2197,16 +2217,22 @@ async def _resolve_form_list_owner_ids(
     template_code: str | None,
     owner_ids: list[str] | None,
 ) -> list[str] | None:
-    """表单列表数据范围：主数据全表；客服岗对 cs_* 表单看全部。"""
+    """表单列表数据范围：主数据全表；客服岗对 cs_* 表单看全部；物流审批对发货通知看全部。"""
     if owner_ids is None:
         return None
     if template_code in _FORM_LIST_ALL_SCOPE_TEMPLATES:
         return None
-    if template_code and template_code.startswith("cs_") and user:
+    if template_code and user:
         from app.common.data_scope import resolve_module_scope
 
-        if await resolve_module_scope(db, user, tenant_id, biz_type="form_data") == "all":
-            return None
+        if template_code.startswith("cs_"):
+            if await resolve_module_scope(db, user, tenant_id, biz_type="form_data") == "all":
+                return None
+        if template_code == "shipment_notice":
+            if await resolve_module_scope(
+                db, user, tenant_id, biz_type="shipment_notice",
+            ) == "all":
+                return None
     return owner_ids
 
 # 部门档：业务部门等文本字段按部门名称匹配
@@ -2455,6 +2481,9 @@ async def update_instance(
                                     role_field_permissions(field_defs, user.get("roles")))
             if err:
                 raise BusinessException(code=VALIDATION_ERROR, message=err)
+        if tpl_code == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import strip_prod_card_contract_snapshot
+            form_data = strip_prod_card_contract_snapshot(form_data)
         if tpl_code == "contract_drawing_map":
             form_data = await generate_serials_for_submit(
                 db, tenant_id, inst.template_id, field_defs, form_data,
@@ -2544,6 +2573,9 @@ async def submit_instance(
     form_data = await generate_serials_for_submit(db, tenant_id, inst.template_id, field_defs, form_data)
 
     tpl = await get_template(db, tenant_id, inst.template_id)
+    if tpl.code == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import strip_prod_card_contract_snapshot
+        form_data = strip_prod_card_contract_snapshot(form_data)
     # 报价等：流水号生成后再拼「单号 · 客户 · 业务员」，覆盖草稿阶段弱/不完整标题
     if _should_use_composite_title(tpl.name, form_data, field_defs):
         inst.title = await derive_form_instance_title_resolved(
@@ -2575,7 +2607,11 @@ async def submit_instance(
     await db.refresh(inst)
 
     from app.domains.lowcode import workflow_service as wsvc
-    pinst = await wsvc.maybe_start_for_form(db, tenant_id, inst.template_id, inst, user, form_data)
+    wf_form_data = form_data
+    if tpl.code == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import overlay_prod_card_contract_live
+        wf_form_data = await overlay_prod_card_contract_live(db, tenant_id, form_data, user)
+    pinst = await wsvc.maybe_start_for_form(db, tenant_id, inst.template_id, inst, user, wf_form_data)
     if pinst is not None:
         inst.status = pinst.status
         inst.process_instance_id = pinst.id

@@ -336,3 +336,90 @@ def apply_shipment_notice_fields(fields: list[dict]) -> None:
             "props": {"hidden": True},
             "description": "系统内部：同合同其它发货通知的发货金额合计（不含本单）。",
         })
+
+
+# 简道云：开具提货单后「生产领料」与「仓库判定」并行（非互斥）
+_SHIPMENT_PICK_PARALLEL_TARGETS = frozenset({"n9", "n10"})
+
+
+def patch_shipment_notice_parallel_routes(routes: list[dict]) -> bool:
+    """去掉开具提货单→生产领料/仓库判定的互斥组，对齐简道云并行分叉。"""
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if r.get("source") != "n3" or r.get("target") not in _SHIPMENT_PICK_PARALLEL_TARGETS:
+            continue
+        if r.pop("exclusive_group", None):
+            changed = True
+        r.pop("fork", None)
+    return changed
+
+
+def shipment_parallel_fork_broken(routes: list | None) -> bool:
+    """旧版流程把 n3→n9/n10 标成互斥，需升级。"""
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if r.get("source") == "n3" and r.get("target") in _SHIPMENT_PICK_PARALLEL_TARGETS:
+            if r.get("exclusive_group"):
+                return True
+    return False
+
+
+_SHIPMENT_SALES_ACCEPT_NODE_NAMES = frozenset({
+    "通知业务员4",
+    "通知业务员1（1分钟自动提交）",
+    "通知业务员2（1分钟自动提交）",
+    "通知业务员3（1分钟自动提交）",
+})
+_SHIPMENT_SALES_ACCEPT_CONTEXT_READONLY = ("accept_method", "accept_docs")
+
+
+def _merge_node_field_perm(node: dict, field: str, access: str) -> bool:
+    perms = list(node.get("field_perms") or [])
+    for p in perms:
+        if isinstance(p, dict) and p.get("field") == field:
+            if access == "required" and p.get("access") != "required":
+                p["access"] = "required"
+                node["field_perms"] = perms
+                return True
+            return False
+    perms.append({"field": field, "access": access})
+    node["field_perms"] = perms
+    return True
+
+
+def apply_shipment_notice_sales_accept_field_perms(nodes: list[dict]) -> bool:
+    """通知业务员节点：展示验收方式/资料（只读）+ 可上传验收单附件（对齐简道云 optAuth）。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if str(n.get("name") or "") not in _SHIPMENT_SALES_ACCEPT_NODE_NAMES:
+            continue
+        for fid in _SHIPMENT_SALES_ACCEPT_CONTEXT_READONLY:
+            if _merge_node_field_perm(n, fid, "readonly"):
+                changed = True
+        # 通知业务员4：验收单附件可编辑；显隐/必填由表单规则 sn_req_accept_attachments 控制
+        if str(n.get("name") or "") == "通知业务员4":
+            if _merge_node_field_perm(n, "accept_attachments", "editable"):
+                changed = True
+    return changed
+
+
+def shipment_sales_accept_perms_ok(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "通知业务员4":
+            continue
+        by_field = {
+            p.get("field"): p.get("access")
+            for p in (n.get("field_perms") or [])
+            if isinstance(p, dict) and p.get("field")
+        }
+        return (
+            by_field.get("accept_attachments") == "editable"
+            and by_field.get("accept_method") == "readonly"
+            and by_field.get("accept_docs") == "readonly"
+        )
+    return False

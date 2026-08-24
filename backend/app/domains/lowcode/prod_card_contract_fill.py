@@ -123,6 +123,149 @@ def prod_card_fill_clear_keys(mode: str) -> list[str]:
     ]
 
 
+# 选合同带出字段：只作实时引用展示，不落库（合同变更后详情/审批同步变化）
+PROD_CARD_CONTRACT_LIVE_KEYS: frozenset[str] = frozenset(
+    prod_card_fill_clear_keys("drawing_no_query")
+    + prod_card_fill_clear_keys("contract_no_select")
+)
+
+
+def strip_prod_card_contract_snapshot(form_data: dict | None) -> dict:
+    """持久化前剔除选合同带出快照，只保留 drawing_no_query / contract_no_select 引用。"""
+    data = dict(form_data or {})
+    for k in PROD_CARD_CONTRACT_LIVE_KEYS:
+        data.pop(k, None)
+    return data
+
+
+def resolve_prod_card_contract_pick(form_data: dict | None) -> tuple[str | None, str]:
+    """返回 (contract_id, mode)。补充=是优先合同号选择，否则图纸号查询。"""
+    fd = form_data if isinstance(form_data, dict) else {}
+    is_supp = str(fd.get("is_supplement") or "").strip()
+    yes_id = str(fd.get("contract_no_select") or "").strip() or None
+    no_id = str(fd.get("drawing_no_query") or "").strip() or None
+    if is_supp == "是" and yes_id:
+        return yes_id, "contract_no_select"
+    if no_id:
+        return no_id, "drawing_no_query"
+    if yes_id:
+        return yes_id, "contract_no_select"
+    return None, "drawing_no_query"
+
+
+async def load_prod_card_fill_for_contract(
+    db,
+    tenant_id: str,
+    contract_id: str,
+    mode: str,
+    user: dict | None = None,
+) -> dict[str, Any]:
+    """按合同当前版本实时组装带出字段（与 pickable API 同源）。"""
+    from sqlalchemy import select
+    from app.domains.contract.models import Contract, ContractVersion
+
+    if mode not in ("drawing_no_query", "contract_no_select"):
+        mode = "drawing_no_query"
+    c = (
+        await db.execute(
+            select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+    if not c:
+        return {}
+    ver = (
+        await db.execute(
+            select(ContractVersion).where(
+                ContractVersion.tenant_id == tenant_id,
+                ContractVersion.contract_id == contract_id,
+                ContractVersion.version_no == c.current_version_no,
+            )
+        )
+    ).scalar_one_or_none()
+    if not ver:
+        ver = (
+            await db.execute(
+                select(ContractVersion).where(
+                    ContractVersion.tenant_id == tenant_id,
+                    ContractVersion.contract_id == contract_id,
+                ).order_by(ContractVersion.version_no.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
+
+    customer_name = None
+    cust_id = c.customer_id
+    if not cust_id and c.project_id:
+        from app.domains.project.models import OpportunityProject
+        cust_id = (
+            await db.execute(
+                select(OpportunityProject.customer_id).where(
+                    OpportunityProject.id == c.project_id,
+                    OpportunityProject.tenant_id == tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+    if cust_id:
+        from app.domains.customer.models import Customer
+        cu = (
+            await db.execute(
+                select(Customer).where(Customer.id == cust_id, Customer.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if cu:
+            customer_name = cu.name
+        else:
+            from app.common.list_enrich import customer_names_map
+            customer_name = (await customer_names_map(db, tenant_id, [cust_id])).get(cust_id)
+
+    fill = build_prod_card_fill_from_contract(
+        contract_no=c.contract_no,
+        drawing_no=c.drawing_no,
+        assignee_id=c.assignee_id,
+        assignee_name=c.assignee_name,
+        customer_name=customer_name,
+        delivery_date=str(c.delivery_date) if c.delivery_date else None,
+        registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
+        key_clauses_json=ver.key_clauses_json if ver else None,
+        mode=mode,
+    )
+    return await enrich_prod_card_fill_with_region_manager(db, tenant_id, fill, user)
+
+
+async def overlay_prod_card_contract_live(
+    db,
+    tenant_id: str,
+    form_data: dict | None,
+    user: dict | None = None,
+) -> dict:
+    """读时叠加热合同引用；无选合同时清空带出键，避免残留快照。"""
+    data = dict(form_data or {})
+    cid, mode = resolve_prod_card_contract_pick(data)
+    live: dict[str, Any] = {}
+    if cid:
+        live = await load_prod_card_fill_for_contract(db, tenant_id, cid, mode, user)
+    # 技术协议评审流水号：有选评审时以评审为准（也可后续改成实时）
+    tar_id = str(data.get("select_contract_tech_review") or "").strip()
+    if tar_id:
+        from sqlalchemy import select
+        from app.domains.tech_agreement_review.models import TechAgreementReview
+        row = (
+            await db.execute(
+                select(TechAgreementReview.review_code).where(
+                    TechAgreementReview.id == tar_id,
+                    TechAgreementReview.tenant_id == tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row:
+            live = {**live, **build_prod_card_fill_from_tar(review_code=str(row))}
+    for k in PROD_CARD_CONTRACT_LIVE_KEYS:
+        if k in live:
+            data[k] = live[k]
+        else:
+            data.pop(k, None)
+    return data
+
+
 # 简道云 sn：固定「1.2.8」+ 5 位递增、不重置（生成器曾把 sn 放进 SKIP_TYPES）
 PROD_CARD_SERIAL_PREFIX = "1.2.8"
 PROD_CARD_SERIAL_NO_RULES: list[dict[str, Any]] = [
@@ -301,7 +444,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
         elif fid == "drawing_no_query":
             f["type"] = "contract"
             f["label"] = "选择合同"
-            f["description"] = "从合同管理选择（对齐简道云图纸编号查询）；按所在部门过滤；选中后带出单位/图纸号/明细等。"
+            f["description"] = "从合同管理选择（对齐简道云图纸编号查询）；按所在部门过滤；选中后实时引用合同单位/图纸号/明细等（合同变更后同步）。"
             props = dict(f.get("props") or {})
             props["filter_by_department_field"] = "department"
             props["contract_fill"] = "drawing_no_query"
@@ -309,7 +452,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
         elif fid == "contract_no_select":
             f["type"] = "contract"
             f["label"] = "选择合同（合同号）"
-            f["description"] = "从合同管理选择；按所在部门过滤；选中后带出合同号/单位名称/业务员。"
+            f["description"] = "从合同管理选择；按所在部门过滤；选中后实时引用合同号/单位名称/业务员（合同变更后同步）。"
             props = dict(f.get("props") or {})
             props["filter_by_department_field"] = "department"
             props["contract_fill"] = "contract_no_select"
@@ -320,24 +463,24 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props = dict(f.get("props") or {})
             props.pop("readonly", None)
             f["props"] = props
-            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+            f["description"] = f.get("description") or "实时引用所选合同，不可手改。"
         elif fid == "yes_contract_no":
             f["form_editable"] = False
-            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+            f["description"] = f.get("description") or "实时引用所选合同，不可手改。"
         elif fid == "yes_sales_person":
             f["label"] = f.get("label") or "（是）业务人员"
             f["form_editable"] = False
-            f["description"] = "由所选合同自动带出；如有不符请及时反馈。"
+            f["description"] = "实时引用所选合同业务员；如有不符请及时反馈。"
         elif fid == "no_drawing_no":
             f["label"] = "图纸编号"
             f["form_editable"] = False
-            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+            f["description"] = f.get("description") or "实时引用所选合同，不可手改。"
         elif fid == "no_sales_person":
             f["label"] = "业务人员"
             f["form_editable"] = False
-            f["description"] = "由所选合同自动带出；如有不符请及时反馈。"
+            f["description"] = "实时引用所选合同业务员；如有不符请及时反馈。"
         elif fid in _CONTRACT_PICK_READONLY_IDS:
-            f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+            f["description"] = f.get("description") or "实时引用所选合同，不可手改。"
         elif fid == "select_contract_tech_review":
             # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
             f["type"] = "tech_agreement_review"
@@ -355,7 +498,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props = dict(f.get("props") or {})
             props["readonly"] = True
             f["props"] = props
-            f["description"] = f.get("description") or "由所选技术协议评审自动带出，不可手改。"
+            f["description"] = f.get("description") or "实时引用所选合同/技术协议评审，不可手改。"
 
     apply_prod_card_approver_only_fields(defs)
     ensure_prod_card_contract_fill_on_create(defs)
