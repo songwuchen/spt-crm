@@ -28,6 +28,10 @@ def test_contract_lines_new_is_form_editable():
         {"id": "drawing_no", "type": "text", "label": "图纸编号"},
     ]
     apply_invoice_application_fields(defs)
+    pick = next(f for f in defs if f["id"] == "drawing_no_select")
+    assert pick["type"] == "contract"
+    assert pick["props"]["contract_fill"] == "invoice_application"
+    assert "filter_by_department_field" not in (pick.get("props") or {})
     lines = next(f for f in defs if f["id"] == "contract_lines_new")
     assert lines["form_editable"] is True
     assert "不影响合同" in (lines.get("description") or "")

@@ -423,13 +423,15 @@ function FieldWidget({
       }
       const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
       const fillMode = props.contract_fill
+      const invoicePick = fillMode === 'invoice_application'
       return (
         <ContractField
           value={value}
           readonly={readonly}
           placeholder={ph}
-          departmentId={pickDepts.departmentId}
-          departmentIds={pickDepts.departmentIds}
+          departmentId={invoicePick ? undefined : pickDepts.departmentId}
+          departmentIds={invoicePick ? undefined : pickDepts.departmentIds}
+          purpose={invoicePick ? 'invoice_application' : undefined}
           onChange={(v) => {
             if (!fillMode || !onPatch) {
               onChange(v)

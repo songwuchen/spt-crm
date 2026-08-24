@@ -413,8 +413,13 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
 | `crm.service_ticket.created` | 新建售后工单（含开放平台写入） |
 | `crm.order.created` | 新建订单（含开放平台写入） |
 | `crm.order.status_changed` | 订单状态变更 |
+| `crm.shipment_notice.submitted` | 发货通知离开草稿（提交进流程） |
+| `crm.shipment_notice.acted` | 发货通知流程中有审批动作 |
+| `crm.shipment_notice.completed` | 发货通知流程通过结束 |
+| `crm.shipment_notice.cancelled` | 发货通知驳回 / 撤回 |
 
-> 不提供 `*.updated` 这类无业务语义的事件。事件带 `event_version`，破坏性变更会升版本。
+> 不提供 `*.updated` 这类无业务语义的事件。事件带 `event_version`，破坏性变更会升版本。  
+> 发货通知事件 `data` 含 `form_instance_id` / `business_no` / `status` / `process_instance_id`；完整表单与审批意见请再查低代码实例与流程详情（供 song-tms-integration 使用）。
 
 ### 事件格式
 ```json

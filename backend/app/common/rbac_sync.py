@@ -314,6 +314,34 @@ async def ensure_business_roles(
                         changed = True
                 if changed:
                     role.scope_by_resource = cur
+            # 补齐目录权限（含 CORE），避免新建后缺 form_data:view 等
+            changed_perms = False
+            have_pids = {
+                rp.permission_id
+                for rp in (
+                    await db.execute(
+                        select(RolePermission).where(
+                            RolePermission.tenant_id == tenant_id,
+                            RolePermission.role_id == role.id,
+                        )
+                    )
+                ).scalars().all()
+            }
+            for pcode in role_perm_codes(rd):
+                perm = perms_by_code.get(pcode)
+                if not perm or perm.id in have_pids:
+                    continue
+                db.add(RolePermission(
+                    id=generate_uuid(),
+                    tenant_id=tenant_id,
+                    role_id=role.id,
+                    permission_id=perm.id,
+                ))
+                have_pids.add(perm.id)
+                changed_perms = True
+            if changed_perms:
+                from app.domains.auth.service import invalidate_tenant_auth_cache
+                await invalidate_tenant_auth_cache(tenant_id)
             continue
         role = Role(
             id=generate_uuid(),
@@ -425,6 +453,7 @@ async def _ensure_role_members(
         )
 
     added = 0
+    touched_uids: list[str] = []
     for u in users:
         if u.id in existing_uids:
             continue
@@ -435,8 +464,16 @@ async def _ensure_role_members(
             role_id=role.id,
         ))
         added += 1
+        touched_uids.append(u.id)
     if added:
         await db.flush()
+        from app.domains.auth.service import invalidate_user_auth_cache
+        for uid in touched_uids:
+            await invalidate_user_auth_cache(uid, tenant_id)
+    # 角色新建/补权限时整租户清缓存，避免旧 JWT 前 /me 仍读到旧权限
+    if created_roles:
+        from app.domains.auth.service import invalidate_tenant_auth_cache
+        await invalidate_tenant_auth_cache(tenant_id)
     return {
         "role_created": bool(created_roles),
         "added": added,

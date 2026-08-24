@@ -499,6 +499,18 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props["readonly"] = True
             f["props"] = props
             f["description"] = f.get("description") or "实时引用所选合同/技术协议评审，不可手改。"
+        elif fid == "field" and "合并含补充" in str(f.get("label") or ""):
+            # 简道云 rely：IF(是否补充==是,'补充',下单类型)
+            f["type"] = "formula"
+            f["form_editable"] = False
+            f["props"] = {
+                **dict(f.get("props") or {}),
+                "formula": "IF($is_supplement#=='是','补充',$order_type#)",
+            }
+            f["description"] = (
+                f.get("description")
+                or "自动计算：补充单为「补充」，否则等于下单类型。"
+            )
 
     apply_prod_card_approver_only_fields(defs)
     ensure_prod_card_contract_fill_on_create(defs)
@@ -736,6 +748,14 @@ def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
         if not isinstance(n, dict):
             continue
         name = str(n.get("name") or "")
+        # 「下单类型（合并含补充）」由公式自动填，节点上改为只读展示
+        perms = list(n.get("field_perms") or [])
+        for p in perms:
+            if not isinstance(p, dict) or p.get("field") != "field":
+                continue
+            if p.get("access") != "readonly":
+                p["access"] = "readonly"
+                changed = True
         if "研管办安排" not in name:
             continue
         if _merge_node_field_perms(n, _PROD_CARD_DESIGN_ASSIGN_PERMS):

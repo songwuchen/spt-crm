@@ -22,6 +22,10 @@ import { contractPickDepartments } from '@/utils/contractPickDepartments'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates, validateApproverDetailRows } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
+import {
+  applyProdCardOrderTypeMerged,
+  applySimpleFormulas,
+} from '@/utils/lowcodeSimpleFormulas'
 
 const { Text } = Typography
 
@@ -186,13 +190,38 @@ export default function ApproveFieldForm({
     return computeFieldStates(fieldsForRules, mergedValues, rules, permissions)
   }, [rules, perms, fieldsForRules, mergedValues])
 
+  // 打开节点时若已有下单类型，立刻回填「下单类型（合并含补充）」
+  useEffect(() => {
+    if (!perms.some((p) => p.field === 'field' || p.field === 'order_type')) return
+    const base = { ...formData, ...values }
+    let out = applySimpleFormulas(fieldsForRules, base)
+    out = applyProdCardOrderTypeMerged(out)
+    const nextField = out.field
+    if (nextField == null || nextField === '') return
+    if (values.field === nextField) return
+    onChange({ ...values, field: nextField })
+  }, [fieldsForRules, formData, onChange, perms, values])
+
   if (!perms.length) return null
 
+  const emitValues = (next: Record<string, unknown>) => {
+    // 审批可写字段 + 表单字段定义（含公式）一起重算，如生产卡「下单类型（合并含补充）」
+    let out = applySimpleFormulas(fieldsForRules, { ...formData, ...next })
+    // 审批节点 values 只存本节点可写字段；合并后写回 next 里出现过的键 + 公式产物 field
+    const patch: Record<string, unknown> = { ...next }
+    for (const f of fieldsForRules) {
+      if (f.type === 'formula' && f.id in out) patch[f.id] = out[f.id]
+    }
+    out = applyProdCardOrderTypeMerged({ ...formData, ...patch })
+    if ('field' in out) patch.field = out.field
+    onChange(patch)
+  }
+
   const setField = (id: string, v: unknown) => {
-    onChange({ ...values, [id]: v })
+    emitValues({ ...values, [id]: v })
   }
   const patchFields = (patch: Record<string, unknown>) => {
-    onChange({ ...values, ...patch })
+    emitValues({ ...values, ...patch })
   }
 
   const missing = new Set(
@@ -218,15 +247,16 @@ export default function ApproveFieldForm({
 
           const formFd = formFields.find((f) => f.id === p.field)
           const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
-          const isReadonly = p.access === 'readonly' || st?.readonly === true
-          const required = !isReadonly && (st ? st.required : p.access === 'required')
-          const err = missing.has(p.field)
           // field_meta 已按已发布模板覆盖 type；实例 form_fields 快照可能仍是旧类型（如科室单选）
           // 科室字段业务固定多选，避免在途单快照/缓存仍按 department 渲染成单选
           let t = meta.type || formFd?.type || 'text'
           if (p.field === 'offices' || p.field === 'offices_multi') {
             t = 'department_multi'
           }
+          // 公式字段只读展示（如生产卡「下单类型（合并含补充）」）
+          const isReadonly = p.access === 'readonly' || st?.readonly === true || t === 'formula'
+          const required = !isReadonly && (st ? st.required : p.access === 'required')
+          const err = missing.has(p.field)
           const val = values[p.field]
           const status = err ? 'error' as const : undefined
           const label = meta.label || formFd?.label || p.field
@@ -374,14 +404,16 @@ export default function ApproveFieldForm({
               }
             }
             const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
+            const invoicePick = fillMode === 'invoice_application'
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FieldLabel label={label} required={required} error={err} />
                 <div style={{ marginTop: 4 }}>
                   <ContractField
                     value={val}
-                    departmentId={pickDepts.departmentId}
-                    departmentIds={pickDepts.departmentIds}
+                    departmentId={invoicePick ? undefined : pickDepts.departmentId}
+                    departmentIds={invoicePick ? undefined : pickDepts.departmentIds}
+                    purpose={invoicePick ? 'invoice_application' : undefined}
                     placeholder={`请选择${label}`}
                     onChange={(v) => {
                       if (!fillMode) {

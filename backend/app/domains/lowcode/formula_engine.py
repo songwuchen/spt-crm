@@ -60,13 +60,14 @@ def tokenize(src: str) -> list[Token]:
             i += 2  # skip closing */
             continue
 
-        # string literal
-        if ch == '"':
+        # string literal（双引号 / 单引号，对齐简道云）
+        if ch in ('"', "'"):
+            quote = ch
             val, i = "", i + 1
-            while i < n and src[i] != '"':
+            while i < n and src[i] != quote:
                 val += src[i]
                 i += 1
-            i += 1  # closing "
+            i += 1  # closing quote
             tokens.append(Token("STRING", val))
             continue
 
@@ -143,6 +144,23 @@ def _to_num(v: Any) -> float:
         return float(str(v))
     except (ValueError, TypeError):
         return 0.0
+
+
+def _try_num(v: Any) -> float | None:
+    """可解析为数字则返回 float，否则 None（避免「是」「否」都被当成 0 而误判相等）。"""
+    if v is None or isinstance(v, bool) or isinstance(v, (list, tuple)):
+        return None
+    if isinstance(v, (int, float)):
+        if isinstance(v, float) and math.isnan(v):
+            return None
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
 
 
 def _to_str(v: Any) -> str:
@@ -280,12 +298,18 @@ class Parser:
         if t in ("EQ", "NE", "GT", "GTE", "LT", "LTE"):
             self._advance()
             right = self._add()
-            l, r = _to_num(left), _to_num(right)
             ls, rs = _to_str(left), _to_str(right)
+            ln, rn = _try_num(left), _try_num(right)
             if t == "EQ":
-                return ls == rs or l == r
+                if ln is not None and rn is not None:
+                    return ln == rn
+                return ls == rs
             if t == "NE":
-                return ls != rs and l != r
+                if ln is not None and rn is not None:
+                    return ln != rn
+                return ls != rs
+            l = ln if ln is not None else _to_num(left)
+            r = rn if rn is not None else _to_num(right)
             if t == "GT":
                 return l > r
             if t == "GTE":

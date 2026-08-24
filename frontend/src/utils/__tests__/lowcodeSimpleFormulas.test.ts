@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
+import {
+  applyProdCardOrderTypeMerged,
+  applySimpleFormulas,
+  recomputeDetailRowOnColChange,
+} from '@/utils/lowcodeSimpleFormulas'
 import type { FieldDefinition } from '@/types/lowcode'
 
 const cols: FieldDefinition[] = [
@@ -48,6 +52,32 @@ describe('明细合计可手改', () => {
     })
     expect((next.contract_lines_new as { line_amount: number }[])[0].line_amount).toBe(700000)
     expect(next.total_amount).toBe(700000)
+  })
+})
+
+describe('生产卡下单类型（合并含补充）', () => {
+  const fields: FieldDefinition[] = [
+    {
+      id: 'field',
+      type: 'formula',
+      label: '下单类型（合并含补充）',
+      props: { formula: "IF($is_supplement#=='是','补充',$order_type#)" },
+    },
+  ]
+
+  it('非补充时等于下单类型', () => {
+    const next = applySimpleFormulas(fields, { is_supplement: '否', order_type: '备件' })
+    expect(next.field).toBe('备件')
+  })
+
+  it('补充时为「补充」', () => {
+    const next = applySimpleFormulas(fields, { is_supplement: '是', order_type: '设备' })
+    expect(next.field).toBe('补充')
+  })
+
+  it('无公式定义时兜底回填', () => {
+    expect(applyProdCardOrderTypeMerged({ is_supplement: '否', order_type: '设备' }).field).toBe('设备')
+    expect(applyProdCardOrderTypeMerged({ is_supplement: '是', order_type: '设备' }).field).toBe('补充')
   })
 })
 

@@ -536,6 +536,10 @@ async def pickable_contracts(
     department_ids: str | None = Query(
         None, description="逗号分隔的部门 id；多部门编制用户选合同时并集过滤",
     ),
+    purpose: str | None = Query(
+        None,
+        description="选合同场景：invoice_application 时不按部门收窄（开票需跨部门选合同）",
+    ),
     page: int | None = Query(None, ge=1, description="传 page 时返回弹窗分页结构"),
     page_size: int = Query(20, ge=1, le=50),
     tenant_id: str = Depends(get_tenant_id),
@@ -554,9 +558,11 @@ async def pickable_contracts(
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
     dept_id_list = [x.strip() for x in (department_ids or "").split(",") if x.strip()]
     scope = await resolve_module_scope(db, current_user, tenant_id, biz_type="contract")
+    # 开票申请：市场支持等需跨「暂存」/事业部选合同，不按部门树收窄
+    scope_all = scope == "all" or (purpose or "").strip() == "invoice_application"
     user_depts = await org_department_subtree_ids(db, tenant_id, current_user.get("sub"))
     pick_depts = resolve_pick_department_ids(
-        scope_all=(scope == "all"),
+        scope_all=scope_all,
         user_department_ids=user_depts,
         department_id=department_id,
         department_ids=dept_id_list or None,
@@ -570,7 +576,7 @@ async def pickable_contracts(
             keyword=keyword, ids=id_list or None,
             department_id=department_id,
             department_ids=dept_id_list or None,
-            scope_all=(scope == "all"),
+            scope_all=scope_all,
             user_department_ids=user_depts,
             page=page, page_size=page_size,
         )

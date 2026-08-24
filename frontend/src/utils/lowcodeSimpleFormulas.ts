@@ -1,9 +1,11 @@
-/** 填报页轻量公式：明细行乘积 + SUM($明细表.列#) + $a#±$b# 实时汇总。 */
+/** 填报页轻量公式：明细行乘积 + SUM($明细表.列#) + $a#±$b# + IF 文本分支 实时汇总。 */
 import type { FieldDefinition } from '@/types/lowcode'
 
 const SUM_DETAIL_RE = /^SUM\(\s*\$([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)#\s*\)$/i
 const ROW_MUL_RE = /^\$([a-zA-Z0-9_]+)#\s*\*\s*\$([a-zA-Z0-9_]+)#$/
 const BINARY_FIELD_RE = /^\$([a-zA-Z0-9_]+)#\s*([+\-])\s*\$([a-zA-Z0-9_]+)#$/
+/** IF($a#=='是','补充',$order_type#) — 生产卡「下单类型（合并含补充）」等 */
+const IF_EQ_TEXT_RE = /^IF\(\s*\$([a-zA-Z0-9_]+)#\s*==\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]\s*,\s*\$([a-zA-Z0-9_]+)#\s*\)$/i
 
 function toNum(v: unknown): number | null {
   if (v == null || v === '') return null
@@ -71,26 +73,45 @@ function evalBinary(values: Record<string, unknown>, left: string, op: string, r
   return round2(op === '-' ? a - b : a + b)
 }
 
+function evalIfEqText(
+  values: Record<string, unknown>,
+  condField: string,
+  expect: string,
+  thenText: string,
+  elseField: string,
+): string {
+  const left = values[condField]
+  const leftStr = left == null ? '' : String(left)
+  if (leftStr === expect) return thenText
+  const elseVal = values[elseField]
+  return elseVal == null || elseVal === '' ? '' : String(elseVal)
+}
+
 /** 按字段定义重算可识别的公式字段；无变化时返回原对象。 */
 export function applySimpleFormulas(
   fields: FieldDefinition[],
   values: Record<string, unknown>,
 ): Record<string, unknown> {
   let next = values
-  // 多轮：SUM → 加减依赖（如累计=历史+本次、未发货=合同−累计）
+  // 多轮：SUM → 加减依赖（如累计=历史+本次、未发货=合同−累计）→ IF 文本
   for (let pass = 0; pass < 4; pass += 1) {
     let changed = false
     const base = next
     for (const f of fields) {
       if (f.type !== 'formula') continue
       const formula = String((f.props as { formula?: string } | undefined)?.formula || '').trim()
-      let computed: number | null = null
+      let computed: number | string | null = null
       const sum = formula.match(SUM_DETAIL_RE)
       if (sum) {
         computed = sumDetailCol(base, sum[1], sum[2])
       } else {
         const bin = formula.match(BINARY_FIELD_RE)
-        if (bin) computed = evalBinary(base, bin[1], bin[2], bin[3])
+        if (bin) {
+          computed = evalBinary(base, bin[1], bin[2], bin[3])
+        } else {
+          const iff = formula.match(IF_EQ_TEXT_RE)
+          if (iff) computed = evalIfEqText(base, iff[1], iff[2], iff[3], iff[4])
+        }
       }
       if (computed == null) continue
       if (base[f.id] === computed) continue
@@ -101,4 +122,18 @@ export function applySimpleFormulas(
     if (!changed) break
   }
   return next
+}
+
+/** 生产卡：按「是否补充 / 下单类型」回填「下单类型（合并含补充）」（无公式定义时兜底）。 */
+export function applyProdCardOrderTypeMerged(
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!('order_type' in values) && !('is_supplement' in values) && !('field' in values)) {
+    return values
+  }
+  const supp = String(values.is_supplement ?? '').trim()
+  const ot = values.order_type
+  const merged = supp === '是' ? '补充' : (ot == null || ot === '' ? '' : String(ot))
+  if (values.field === merged) return values
+  return { ...values, field: merged }
 }

@@ -1356,6 +1356,11 @@ class WorkflowEngine:
 
         # approve → 判断节点是否完成
         await self._on_task_approved(inst, version, task, ctx)
+        from app.domains.lowcode import shipment_notice_events as sne
+        await sne.emit_from_process(
+            self.db, self.tenant_id, sne.EVENT_ACTED, inst,
+            {"action": action, "opinion": opinion},
+        )
         await self.db.commit()
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "approve")
@@ -1945,6 +1950,15 @@ class WorkflowEngine:
             "workflow.approved" if status == "completed" else "workflow.rejected",
             inst, {"reason": reason} if reason else None,
         )
+        # 发货通知 → TMS：流程终态
+        from app.domains.lowcode import shipment_notice_events as sne
+        if status == "completed":
+            await sne.emit_from_process(self.db, self.tenant_id, sne.EVENT_COMPLETED, inst)
+        else:
+            await sne.emit_from_process(
+                self.db, self.tenant_id, sne.EVENT_CANCELLED, inst,
+                {"reason": reason} if reason else None,
+            )
         self._queue("finished", status, reason, inst)
 
     async def _form_data(self, inst) -> dict:
@@ -2195,6 +2209,8 @@ class WorkflowEngine:
         await self._create_initiator_revise_todo(inst)
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.withdrawn", inst)
+        from app.domains.lowcode import shipment_notice_events as sne
+        await sne.emit_from_process(self.db, self.tenant_id, sne.EVENT_CANCELLED, inst)
         await self.db.commit()
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "withdraw")

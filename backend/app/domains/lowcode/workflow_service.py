@@ -3200,7 +3200,8 @@ def apply_legal_sup_named_approver(
 
 # 简道云「合同技术协议评审」chargers / 抄送 → CRM username
 _JDY_TAR_USER = {
-    "market_support": "023641581817",         # 李巧芳（市场支持中心）
+    # 历史「市场支持中心」节点审批人（已从默认拓扑移除；保留映射供对照）
+    "market_support": "023641581817",         # 王亚飞
     "chief": "02364335378133",                # 曹修国（总工审批）
     # 审批反馈后抄送相关人（简道云 ccUsers.users；另含业务员字段）
     "cc_related": [
@@ -3624,16 +3625,17 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
 
 
 def _tech_agreement_flow_graph() -> tuple[list[dict], list[dict]]:
-    """技术协议评审默认图：对齐简道云「合同技术协议评审 HTJSXY」全拓扑。
+    """技术协议评审默认图：对齐简道云「合同技术协议评审 HTJSXY」主干（已去掉市场支持中心）。
 
     发起旁路抄送业务员；
-    部门审批（业务部门主管）→ 市场支持中心 → 总工（填设计审批）→
+    部门审批（业务部门主管）→ 总工（填设计审批）→
     设计审批1（填设计审批2）→ 设计审批2 → 业务反馈（业务员）→
     设计审批1.1 → 设计审批2.1 → 审批反馈（申请人/发起人）→
     旁路抄送相关人 → 结束。
 
     注：简道云导出里「业务反馈→设计审批1.1→2.1→审批反馈」为无条件边
     （界面画成旁路，实际每单都走）；CRM 按导出条件落地。
+    「市场支持中心」节点已按业务要求移除。
     """
     u = _JDY_TAR_USER
     nodes: list[dict] = [
@@ -3647,7 +3649,6 @@ def _tech_agreement_flow_graph() -> tuple[list[dict], list[dict]]:
             "approver_rule": {"type": "dept_head", "exclude_initiator": True},
             "multi_mode": "or_sign", "empty_strategy": "auto_approve",
         },
-        _user_approval_node("approval_market", "市场支持中心", u["market_support"]),
         _user_approval_node(
             "approval_chief", "总工审批", u["chief"],
             field_perms=_fp(("design_approver_ids", "required")),
@@ -3694,8 +3695,7 @@ def _tech_agreement_flow_graph() -> tuple[list[dict], list[dict]]:
     routes: list[dict] = [
         {"id": "r_start_cc_owner", "source": "start", "target": "cc_owner", "always": True},
         {"id": "r_start_dept", "source": "start", "target": "approval_dept"},
-        {"id": "r_dept_market", "source": "approval_dept", "target": "approval_market"},
-        {"id": "r_market_chief", "source": "approval_market", "target": "approval_chief"},
+        {"id": "r_dept_chief", "source": "approval_dept", "target": "approval_chief"},
         {"id": "r_chief_d1", "source": "approval_chief", "target": "approval_design1"},
         {"id": "r_d1_d2", "source": "approval_design1", "target": "approval_design2"},
         {"id": "r_d2_biz", "source": "approval_design2", "target": "approval_biz_fb"},
@@ -3713,9 +3713,9 @@ def _tech_agreement_flow_graph() -> tuple[list[dict], list[dict]]:
 
 TECH_AGREEMENT_DEFAULT_DESC = (
     "系统默认（对齐简道云合同技术协议评审）：发起抄送业务员；"
-    "部门审批 → 市场支持中心 → 总工填设计审批 → 设计审批1/2 → "
+    "部门审批 → 总工填设计审批 → 设计审批1/2 → "
     "业务反馈 → 设计审批1.1/2.1 → 审批反馈；旁路抄送相关人后结束。"
-    "可在流程管理中继续改。"
+    "已去掉「市场支持中心」节点。可在流程管理中继续改。"
 )
 
 
@@ -6019,13 +6019,16 @@ async def _upgrade_contract_review_jdy_if_needed(
 
 
 def _flow_is_tech_agreement_jdy(nodes: list | None) -> bool:
-    """是否已是简道云技术协议全拓扑（含市场支持 / 业务反馈 / 1.1·2.1）。"""
+    """是否已是当前技术协议系统默认拓扑（无市场支持中心；含业务反馈 / 1.1·2.1）。"""
     names = {
         n.get("name") for n in (nodes or [])
         if isinstance(n, dict) and n.get("type") in ("approval", "cc")
     }
+    # 仍含「市场支持中心」→ 需升级移除
+    if "市场支持中心" in names:
+        return False
     required = {
-        "抄送业务员", "部门审批", "市场支持中心", "总工审批",
+        "抄送业务员", "部门审批", "总工审批",
         "设计审批1", "设计审批2", "业务反馈",
         "设计审批1.1", "设计审批2.1", "审批反馈", "抄送相关人",
     }
@@ -6046,7 +6049,7 @@ def _flow_is_tech_agreement_jdy(nodes: list | None) -> bool:
 async def _upgrade_tech_agreement_jdy_if_needed(
     db, tenant_id: str, d: WfProcessDefinition,
 ) -> None:
-    """系统兜底技术协议流：精简版/单节点升级为简道云全拓扑。"""
+    """系统兜底技术协议流：精简版/含市场支持中心 → 当前默认拓扑。"""
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
     if d.biz_type != "tech_agreement_review":
@@ -6059,7 +6062,7 @@ async def _upgrade_tech_agreement_jdy_if_needed(
     new_nodes, new_routes = _tech_agreement_flow_graph()
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
-        TECH_AGREEMENT_DEFAULT_DESC, "简道云技术协议评审(全拓扑)",
+        TECH_AGREEMENT_DEFAULT_DESC, "技术协议评审去掉市场支持中心",
     )
 
 

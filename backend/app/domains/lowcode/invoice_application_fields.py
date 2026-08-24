@@ -291,7 +291,8 @@ def apply_invoice_application_fields(defs: list) -> None:
             f["label"] = "选择合同号"
             f["description"] = "从合同管理选择；选中后带出图纸号、单位、业务员、开票信息与合同明细。"
             props = dict(f.get("props") or {})
-            props["filter_by_department_field"] = "department"
+            # 开票选合同跨部门（不按表单/编制部门收窄；接口 purpose=invoice_application）
+            props.pop("filter_by_department_field", None)
             props["contract_fill"] = "invoice_application"
             f["props"] = props
             f["required"] = False

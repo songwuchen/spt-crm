@@ -61,14 +61,18 @@ async function fetchPage(params: {
   ids?: string[]
   page?: number
   pageSize?: number
+  /** 开票申请：跨部门选合同 */
+  purpose?: 'invoice_application'
 }): Promise<PickPage> {
-  const multi = (params.departmentIds?.length ?? 0) > 1
+  const invoicePick = params.purpose === 'invoice_application'
+  const multi = !invoicePick && (params.departmentIds?.length ?? 0) > 1
   const r = await client.get<unknown, ApiResponse<PickPage | ContractRow[]>>('/api/v1/lc/pickable-contracts', {
     params: {
       keyword: params.keyword || undefined,
-      department_id: multi ? undefined : (params.departmentId || undefined),
+      department_id: invoicePick || multi ? undefined : (params.departmentId || undefined),
       department_ids: multi ? params.departmentIds!.join(',') : undefined,
       ids: params.ids?.length ? params.ids.join(',') : undefined,
+      purpose: params.purpose || undefined,
       page: params.page || 1,
       page_size: params.pageSize || 20,
     },
@@ -242,7 +246,7 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
 }
 
 export default function ContractField({
-  value, onChange, readonly, placeholder, departmentId, departmentIds,
+  value, onChange, readonly, placeholder, departmentId, departmentIds, purpose,
 }: {
   value: unknown
   onChange?: (v: string | undefined) => void
@@ -252,11 +256,14 @@ export default function ContractField({
   departmentId?: string | null
   /** 多部门编制：并集过滤（优先于 departmentId） */
   departmentIds?: string[]
+  /** 开票申请：选合同不按部门收窄 */
+  purpose?: 'invoice_application'
 }) {
   const raw = value == null || value === '' ? undefined : String(value)
-  const multiDept = (departmentIds?.length ?? 0) > 1
-  const dept = multiDept ? undefined : (departmentId || undefined)
-  const deptFilter = multiDept ? departmentIds : undefined
+  const invoicePick = purpose === 'invoice_application'
+  const multiDept = !invoicePick && (departmentIds?.length ?? 0) > 1
+  const dept = invoicePick ? undefined : (multiDept ? undefined : (departmentId || undefined))
+  const deptFilter = invoicePick ? undefined : (multiDept ? departmentIds : undefined)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -276,6 +283,7 @@ export default function ContractField({
         keyword: opts?.kw ?? keyword,
         departmentId: dept,
         departmentIds: deptFilter,
+        purpose,
         page: opts?.page ?? page,
         pageSize: opts?.pageSize ?? pageSize,
       })
@@ -297,12 +305,12 @@ export default function ContractField({
       setDisplay('')
       return
     }
-    void fetchPage({ ids: [raw], departmentId: dept, departmentIds: deptFilter }).then((pack) => {
+    void fetchPage({ ids: [raw], departmentId: dept, departmentIds: deptFilter, purpose }).then((pack) => {
       const hit = (pack.items || []).find((r) => r.id === raw)
       if (hit?.label) setDisplay(hit.label)
       else if (hit) setDisplay(contractLabel(hit))
     })
-  }, [raw, dept, deptFilter])
+  }, [raw, dept, deptFilter, purpose])
 
   useEffect(() => {
     if (!open) return
@@ -311,7 +319,7 @@ export default function ContractField({
     setPage(1)
     void loadPage({ kw: '', page: 1 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dept, deptFilter])
+  }, [open, dept, deptFilter, purpose])
 
   const commit = (id?: string) => {
     onChange?.(id)

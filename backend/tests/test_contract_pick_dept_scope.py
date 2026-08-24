@@ -37,6 +37,15 @@ def test_id_lookup_skips_dept_filter():
     ) is None
 
 
+def test_invoice_purpose_implies_scope_all():
+    """开票选合同：purpose=invoice_application 时按 scope_all 不过滤部门。"""
+    assert resolve_pick_department_ids(
+        scope_all=True,  # router 对 invoice_application 强制
+        user_department_ids=["dept-a"],
+        department_id="dept-a",
+    ) is None
+
+
 def test_explicit_department_ids_intersect_user():
     assert resolve_pick_department_ids(
         scope_all=False,

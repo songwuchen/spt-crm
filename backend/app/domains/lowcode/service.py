@@ -2617,6 +2617,10 @@ async def submit_instance(
         inst.process_instance_id = pinst.id
         await db.commit()
         await db.refresh(inst)
+    # 发货通知离开草稿 → Outbox，供 song-tms-integration 实时建 TMS 发运单
+    from app.domains.lowcode import shipment_notice_events as sne
+    await sne.emit_submitted(db, tenant_id, inst, template_code=tpl.code)
+    await db.commit()
     return inst
 
 
