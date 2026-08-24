@@ -218,6 +218,11 @@ async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
     latest.published_by = user_id
     d.status = "published"
     d.current_version = latest.version_number
+    # 设计器手动发布：标记为用户编排，避免 ensure/对齐逻辑整图覆盖
+    if d.category == SYSTEM_DEFAULT_CATEGORY or d.code in {
+        s["code"] for s in FORM_DEFAULT_SPECS
+    }:
+        d.category = USER_DESIGNED_CATEGORY
     await db.commit()
     await db.refresh(latest)
     return latest
@@ -338,6 +343,7 @@ async def maybe_start_for_form(db, tenant_id, template_id, form_instance, user, 
 
 
 SYSTEM_DEFAULT_CATEGORY = "system_default"
+USER_DESIGNED_CATEGORY = "user_designed"
 # 系统兜底流程排在最后，租户自建流程(sort_order 默认 0)优先命中
 _SYSTEM_DEFAULT_SORT = 9999
 
