@@ -261,3 +261,85 @@ async def test_is_in_scope_lead_self_ignores_org_department_subtree(monkeypatch)
 async def test_managed_department_ids_empty_user():
     assert await managed_department_ids(MagicMock(), "t1", None) == []
     assert await managed_department_ids(MagicMock(), "t1", "") == []
+
+
+async def test_assert_contract_visible_by_department_or_created(monkeypatch):
+    """合同：本部门单据可见，同时本人创建也可见（即使部门不在范围内）。"""
+    from app.common.data_scope import assert_project_child_in_scope
+    from app.common.exceptions import BusinessException
+
+    user = {"sub": "u-zly", "roles": ["mkt_support"], "permissions": []}
+
+    async def fake_resolve(*_a, **_k):
+        return ["u-zly", "u-peer"]  # dept owners, not all
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_resolve)
+    monkeypatch.setattr(
+        "app.common.data_scope.contract_visible_department_ids",
+        AsyncMock(return_value=["dept-yejin"]),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope._project_shared_or_member",
+        AsyncMock(return_value=False),
+    )
+
+    # 本部门、非本人创建 → 可见
+    peer_dept = SimpleNamespace(
+        id="c1", project_id=None, customer_id=None,
+        created_by_id="u-other", assignee_id=None,
+        department_id="dept-yejin",
+    )
+    await assert_project_child_in_scope(
+        MagicMock(), "t1", user, peer_dept, label="该合同", biz_type="contract",
+    )
+
+    # 外部门、本人创建 → 可见
+    mine_other_dept = SimpleNamespace(
+        id="c2", project_id=None, customer_id=None,
+        created_by_id="u-zly", assignee_id=None,
+        department_id="dept-other",
+    )
+    await assert_project_child_in_scope(
+        MagicMock(), "t1", user, mine_other_dept, label="该合同", biz_type="contract",
+    )
+
+    # 外部门、非本人 → 不可见
+    stranger = SimpleNamespace(
+        id="c3", project_id=None, customer_id=None,
+        created_by_id="u-other", assignee_id=None,
+        department_id="dept-other",
+    )
+    try:
+        await assert_project_child_in_scope(
+            MagicMock(), "t1", user, stranger, label="该合同", biz_type="contract",
+        )
+        raise AssertionError("expected FORBIDDEN")
+    except BusinessException as e:
+        assert e.code == 403 or "无权" in str(e.message)
+
+
+async def test_contract_visible_department_ids_dept_scope(monkeypatch):
+    from app.common.data_scope import contract_visible_department_ids
+
+    user = {"sub": "u1", "roles": ["mkt_support"], "permissions": []}
+    monkeypatch.setattr(
+        "app.common.data_scope.managed_department_ids",
+        AsyncMock(return_value=["d-managed"]),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="dept"),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.org_department_subtree_ids",
+        AsyncMock(return_value=["d-org", "d-child"]),
+    )
+    ids = await contract_visible_department_ids(MagicMock(), "t1", user)
+    assert set(ids) == {"d-managed", "d-org", "d-child"}
+
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="self"),
+    )
+    ids_self = await contract_visible_department_ids(MagicMock(), "t1", user)
+    assert set(ids_self) == {"d-managed"}

@@ -268,6 +268,7 @@ async def apply_project_child_scope(
 
     可见条件：父商机 owner 落在「本模块」数据范围内，或该行由本人创建 / 指派给本人，
     或父商机共享给我 / 我是项目成员。
+    合同（biz_type=contract）额外：单据 department_id 落在本部门组织子树 / 负责业务部门内。
     biz_type：子模块键（quote/contract/…）；未覆盖时仍走角色默认 data_scope。
     管理员 / 有效档=all（resolve_owner_scope 返回 None）不受限。
     返回 (query, count_query)，两者同步加上过滤条件。
@@ -319,8 +320,29 @@ async def apply_project_child_scope(
                 conds.append(model.customer_id.in_(cust_ids))
         except Exception:
             pass
+    # 合同：本部门（组织子树 / 负责业务部门）单据全可见，并与「本人创建」并存
+    if biz_type == "contract" and hasattr(model, "department_id") and uid:
+        dept_ids = await contract_visible_department_ids(db, tenant_id, user)
+        if dept_ids:
+            conds.append(model.department_id.in_(dept_ids))
     clause = or_(*conds)
     return query.where(clause), count_query.where(clause)
+
+
+async def contract_visible_department_ids(
+    db: AsyncSession, tenant_id: str, user: dict,
+) -> list[str]:
+    """合同「本部门」可见部门 id：组织编制子树（dept 档）∪ 负责业务部门。"""
+    uid = user.get("sub")
+    if not uid:
+        return []
+    dept_ids: list[str] = []
+    managed = await managed_department_ids(db, tenant_id, uid)
+    dept_ids.extend(managed or [])
+    if await resolve_module_scope(db, user, tenant_id, biz_type="contract") == "dept":
+        dept_ids.extend(await org_department_subtree_ids(db, tenant_id, uid))
+    return list({d for d in dept_ids if d})
+
 
 
 async def visible_customer_ids_select(
@@ -572,7 +594,8 @@ async def assert_project_child_in_scope(
     """商机子实体（报价/合同/方案/变更/交付/回款…）的单对象校验。
 
     与 `apply_project_child_scope` 同口径：父商机 owner 落在本模块范围内，
-    或本行由本人创建/指派，或父商机共享/项目成员。
+    或本行由本人创建/指派，或父商机共享/项目成员；
+    合同另含：单据 department_id 落在本部门组织子树 / 负责业务部门。
     """
     if user is None or obj is None:
         return
@@ -600,6 +623,14 @@ async def assert_project_child_in_scope(
                 return
             # ACL 共享 / 项目成员仍按商机协作关系放开（与列表 apply_project_child_scope 一致）
             if uid and await _project_shared_or_member(db, tenant_id, uid, project_id):
+                return
+
+    # 合同：本部门单据可见（与列表 OR 条件一致）
+    if biz_type == "contract" and uid:
+        dept_id = getattr(obj, "department_id", None)
+        if dept_id:
+            visible_depts = await contract_visible_department_ids(db, tenant_id, user)
+            if dept_id in set(visible_depts):
                 return
 
     # 无商机的外部合同：客户在可见范围内即可
