@@ -321,6 +321,14 @@ async def test_assert_contract_visible_by_department_or_created(monkeypatch):
 async def test_contract_visible_department_ids_dept_scope(monkeypatch):
     from app.common.data_scope import contract_visible_department_ids
 
+    async def passthrough(_db, _tid, dept_ids):
+        return dept_ids
+
+    monkeypatch.setattr(
+        "app.common.dept_equivalence.expand_equivalent_department_ids",
+        passthrough,
+    )
+
     user = {"sub": "u1", "roles": ["mkt_support"], "permissions": []}
     monkeypatch.setattr(
         "app.common.data_scope.managed_department_ids",
