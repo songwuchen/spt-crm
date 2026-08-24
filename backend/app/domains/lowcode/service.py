@@ -2227,6 +2227,11 @@ _FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "invoice_application": ["department"],
     "payment_registration": ["department"],
     "xunhan_contract_review": ["department"],
+    "install_drawing_notice": ["department"],
+    "drawing_requisition": ["department"],
+    "cs_drawing_request": ["department"],
+    "prod_card_supplement": ["department"],
+    "scheme_management": ["department"],
 }
 
 # 以单据部门为主的模板：可见 = 部门∈子树 | 本人参与 |（部门空且本部门成员参与）
@@ -2323,6 +2328,12 @@ async def _form_list_scope_extras(
     if not dept_ids:
         return person_fields, None, None
 
+    from app.common.dept_equivalence import (
+        expand_equivalent_department_ids,
+        expand_equivalent_department_names,
+    )
+    dept_ids = await expand_equivalent_department_ids(db, tenant_id, dept_ids) or dept_ids
+
     name_literals: list[str] = []
     if name_fields:
         from app.domains.organization.models import Department
@@ -2334,6 +2345,7 @@ async def _form_list_scope_extras(
             )
         )).scalars().all())
         name_literals = [str(n).strip() for n in names if n and str(n).strip()]
+        name_literals = expand_equivalent_department_names(name_literals) or name_literals
 
     return (
         person_fields,

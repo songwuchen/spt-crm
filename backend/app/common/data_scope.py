@@ -341,7 +341,10 @@ async def contract_visible_department_ids(
     dept_ids.extend(managed or [])
     if await resolve_module_scope(db, user, tenant_id, biz_type="contract") == "dept":
         dept_ids.extend(await org_department_subtree_ids(db, tenant_id, uid))
-    return list({d for d in dept_ids if d})
+    result = list({d for d in dept_ids if d})
+    from app.common.dept_equivalence import expand_equivalent_department_ids
+    expanded = await expand_equivalent_department_ids(db, tenant_id, result)
+    return expanded or []
 
 
 

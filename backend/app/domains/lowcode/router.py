@@ -568,6 +568,9 @@ async def pickable_contracts(
         department_ids=dept_id_list or None,
         for_id_lookup=bool(id_list),
     )
+    if pick_depts:
+        from app.common.dept_equivalence import expand_equivalent_department_ids
+        pick_depts = await expand_equivalent_department_ids(db, tenant_id, pick_depts)
 
     if page is not None:
         from app.domains.lowcode.contract_pick import list_pickable_contracts_page

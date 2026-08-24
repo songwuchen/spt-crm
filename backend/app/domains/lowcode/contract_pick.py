@@ -66,6 +66,9 @@ async def list_pickable_contracts_page(
         department_ids=department_ids,
         for_id_lookup=bool(id_list),
     )
+    if pick_depts:
+        from app.common.dept_equivalence import expand_equivalent_department_ids
+        pick_depts = await expand_equivalent_department_ids(db, tenant_id, pick_depts)
     conds = [Contract.tenant_id == tenant_id]
     apply_contract_department_filter(conds, Contract, pick_depts)
     if id_list:
