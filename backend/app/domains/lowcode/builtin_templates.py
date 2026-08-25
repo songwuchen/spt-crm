@@ -183,7 +183,7 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "icon": "ContainerOutlined",
         "description": (
             "对齐简道云数据中心「生产卡/补充流程」。"
-            "流程编号 1.2.8+五位不重置。字段见 docs/product/_jdy_prod_card_forms.md。"
+            "流程编号 SCK+五位不重置。字段见 docs/product/_jdy_prod_card_forms.md。"
         ),
         "field_definitions": [],
         "sync_fields": True,

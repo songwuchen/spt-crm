@@ -266,8 +266,8 @@ async def overlay_prod_card_contract_live(
     return data
 
 
-# 简道云 sn：固定「1.2.8」+ 5 位递增、不重置（生成器曾把 sn 放进 SKIP_TYPES）
-PROD_CARD_SERIAL_PREFIX = "1.2.8"
+# CRM 生产卡流水号：固定「SCK」+ 5 位递增、不重置
+PROD_CARD_SERIAL_PREFIX = "SCK"
 PROD_CARD_SERIAL_NO_RULES: list[dict[str, Any]] = [
     {"type": "text", "value": PROD_CARD_SERIAL_PREFIX},
     {
@@ -422,7 +422,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
     新建打开时必须能立刻看到合同下拉。
     提交人 / 所在部门默认当前用户与当前部门。
     「确认协议 / 设计指派填写」仅审批节点可见（对齐简道云，不在发起页展示）。
-    补齐流程编号（简道云 sn：1.2.8 + 五位不重置；生成器曾跳过 sn 类型）。
+    补齐流程编号（SCK + 五位不重置；生成器曾跳过 sn 类型）。
     """
     ensure_prod_card_serial_no_field(defs)
     ensure_prod_card_contract_display_fields(defs)
