@@ -2026,6 +2026,7 @@ _OPENAPI_FORM_CODES = frozenset({
     "drawing_requisition",
     "install_drawing_notice",
     "prod_card_supplement",
+    "contract_drawing_map",
 })
 _FILE_FIELD_TYPES = frozenset({"file", "image"})
 
@@ -2230,6 +2231,80 @@ def _form_instance_to_openapi_dto(inst) -> dict:
     }
 
 
+async def _resolve_openapi_initiator_id(
+    db: AsyncSession, tenant_id: str, form_data: dict,
+) -> str | None:
+    """Map middleware/JDY creator hints → CRM user id for form initiator_id."""
+    import re
+    from app.domains.auth.models import User as AuthUser
+    from app.domains.lowcode.jdy_id_remap import build_jdy_to_crm_user_map
+
+    uuid_re = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        re.I,
+    )
+
+    async def by_display_name(name: str | None, *, field_label: str) -> str | None:
+        s = (name or "").strip()
+        if not s:
+            return None
+        if uuid_re.match(s):
+            u = (await db.execute(
+                select(AuthUser).where(AuthUser.id == s, AuthUser.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            return u.id if u else None
+        return await resolve_user_id(
+            db, tenant_id, user_id=None, user_name=s, field_label=field_label,
+        )
+
+    for key in ("applicant", "submitter"):
+        uid = await by_display_name(
+            form_data.get(key) if isinstance(form_data.get(key), str) else None,
+            field_label=key,
+        )
+        if uid:
+            return uid
+
+    jdy_id = form_data.get("_jdy_creator_id")
+    if isinstance(jdy_id, str) and jdy_id.strip():
+        jdy_map = await build_jdy_to_crm_user_map(db, tenant_id)
+        uid = jdy_map.get(jdy_id.strip())
+        if uid:
+            return uid
+
+    jun = form_data.get("_jdy_creator_username")
+    if isinstance(jun, str) and jun.strip():
+        u = (await db.execute(
+            select(AuthUser).where(
+                AuthUser.tenant_id == tenant_id,
+                AuthUser.username == jun.strip(),
+            )
+        )).scalars().first()
+        if u:
+            return u.id
+
+    for key in ("_jdy_creator_name",):
+        uid = await by_display_name(
+            form_data.get(key) if isinstance(form_data.get(key), str) else None,
+            field_label="initiator",
+        )
+        if uid:
+            return uid
+
+    return None
+
+
+def _strip_openapi_transport_fields(form_data: dict, allowed_field_ids: set[str]) -> dict:
+    """Drop middleware-only keys; keep _external_* and _jdy_creator_name audit."""
+    out = dict(form_data or {})
+    for key in ("_jdy_creator_username", "_jdy_creator_id"):
+        out.pop(key, None)
+    for key in ("applicant", "submitter"):
+        if key not in allowed_field_ids:
+            out.pop(key, None)
+    return out
+
+
 async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict:
     """Create or update a low-code form instance pushed by middleware."""
     from app.domains.lowcode import service as lc_service
@@ -2274,6 +2349,16 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
     form_data["_external_source"] = "jdy"
     form_data = await _normalize_openapi_form_data(db, ctx.tenant_id, field_defs, form_data)
 
+    allowed_ids = {
+        f.get("id") for f in field_defs if isinstance(f, dict) and f.get("id")
+    }
+    initiator_id = await _resolve_openapi_initiator_id(db, ctx.tenant_id, form_data)
+    form_data = _strip_openapi_transport_fields(form_data, allowed_ids)
+    if not initiator_id:
+        jname = (data.form_data or {}).get("_jdy_creator_name") or (data.form_data or {}).get("applicant")
+        if isinstance(jname, str) and jname.strip():
+            form_data["_jdy_creator_name"] = jname.strip()
+
     user = {
         "sub": ctx.app_id,
         "username": f"openapi:{ctx.app_key}",
@@ -2281,6 +2366,8 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
         "roles": [SYSTEM_ROLE],
         "dept_id": None,
     }
+    if initiator_id:
+        user["sub"] = initiator_id
 
     existing = await _find_form_instance_by_external_key(db, ctx.tenant_id, tpl.id, external_key)
     if existing:
@@ -2299,10 +2386,6 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
         form_data=form_data,
         as_draft=bool(data.as_draft),
     )
-    # Prefer applicant as initiator when resolved
-    applicant = form_data.get("applicant")
-    if isinstance(applicant, str) and applicant:
-        user["sub"] = applicant
     inst = await lc_service.create_instance(db, ctx.tenant_id, create, user)
     return {**_form_instance_to_openapi_dto(inst), "upsert": "created"}
 
