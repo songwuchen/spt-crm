@@ -23,7 +23,7 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     "service_ticket": frozenset({
         "draft", "rejected", "open", "assigned", "in_progress", "resolved", "closed", "processing",
     }),
-    "form_instance": frozenset({"draft", "rejected", "submitted", "running", "completed"}),
+    "form_instance": frozenset({"draft", "rejected", "returned", "withdrawn", "submitted", "running", "completed"}),
     "order": frozenset({"draft"}),
     # 线索：仅审批中锁定；草稿、驳回、收录、袭击、撤回待再提均可改
     "lead": frozenset({"draft", "pending", "approved", "attacked", "rejected"}),
@@ -68,7 +68,7 @@ def is_status_editable(
     if (
         biz_type == "form_instance"
         and (template_code or "") in ALWAYS_EDITABLE_FORM_CODES
-        and st in ("draft", "running", "completed", "rejected", "submitted")
+        and st in ("draft", "running", "completed", "rejected", "returned", "withdrawn", "submitted")
     ):
         return True
     allowed = EDITABLE_STATUSES.get(biz_type)

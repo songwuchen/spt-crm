@@ -494,6 +494,22 @@ input, textarea, select {
   min-height: 0;
 }
 
+/* 审批抽屉 · 全屏 */
+.wf-approve-drawer-root.spt-drawer-fullscreen .ant-drawer-content-wrapper {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
+/* 全屏/宽屏表单：短字段多列，减少纵向滚动 */
+.lc-form-grid-adaptive [data-lc-field] {
+  margin-bottom: 12px;
+}
+.lc-form-grid-adaptive [data-lc-field] .ant-input,
+.lc-form-grid-adaptive [data-lc-field] .ant-select,
+.lc-form-grid-adaptive [data-lc-field] .ant-picker {
+  max-width: 100%;
+}
+
 /*
  * 全站图标（components/Icon.tsx）默认字号。
  *

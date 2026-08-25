@@ -193,6 +193,7 @@ export interface FormInstanceDetail extends FormInstance {
   field_definitions: FieldDefinition[]
   rule_definitions: FormRule[]
   process_instance_id?: string | null
+  retroactive_field_perms?: { field: string; access: string; node_name?: string }[]
 }
 
 // ===== 审批流程 =====
@@ -226,6 +227,26 @@ export interface WfFieldPerm {
   access: 'editable' | 'required' | 'readonly'
 }
 
+/** 节点操作（对齐简道云「节点操作」面板） */
+export interface WfNodeActions {
+  /** 提交 / 通过 */
+  submit?: boolean
+  /** 回退 / 退回到历史节点 */
+  return?: boolean
+  /** 否决 / 驳回流程 */
+  reject?: boolean
+  /** 提交并打印 */
+  submit_print?: boolean
+  /** 暂存（写回本节点可填字段，不推进） */
+  save?: boolean
+  /** 转交他人处理 */
+  transfer?: boolean
+  /** 支持批量提交（待办列表） */
+  batch_submit?: boolean
+  /** 手写签名（预留） */
+  signature?: boolean
+}
+
 export interface WfNode {
   id: string
   type: WfNodeType
@@ -241,6 +262,8 @@ export interface WfNode {
   field_perms?: WfFieldPerm[]
   /** 通过时必须填写审批意见 */
   opinion_required?: boolean
+  /** 本节点允许的操作按钮（流程设计器配置） */
+  node_actions?: WfNodeActions
 }
 
 export interface WfCurrentTask {
@@ -251,6 +274,8 @@ export interface WfCurrentTask {
   task_kind?: 'approve' | 'revise' | string
   field_perms: WfFieldPerm[]
   opinion_required?: boolean
+  /** 本节点允许的操作（来自流程设计器 node_actions） */
+  node_actions?: WfNodeActions
   field_meta: {
     id: string
     label: string
@@ -389,7 +414,14 @@ export interface WfInstanceDetail {
   created_at?: string | null
   updated_at?: string | null
   timeline: WfTimelineItem[]
-  tasks: { id: string; assignee_id: string; status: string; opinion?: string; task_order: number }[]
+  tasks: {
+    id: string
+    assignee_id: string
+    status: string
+    opinion?: string
+    task_order: number
+    node_instance_id?: string
+  }[]
   comments: { user_id: string; user_name?: string; content: string; at?: string }[]
   approval_nodes?: { id: string; name: string }[]  // 可退回的审批节点(退回选择)
   /** 可激活节点（开始 + 审批） */

@@ -113,7 +113,7 @@ async def writeback(
     if biz_type == "lead_reactivation":
         if flow_status == "completed":
             await _lead_reactivation_on_complete(db, tenant_id, biz_id)
-        elif flow_status in ("rejected", "withdrawn"):
+        elif flow_status in ("rejected", "withdrawn", "returned"):
             await _lead_reactivation_on_reject(db, tenant_id, biz_id)
         return
 
@@ -126,6 +126,8 @@ async def writeback(
         val = reg["rejected"]
     elif flow_status == "withdrawn":
         val = reg.get("withdrawn")
+    elif flow_status == "returned":
+        val = reg.get("returned") or reg.get("withdrawn")
     elif flow_status == "submitted":
         val = reg.get("submitted")
     else:

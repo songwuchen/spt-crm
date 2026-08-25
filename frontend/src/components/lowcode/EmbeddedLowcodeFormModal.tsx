@@ -52,12 +52,12 @@ function canEditRecord(templateCode: string, status?: string | null) {
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
-  return status === 'draft' || status === 'rejected'
+  return status === 'draft' || status === 'rejected' || status === 'returned'
     || (postCompleteEditable && status === 'completed')
 }
 
 function canResubmitRecord(status?: string | null) {
-  return status === 'draft' || status === 'rejected'
+  return status === 'draft' || status === 'rejected' || status === 'returned'
 }
 
 export default function EmbeddedLowcodeFormModal({

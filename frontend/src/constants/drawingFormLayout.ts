@@ -319,6 +319,9 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       'serial_no', 'card_date', 'department', 'submitter', 'product_type',
       'is_supplement', 'involve_outsource', 'is_shipped', 'contract_no_select',
     ],
+    listColumnLabels: {
+      contract_no_select: '选择合同',
+    },
     sections: [
       {
         title: '基本信息',
@@ -540,7 +543,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       customer_category: 6, price_type: 6,
       price_lines: 24,
       need_purchase: 6, purchaser: 6,
-      inquiry_attachments: 8, cost_attachments: 8, inquiry_images: 8,
+      inquiry_attachments: 24, cost_attachments: 24, inquiry_images: 24,
       special_reminder: 12, cost_price: 12,
     },
   },

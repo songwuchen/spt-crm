@@ -17,6 +17,7 @@ import FormInstanceFilterPopover, {
   type FormFilterDsl,
 } from '@/components/lowcode/FormInstanceFilterPopover'
 import {
+  expandFilterableFormFields,
   loadAppliedFilters,
   saveAppliedFilters,
 } from '@/components/lowcode/formInstanceFilterUtils'
@@ -36,7 +37,7 @@ import {
   isMetaOnlyAttachmentId,
   normalizeFileFieldValue,
 } from '@/utils/fileFieldValue'
-import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '@/types/lowcode'
+import type { FieldDefinition, FormRule, FormInstance, FormInstanceDetail, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
@@ -63,17 +64,17 @@ import {
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
 import { recordListNo } from '@/utils/formInstanceListNo'
+import { FORM_INSTANCE_STATUS } from '@/utils/lowcodeWorkflowLabels'
+import {
+  canUserActRevise, hasActiveReviseStep, resolveReviseTaskId,
+} from '@/utils/reviseWorkflow'
+import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 
 const { Title, Text } = Typography
 
-const STATUS_TAG: Record<string, { color: string; text: string }> = {
-  draft: { color: 'default', text: '草稿' },
-  submitted: { color: 'blue', text: '已提交' },
-  running: { color: 'gold', text: '审批中' },
-  completed: { color: 'green', text: '已通过' },
-  rejected: { color: 'red', text: '已驳回' },
-  withdrawn: { color: 'default', text: '已撤回' },
-}
+const STATUS_TAG: Record<string, { color: string; text: string }> = Object.fromEntries(
+  Object.entries(FORM_INSTANCE_STATUS).map(([k, v]) => [k, { color: v.color, text: v.text }]),
+)
 
 const STATUS_FILTER_OPTIONS = [
   { value: 'draft', label: '草稿' },
@@ -81,7 +82,9 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'running', label: '审批中' },
   { value: 'completed', label: '已通过' },
   { value: 'rejected', label: '已驳回' },
+  { value: 'returned', label: '已退回' },
   { value: 'withdrawn', label: '已撤回' },
+  { value: 'cancelled', label: '已作废' },
 ]
 
 /** v3：客服申请完整列 + 多明细展开；旧 key 丢弃以免脏默认列 */
@@ -258,16 +261,71 @@ type NameMaps = {
   customers: Record<string, string>
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** 简道云 linkfield 等对象上的可读 label（空对象返回 null） */
+function refObjectLabel(v: unknown): string | null {
+  if (!isPlainObject(v) || !Object.keys(v).length) return null
+  const lab = String(v.label ?? v.name ?? v.real_name ?? '').trim()
+  return lab || null
+}
+
 function collectIds(v: unknown): string[] {
   if (v == null || v === '') return []
+  const idFromObj = (o: Record<string, unknown>): string[] => {
+    if (!Object.keys(o).length) return []
+    const id = o.id ?? o._id ?? o.value
+    return id != null && id !== '' ? [String(id)] : []
+  }
   if (Array.isArray(v)) {
     return v.flatMap((x) => {
-      if (typeof x === 'object' && x && 'id' in x) return [String((x as { id: string }).id)]
+      if (isPlainObject(x)) return idFromObj(x)
       return x != null && x !== '' ? [String(x)] : []
     })
   }
-  if (typeof v === 'object' && v && 'id' in v) return [String((v as { id: string }).id)]
+  if (isPlainObject(v)) return idFromObj(v)
   return [String(v)]
+}
+
+/** contract/customer/project 等引用字段列表展示 */
+function resolveRefDisplay(v: unknown, map?: Record<string, string>): string {
+  const direct = refObjectLabel(v)
+  if (direct) return direct
+  const ids = collectIds(v)
+  if (!ids.length) return '—'
+  const names = ids.map((id) => map?.[id] || id)
+  // 简道云导入的 24 位 hex 合同 id 无法在 CRM 解析，勿展示 [object Object] / 乱码 id
+  if (names.every((n) => /^[a-f0-9]{24}$/i.test(n))) return '—'
+  return names.join('，')
+}
+
+function isEmptyRef(v: unknown): boolean {
+  if (v == null || v === '') return true
+  return isPlainObject(v) && !Object.keys(v).length
+}
+
+/** 生产卡列表「选择合同」列：否→drawing_no_query，是→contract_no_select；并兜底带出字段 */
+function resolveProdCardContractPick(fd: Record<string, unknown> | undefined): unknown {
+  if (!fd) return undefined
+  const isSupp = String(fd.is_supplement || '').trim() === '是'
+  const primary = isSupp ? fd.contract_no_select : fd.drawing_no_query
+  if (!isEmptyRef(primary)) return primary
+  const fallback = isSupp ? fd.yes_contract_no : fd.no_drawing_no
+  if (fallback != null && String(fallback).trim()) return String(fallback)
+  if (!isSupp && !isEmptyRef(fd.contract_no_select)) return fd.contract_no_select
+  if (isSupp && !isEmptyRef(fd.drawing_no_query)) return fd.drawing_no_query
+  return undefined
+}
+
+function renderProdCardContractCell(
+  fd: Record<string, unknown> | undefined,
+  maps?: NameMaps,
+): ReactNode {
+  const v = resolveProdCardContractPick(fd)
+  if (v == null || v === '') return '—'
+  return linkText(resolveRefDisplay(v, maps?.contracts))
 }
 
 function formatCellDateTime(v: unknown, withTime: boolean): string {
@@ -431,19 +489,13 @@ function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
     return ids.map((id) => maps?.users[id] || id).join('，')
   }
   if (field.type === 'project') {
-    const ids = collectIds(v)
-    if (!ids.length) return '—'
-    return ids.map((id) => maps?.projects[id] || id).join('，')
+    return resolveRefDisplay(v, maps?.projects)
   }
   if (field.type === 'contract') {
-    const ids = collectIds(v)
-    if (!ids.length) return '—'
-    return ids.map((id) => maps?.contracts[id] || id).join('，')
+    return resolveRefDisplay(v, maps?.contracts)
   }
   if (field.type === 'customer') {
-    const ids = collectIds(v)
-    if (!ids.length) return '—'
-    return ids.map((id) => maps?.customers[id] || id).join('，')
+    return resolveRefDisplay(v, maps?.customers)
   }
   if (Array.isArray(v)) return v.map(labelOf).join('，')
   return String(v)
@@ -489,13 +541,13 @@ function cellNode(field: FieldDefinition, v: unknown, maps?: NameMaps): ReactNod
     return joinLinks(collectIds(v).map((id) => maps?.depts[id] || id))
   }
   if (field.type === 'customer') {
-    return joinLinks(collectIds(v).map((id) => maps?.customers[id] || id))
+    return linkText(resolveRefDisplay(v, maps?.customers))
   }
   if (field.type === 'contract') {
-    return joinLinks(collectIds(v).map((id) => maps?.contracts[id] || id))
+    return linkText(resolveRefDisplay(v, maps?.contracts))
   }
   if (field.type === 'project') {
-    return joinLinks(collectIds(v).map((id) => maps?.projects[id] || id))
+    return linkText(resolveRefDisplay(v, maps?.projects))
   }
   return cellText(field, v, maps)
 }
@@ -512,6 +564,7 @@ type ViewRec = {
   initiator_name?: string | null
   created_at?: string
   updated_at?: string | null
+  retroactive_field_perms?: { field: string; access: string; node_name?: string }[]
 }
 
 export default function FormDataListPage({
@@ -548,36 +601,11 @@ export default function FormDataListPage({
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
 
-  /** 列表筛选：业务字段 + 明细子表可筛列（如换货明细·合同号）+ 系统字段（提交人） */
-  const filterFields = useMemo<FieldDefinition[]>(() => {
-    const nested: FieldDefinition[] = []
-    const seen = new Set<string>(['__sys_initiator'])
-    const labelCount = new Map<string, number>()
-    const pending: { col: FieldDefinition, parentLabel: string }[] = []
-    for (const f of schemaFields) {
-      seen.add(f.id)
-      if (f.type !== 'detail_table') continue
-      for (const col of f.detail_table_columns || []) {
-        if (!col?.id || seen.has(col.id)) continue
-        seen.add(col.id)
-        labelCount.set(col.label, (labelCount.get(col.label) || 0) + 1)
-        pending.push({ col, parentLabel: f.label })
-      }
-    }
-    for (const { col, parentLabel } of pending) {
-      nested.push({
-        ...col,
-        label: (labelCount.get(col.label) || 0) > 1
-          ? `${parentLabel}·${col.label}`
-          : col.label,
-      })
-    }
-    return [
-      { id: '__sys_initiator', type: 'person', label: '提交人' },
-      ...schemaFields,
-      ...nested,
-    ]
-  }, [schemaFields])
+  /** 列表筛选：业务字段 + 明细子表可筛列 + 系统字段（提交人） */
+  const filterFields = useMemo<FieldDefinition[]>(() => [
+    { id: '__sys_initiator', type: 'person', label: '提交人' },
+    ...expandFilterableFormFields(schemaFields),
+  ], [schemaFields])
   /** 列配置可选的全部可列表字段 */
   const [allColFields, setAllColFields] = useState<FieldDefinition[]>([])
   /** 默认可见列 id（listColumns / 启发式）；其余为 optIn */
@@ -599,7 +627,26 @@ export default function FormDataListPage({
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
   const [modalFullscreen, setModalFullscreen] = useState(false)
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
+  const userId = useAuthStore((s) => s.user?.id)
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
+  const { openWith: openWfDrawer, node: wfDrawerNode } = useWfProcessDrawer(() => {
+    load()
+    if (viewRec?.id) void loadWorkflow(viewRec.id)
+  })
+  const effectiveReviseTaskId = useMemo(
+    () => resolveReviseTaskId(wfDetail, { urlTaskId: reviseTaskId, userId }),
+    [wfDetail, reviseTaskId, userId],
+  )
+  const canActRevise = canUserActRevise(wfDetail, effectiveReviseTaskId, userId)
+  const isReviseFlow = Boolean(effectiveReviseTaskId && canActRevise)
+  const canOpenReviseDrawer = Boolean(
+    wfDetail?.id
+    && hasActiveReviseStep(wfDetail)
+    && (viewRec?.status === 'returned' || viewRec?.status === 'rejected' || viewRec?.status === 'withdrawn')
+    && !isReviseFlow
+    && userId
+    && (wfDetail.initiator_id === userId || canActRevise),
+  )
   const [wfCommenting, setWfCommenting] = useState(false)
   const [activateOpen, setActivateOpen] = useState(false)
   const [nameMaps, setNameMaps] = useState<NameMaps>({
@@ -749,6 +796,12 @@ export default function FormDataListPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, deepInstanceId, reviseTaskId])
 
+  // 退回/驳回/撤回后的修订待办：自动进入编辑并露出底部「保存并重新提交」
+  useEffect(() => {
+    if (!viewRec?.id || !isReviseFlow || !viewRec.readonly) return
+    setViewRec((s) => (s ? { ...s, readonly: false } : s))
+  }, [viewRec?.id, isReviseFlow, viewRec?.readonly])
+
   const applyFieldFilters = (dsl: FormFilterDsl | null) => {
     setFieldFilters(dsl)
     saveAppliedFilters(filterMemoryKey, dsl)
@@ -810,7 +863,11 @@ export default function FormDataListPage({
       }
       if (f.type === 'contract') {
         for (const row of items) {
-          contractIds.push(...collectIds(row.form_data?.[f.id]))
+          if (templateCode === 'prod_card_supplement' && f.id === 'contract_no_select') {
+            contractIds.push(...collectIds(resolveProdCardContractPick(row.form_data)))
+          } else {
+            contractIds.push(...collectIds(row.form_data?.[f.id]))
+          }
           for (const g of detailColGroups) {
             const details = Array.isArray(row.form_data?.[g.field.id])
               ? (row.form_data![g.field.id] as Record<string, unknown>[])
@@ -841,15 +898,23 @@ export default function FormDataListPage({
       setNameMaps({ users, depts, projects, contracts, customers })
     })()
     return () => { alive = false }
-  }, [items, colFields, detailColGroups])
+  }, [items, colFields, detailColGroups, templateCode])
 
-  const loadWorkflow = async (recId: string, processInstanceId?: string | null) => {
+  const renderListFieldCell = useCallback((
+    f: FieldDefinition,
+    row: FormInstance | DetailFlatRow,
+  ): ReactNode => {
+    const rec = 'record' in row ? row.record : row
+    const fd = rec.form_data
+    if (templateCode === 'prod_card_supplement' && f.id === 'contract_no_select') {
+      return renderProdCardContractCell(fd, nameMaps)
+    }
+    return cellNode(f, fd?.[f.id], nameMaps)
+  }, [templateCode, nameMaps])
+
+  const loadWorkflow = async (recId: string, _processInstanceId?: string | null) => {
     try {
-      if (processInstanceId) {
-        const res = await workflowApi.instance(processInstanceId)
-        setWfDetail(res.data || null)
-        return
-      }
+      // 始终按 form_instance 取最新有效流程（避免 form.process_instance_id 指向旧实例）
       const res = await workflowApi.byFormInstance({ form_instance_id: recId })
       setWfDetail(res.data || null)
     } catch {
@@ -872,6 +937,7 @@ export default function FormDataListPage({
       initiator_name: res.data.initiator_name,
       created_at: res.data.created_at,
       updated_at: res.data.updated_at,
+      retroactive_field_perms: (res.data as FormInstanceDetail).retroactive_field_perms,
     })
     setWfDetail(null)
     await loadWorkflow(recId, res.data.process_instance_id)
@@ -1020,6 +1086,14 @@ export default function FormDataListPage({
 
   const submitDraft = async () => {
     if (!viewRec) return
+    if (isReviseFlow) {
+      message.info('当前为退回/驳回修订，请使用「保存并重新提交」')
+      return
+    }
+    if ((viewRec.status === 'returned' || viewRec.status === 'rejected') && wfDetail?.id) {
+      message.warning('流程仍有关联修订待办，请使用「保存并重新提交」')
+      return
+    }
     const displayFields = drawingLayout
       ? applyDrawingFormLayout(templateCode, viewRec.fields)
       : viewRec.fields
@@ -1044,8 +1118,19 @@ export default function FormDataListPage({
     }
   }
 
+  const saveReviseDraft = async () => {
+    if (!viewRec) return
+    try {
+      await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
+      message.success('已暂存')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '暂存失败')
+    }
+  }
+
   const resubmitRevise = async () => {
-    if (!viewRec || !reviseTaskId) return
+    if (!viewRec || !effectiveReviseTaskId) return
     const displayFields = drawingLayout
       ? applyDrawingFormLayout(templateCode, viewRec.fields)
       : viewRec.fields
@@ -1061,7 +1146,7 @@ export default function FormDataListPage({
     }
     try {
       await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
-      await workflowApi.act(reviseTaskId, { action: 'resubmit' })
+      await workflowApi.act(effectiveReviseTaskId, { action: 'resubmit' })
       message.success('已重新提交')
       closeView()
       load()
@@ -1072,14 +1157,14 @@ export default function FormDataListPage({
   }
 
   const handleEndReviseProcess = () => {
-    if (!reviseTaskId) return
+    if (!effectiveReviseTaskId) return
     Modal.confirm({
       title: '确认手动结束？',
       content: '结束后将取消「修改并重新提交」待办。如需再走审批，请重新发起。',
       okText: '结束流程',
       okType: 'danger',
       onOk: async () => {
-        await workflowApi.endProcessByTask(reviseTaskId)
+        await workflowApi.endProcessByTask(effectiveReviseTaskId)
         message.success('已手动结束流程')
         closeView()
         load()
@@ -1124,7 +1209,7 @@ export default function FormDataListPage({
   /** 列表弹窗内可编辑（审批中/已通过也允许，走 form-instances PUT） */
   const canEditRecord = (_status?: string | null) => true
   const canResubmitRecord = (status?: string | null) =>
-    status === 'draft' || status === 'rejected'
+    status === 'draft' || status === 'rejected' || status === 'returned'
   /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
   const canDeleteRecord = (rec: ViewRec | null) =>
     Boolean(rec) && !rec?.process_instance_id && !wfDetail?.id
@@ -1264,7 +1349,7 @@ export default function FormDataListPage({
             rowSpan: (row as DetailFlatRow).rowSpan,
           }),
           render: (_: unknown, row: FormInstance | DetailFlatRow) =>
-            cellNode(f, (row as DetailFlatRow).record.form_data?.[f.id], nameMaps),
+            renderListFieldCell(f, row),
         })),
         ...detailGroupCols,
         {
@@ -1330,7 +1415,7 @@ export default function FormDataListPage({
           ellipsis: cellEllipsis(f),
           width: colWidth(f),
           render: (_: unknown, r: FormInstance | DetailFlatRow) =>
-            cellNode(f, (r as FormInstance).form_data?.[f.id], nameMaps),
+            renderListFieldCell(f, r),
         })),
         {
           title: '提交人', dataIndex: 'initiator_name', key: 'initiator_name',
@@ -1508,15 +1593,26 @@ export default function FormDataListPage({
         styles={fsProps.styles}
         onCancel={closeView}
         footer={
-          viewRec && !viewRec.readonly && (canEditRecord(viewRec.status) || reviseTaskId)
-            ? reviseTaskId
+          viewRec && isReviseFlow
+            ? [
+                <Button key="c" onClick={closeView}>取消</Button>,
+                <Button key="s" onClick={saveReviseDraft}>存草稿</Button>,
+                <Button key="rs" type="primary" onClick={resubmitRevise}>保存并重新提交</Button>,
+                <Button key="end" danger onClick={handleEndReviseProcess}>手动结束</Button>,
+              ]
+            : viewRec && canOpenReviseDrawer
               ? [
-                  <Button key="c" onClick={closeView}>取消</Button>,
-                  <Button key="s" onClick={saveEdit}>存草稿</Button>,
-                  <Button key="rs" type="primary" onClick={resubmitRevise}>保存并重新提交</Button>,
-                  <Button key="end" danger onClick={handleEndReviseProcess}>手动结束</Button>,
+                  <Button key="c" onClick={closeView}>关闭</Button>,
+                  <Button
+                    key="rs"
+                    type="primary"
+                    onClick={() => openWfDrawer(wfDetail!.id, effectiveReviseTaskId)}
+                  >
+                    修改并重新提交
+                  </Button>,
                 ]
-              : [
+              : viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
+              ? [
                   <Button key="c" onClick={closeView}>取消</Button>,
                   <Button
                     key="s"
@@ -1525,7 +1621,7 @@ export default function FormDataListPage({
                   >
                     {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
                   </Button>,
-                  ...(canResubmitRecord(viewRec.status)
+                  ...(canResubmitRecord(viewRec.status) && !wfDetail?.id
                     ? [
                         <Button key="sub" type="primary" onClick={submitDraft}>
                           提交审批
@@ -1533,7 +1629,7 @@ export default function FormDataListPage({
                       ]
                     : []),
                 ]
-            : [<Button key="c" onClick={closeView}>关闭</Button>]
+              : [<Button key="c" onClick={closeView}>关闭</Button>]
         }
         destroyOnClose
       >
@@ -1576,12 +1672,21 @@ export default function FormDataListPage({
                   </Button>
                 </Dropdown>
               )}
-              {canEditRecord(viewRec.status) && viewRec.readonly && (
+              {canEditRecord(viewRec.status) && viewRec.readonly && !isReviseFlow && (
                 <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>
                   编辑
                 </Button>
               )}
-              {canResubmitRecord(viewRec.status) && (
+              {canOpenReviseDrawer && !isReviseFlow && (
+                <Button
+                  type="text"
+                  icon={<SendOutlined />}
+                  onClick={() => openWfDrawer(wfDetail!.id, effectiveReviseTaskId)}
+                >
+                  修改并重新提交
+                </Button>
+              )}
+              {canResubmitRecord(viewRec.status) && !isReviseFlow && !wfDetail?.id && (
                 <Button type="text" icon={<SendOutlined />} onClick={submitDraft}>
                   提交审批
                 </Button>
@@ -1621,6 +1726,8 @@ export default function FormDataListPage({
                   onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
                   serialPreviews={serialPreviews}
                   includeApproverFields={includeApproverFieldsOnEdit}
+                  retroactiveFieldPerms={viewRec.retroactive_field_perms}
+                  gridLayout={modalFullscreen ? 'adaptive' : 'default'}
                 />
                 <FormInstanceSystemMeta
                   initiatorName={viewRec.initiator_name}
@@ -1667,6 +1774,7 @@ export default function FormDataListPage({
           void load()
         }}
       />
+      {wfDrawerNode}
     </div>
   )
 }

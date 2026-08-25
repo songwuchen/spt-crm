@@ -18,9 +18,16 @@ function fmtTime(v?: string | null) {
   }).replace(/\//g, '-')
 }
 
+function isReviseStep(step: WfFlowStep) {
+  return step.node_type === 'revise'
+    || step.node_def_id === '__initiator_revise__'
+    || (step.node_name || '').includes('修改并重新提交')
+}
+
 function stepDotColor(step: WfFlowStep) {
   if (step.is_current || step.status === 'running') return '#1677ff'
   if (step.status === 'rejected') return '#ef4444'
+  if (step.status === 'returned') return '#f97316'
   if (step.status === 'completed') return '#12b876'
   if (step.status === 'cancelled') return '#94a3b8'
   return '#cbd5e1'
@@ -29,6 +36,7 @@ function stepDotColor(step: WfFlowStep) {
 function stepTagColor(step: WfFlowStep) {
   if (step.node_type === 'cc' || step.action === 'cc') return 'default'
   if (step.status === 'rejected') return 'error'
+  if (step.status === 'returned') return 'warning'
   if (step.is_current || step.status === 'running') return 'processing'
   if (step.status === 'completed') return 'success'
   return 'default'
@@ -37,6 +45,7 @@ function stepTagColor(step: WfFlowStep) {
 function stepTagText(step: WfFlowStep) {
   if (step.node_type === 'cc' || step.action === 'cc') return '抄送'
   if (step.action === 'auto_approve') return '自动通过'
+  if (isReviseStep(step) && (step.is_current || step.status === 'running')) return '待修改'
   return step.status_text || step.status
 }
 
@@ -144,6 +153,7 @@ export default function WfFlowDynamics({
                               : a.status === 'approved' ? '已通过'
                                 : a.status === 'waiting' ? '排队中'
                                   : a.status === 'rejected' ? '已驳回'
+                                    : a.status === 'returned' ? '已退回'
                                     : a.status
                           return (
                             <div key={a.id}>

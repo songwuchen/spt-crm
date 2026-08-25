@@ -19,11 +19,12 @@ import {
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
-import type { WfNode, WfRoute, WfDesign, FieldDefinition, WfFieldPerm } from '@/types/lowcode'
+import type { WfNode, WfRoute, WfDesign, FieldDefinition, WfFieldPerm, WfNodeActions } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import DeptField from '@/components/lowcode/fields/DeptField'
 import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
 import { defaultCcApproverRule } from '@/utils/wfApproverDefaults'
+import { resolveNodeActions } from '@/utils/wfNodeActions'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 import {
   routeEdgeLabel, edgeStroke,
@@ -773,11 +774,73 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
                 </>
               )}
               <Divider style={{ margin: '8px 0' }} />
+              <Text strong style={{ fontSize: 12 }}>节点操作</Text>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                对齐简道云：控制审批人在本节点可用的按钮。
+              </Text>
+              {([
+                ['submit', '提交'],
+                ['return', '回退'],
+                ['reject', '否决'],
+                ['submit_print', '提交并打印'],
+              ] as const).map(([key, label]) => (
+                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12 }}>{label}</Text>
+                  <Switch
+                    size="small"
+                    checked={resolveNodeActions(node.node_actions)[key]}
+                    onChange={(on) => {
+                      const base = resolveNodeActions(node.node_actions)
+                      onPatch({ node_actions: { ...base, [key]: on } })
+                    }}
+                  />
+                </div>
+              ))}
+              <Divider style={{ margin: '4px 0' }} plain>更多操作</Divider>
+              {([
+                ['save', '暂存'],
+                ['transfer', '转交'],
+              ] as const).map(([key, label]) => (
+                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12 }}>{label}</Text>
+                  <Switch
+                    size="small"
+                    checked={resolveNodeActions(node.node_actions)[key]}
+                    onChange={(on) => {
+                      const base = resolveNodeActions(node.node_actions)
+                      onPatch({ node_actions: { ...base, [key]: on } })
+                    }}
+                  />
+                </div>
+              ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>审批意见必填</Text>
+                <Text style={{ fontSize: 12 }}>支持批量提交</Text>
+                <Checkbox
+                  checked={resolveNodeActions(node.node_actions).batch_submit}
+                  onChange={(e) => {
+                    const base = resolveNodeActions(node.node_actions)
+                    onPatch({ node_actions: { ...base, batch_submit: e.target.checked } })
+                  }}
+                />
+              </div>
+              <Divider style={{ margin: '4px 0' }} plain>操作备注</Divider>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12 }}>操作意见</Text>
                 <Switch size="small" checked={!!node.opinion_required}
                   onChange={(on) => onPatch({ opinion_required: on })} />
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12 }}>手写签名</Text>
+                <Switch
+                  size="small"
+                  checked={resolveNodeActions(node.node_actions).signature}
+                  onChange={(on) => {
+                    const base = resolveNodeActions(node.node_actions)
+                    onPatch({ node_actions: { ...base, signature: on } })
+                  }}
+                />
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
               <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>本节点可填字段</Text>
                 <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>

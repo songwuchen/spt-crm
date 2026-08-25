@@ -6,6 +6,8 @@ import { menuGroups, PROTECTED_MENU_KEYS, flattenMenuItems, type MenuItem } from
 import { t } from '@/locales'
 import { useApprovalPendingCount } from '@/hooks/useApprovalPendingCount'
 import { useNotificationUnreadCount } from '@/hooks/useNotificationUnreadCount'
+import { useWorkflowFormTemplateCodes } from '@/hooks/useWorkflowFormTemplateCodes'
+import { formTemplateCodeForRoute } from '@/config/formModuleRoutes'
 
 import Icon from '@/components/Icon'
 
@@ -29,7 +31,13 @@ function getSelectedKey(pathname: string): string {
   return best
 }
 
-function permOk(item: MenuItem, hasPermission: (p: string) => boolean): boolean {
+function permOk(
+  item: MenuItem,
+  hasPermission: (p: string) => boolean,
+  wfFormCodes: Set<string>,
+): boolean {
+  const tpl = formTemplateCodeForRoute(item.key)
+  if (tpl && wfFormCodes.has(tpl)) return true
   if (!item.permission) return true
   if (Array.isArray(item.permission)) return item.permission.some((p) => hasPermission(p))
   return hasPermission(item.permission)
@@ -39,18 +47,20 @@ function isItemVisible(
   item: MenuItem,
   hasPermission: (p: string) => boolean,
   hiddenSet: Set<string>,
+  wfFormCodes: Set<string>,
 ): boolean {
   if (hiddenSet.has(item.key) && !PROTECTED_MENU_KEYS.includes(item.key)) return false
   if (item.children?.length) {
-    return item.children.some((c) => isItemVisible(c, hasPermission, hiddenSet))
+    return item.children.some((c) => isItemVisible(c, hasPermission, hiddenSet, wfFormCodes))
   }
-  return permOk(item, hasPermission)
+  return permOk(item, hasPermission, wfFormCodes)
 }
 
 export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const { codes: wfFormCodes } = useWorkflowFormTemplateCodes()
   const systemName = useUiSettingsStore((s) => s.systemName)
   const menuAliases = useUiSettingsStore((s) => s.menuAliases)
   const hiddenMenus = useUiSettingsStore((s) => s.hiddenMenus)
@@ -90,7 +100,7 @@ export default function Sidebar() {
       <div className="sidebar-menu">
         {menuGroups.map((group) => {
           if (hiddenSet.has(group.key)) return null
-          const visibleItems = group.items.filter((item) => isItemVisible(item, hasPermission, hiddenSet))
+          const visibleItems = group.items.filter((item) => isItemVisible(item, hasPermission, hiddenSet, wfFormCodes))
           if (visibleItems.length === 0) return null
           return (
             <div key={group.key} className="sidebar-group">
@@ -98,7 +108,7 @@ export default function Sidebar() {
               <nav className="sidebar-group-nav">
                 {visibleItems.map((item) => {
                   if (item.children?.length) {
-                    const kids = item.children.filter((c) => isItemVisible(c, hasPermission, hiddenSet))
+                    const kids = item.children.filter((c) => isItemVisible(c, hasPermission, hiddenSet, wfFormCodes))
                     if (kids.length === 0) return null
                     const opened = !!openSubs[item.key]
                     const childActive = kids.some((c) => c.key === selectedKey)

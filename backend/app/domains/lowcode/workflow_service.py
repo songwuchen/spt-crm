@@ -7152,6 +7152,113 @@ async def can_access_form_via_workflow(
     return await _user_participates_in_instances(db, tenant_id, user_id, list(insts))
 
 
+def _workflow_participated_process_ids_subquery(user_id: str):
+    """用户作为发起人/任务处理人/抄送人参与过的流程实例 id（子查询）。"""
+    return select(WfProcessInstance.id).where(
+        or_(
+            WfProcessInstance.initiator_id == user_id,
+            WfProcessInstance.id.in_(
+                select(WfTaskInstance.process_instance_id).where(
+                    WfTaskInstance.assignee_id == user_id,
+                )
+            ),
+            WfProcessInstance.id.in_(
+                select(WfProcessCc.process_instance_id).where(
+                    WfProcessCc.user_id == user_id,
+                )
+            ),
+        )
+    )
+
+
+def form_instance_workflow_participant_clause(user_id: str, tenant_id: str):
+    """关联子句：FormInstance 行因用户参与其流程而可见（用于列表 OR 旁路）。"""
+    from sqlalchemy import exists
+    from app.domains.lowcode.models import FormInstance
+
+    pi = WfProcessInstance
+    fi_match = pi.form_instance_id == FormInstance.id
+    base = and_(pi.tenant_id == tenant_id, fi_match)
+    return or_(
+        exists(select(1).where(base, pi.initiator_id == user_id)),
+        exists(
+            select(1)
+            .select_from(WfTaskInstance)
+            .where(
+                WfTaskInstance.process_instance_id == pi.id,
+                base,
+                WfTaskInstance.assignee_id == user_id,
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(WfProcessCc)
+            .where(
+                WfProcessCc.process_instance_id == pi.id,
+                base,
+                WfProcessCc.user_id == user_id,
+            )
+        ),
+    )
+
+
+async def user_participates_in_form_template_workflow(
+    db,
+    tenant_id: str,
+    user_id: str | None,
+    template_id: str,
+) -> bool:
+    """用户是否在该表单模板任一实例的流程中出现过（发起/待办/已办/抄送）。"""
+    if not user_id or not template_id:
+        return False
+    from app.domains.lowcode.models import FormInstance
+
+    participated = _workflow_participated_process_ids_subquery(user_id)
+    hit = (await db.execute(
+        select(FormInstance.id).where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.template_id == template_id,
+            FormInstance.is_deleted.is_(False),  # noqa: E712
+            FormInstance.id.in_(
+                select(WfProcessInstance.form_instance_id).where(
+                    WfProcessInstance.tenant_id == tenant_id,
+                    WfProcessInstance.form_instance_id.isnot(None),
+                    WfProcessInstance.id.in_(participated),
+                )
+            ),
+        ).limit(1)
+    )).scalar_one_or_none()
+    return hit is not None
+
+
+async def form_template_codes_user_participates(
+    db,
+    tenant_id: str,
+    user_id: str | None,
+) -> list[str]:
+    """用户参与过流程的表单模板 code 列表（用于侧栏菜单）。"""
+    if not user_id:
+        return []
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+
+    participated = _workflow_participated_process_ids_subquery(user_id)
+    form_ids = select(WfProcessInstance.form_instance_id).where(
+        WfProcessInstance.tenant_id == tenant_id,
+        WfProcessInstance.form_instance_id.isnot(None),
+        WfProcessInstance.id.in_(participated),
+    )
+    codes = list((await db.execute(
+        select(FormTemplate.code).distinct()
+        .join(FormInstance, FormInstance.template_id == FormTemplate.id)
+        .where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.is_deleted.is_(False),  # noqa: E712
+            FormInstance.id.in_(form_ids),
+        )
+    )).scalars().all())
+    return codes
+
+
 def _live_form_process_clause(tenant_id: str):
     """排除关联表单已软删的流程：单据删了，待办/我发起的/抄送不应再出现。"""
     from app.domains.lowcode.models import FormInstance
@@ -7210,13 +7317,6 @@ class WfListFilters:
             self.created_to,
             self.form_filters and self.form_filters.strip(),
         ])
-
-
-_FILTERABLE_FIELD_TYPES = frozenset({
-    "text", "textarea", "auto_number", "number", "amount",
-    "select", "radio", "date", "datetime",
-    "person", "department", "project", "contract", "customer",
-})
 
 
 async def _form_field_filter_instance_clause(db, tenant_id: str, filters: WfListFilters):
@@ -7374,19 +7474,10 @@ async def list_filter_options(db, tenant_id: str, process_definition_id: str | N
         )).scalar_one_or_none()
         if tpl_id:
             ver = await get_published_version(db, tenant_id, tpl_id)
-            for fd in (ver.field_definitions if ver else []) or []:
-                if not isinstance(fd, dict):
-                    continue
-                fid = fd.get("id")
-                ftype = fd.get("type") or "text"
-                if not fid or ftype not in _FILTERABLE_FIELD_TYPES:
-                    continue
-                fields.append({
-                    "id": fid,
-                    "label": fd.get("label") or fid,
-                    "type": ftype,
-                    "options": fd.get("options") or [],
-                })
+            from app.domains.lowcode.service import expand_filterable_form_fields
+            fields = expand_filterable_form_fields(
+                (ver.field_definitions if ver else []) or [],
+            )
     return {"processes": processes, "node_names": node_names, "fields": fields}
 
 
@@ -7945,7 +8036,7 @@ async def _build_flow_steps(
 
     status_text = {
         "running": "处理中", "completed": "已完成", "cancelled": "已取消",
-        "pending": "待处理", "rejected": "已驳回",
+        "pending": "待处理", "rejected": "已驳回", "returned": "已退回",
     }
     # 会进入时间线的操作（对齐简道云 finishAction）；评论不单独占节点卡片
     _LOG_ACTIONS = frozenset({
@@ -7968,6 +8059,7 @@ async def _build_flow_steps(
         started_at,
         completed_at,
         is_current: bool,
+        status_text_override: str | None = None,
     ) -> dict:
         end_at = completed_at if status != "running" else _now()
         return {
@@ -7977,7 +8069,7 @@ async def _build_flow_steps(
             "node_name": n.node_name,
             "node_type": n.node_type,
             "status": status,
-            "status_text": status_text.get(status, status),
+            "status_text": status_text_override or status_text.get(status, status),
             "assignees": assignees,
             "handler_name": handler_name,
             "action": action,
@@ -8012,6 +8104,7 @@ async def _build_flow_steps(
         actionable = [l for l in node_logs if getattr(l, "action", None) in _LOG_ACTIONS]
         last_lg = actionable[-1] if actionable else None
         last_action = getattr(last_lg, "action", None) if last_lg else None
+        is_revise_node = n.node_type == "revise" or n.node_def_id == "__initiator_revise__"
 
         cfg = n.config if isinstance(getattr(n, "config", None), dict) else {}
 
@@ -8065,9 +8158,9 @@ async def _build_flow_steps(
             ))
             has_approval_cc_card = True
 
-        # 历史兼容：节点仍 running 但已驳回/撤回/流程结束
+        # 历史兼容：节点仍 running 但已驳回/撤回/流程结束（修订节点除外，仍显示待修改）
         force_status = None
-        if n.status == "running":
+        if n.status == "running" and not is_revise_node:
             if last_action in ("reject", "auto_reject") or process_status == "rejected":
                 force_status = "rejected"
             elif process_status == "withdrawn":
@@ -8127,6 +8220,8 @@ async def _build_flow_steps(
             if act in ("transfer", "auto_transfer"):
                 step["status_text"] = "已转交"
                 step["node_name"] = f"{n.node_name} · 转交"
+            elif act == "return":
+                step["status_text"] = "已退回"
             out.append(step)
             prev_at = done_at
 
@@ -8160,6 +8255,7 @@ async def _build_flow_steps(
                 started_at=cur_start,
                 completed_at=None,
                 is_current=True,
+                status_text_override="待修改" if is_revise_node else None,
             ))
         elif not actionable and force_status:
             # 无日志的僵死节点
@@ -8230,11 +8326,20 @@ async def find_latest_instance_by_form_instance(
     """表单详情页：按 form_instance_id 取最新流程实例（兼容未回写 process_instance_id 的旧数据）。"""
     if not form_instance_id:
         return None
+    from sqlalchemy import case
+    active_first = case(
+        (WfProcessInstance.status.in_(("running", "returned", "rejected", "withdrawn")), 0),
+        else_=1,
+    )
     inst = (await db.execute(
         select(WfProcessInstance).where(
             WfProcessInstance.tenant_id == tenant_id,
             WfProcessInstance.form_instance_id == form_instance_id,
-        ).order_by(WfProcessInstance.created_at.desc()).limit(1)
+        ).order_by(
+            active_first,
+            WfProcessInstance.started_at.desc().nulls_last(),
+            WfProcessInstance.created_at.desc(),
+        ).limit(1)
     )).scalar_one_or_none()
     if not inst:
         return None
@@ -8452,9 +8557,11 @@ async def get_instance_detail(
                             apply_prod_card_detail_quick_fill_flags,
                             apply_prod_card_install_pick_fields,
                             apply_prod_card_legacy_hidden_fields,
+                            apply_prod_card_prune_std_room_columns,
                             apply_prod_card_supplement_rules,
                         )
                         apply_prod_card_install_pick_fields(form_fields)
+                        apply_prod_card_prune_std_room_columns(form_fields)
                         apply_prod_card_detail_quick_fill_flags(form_fields)
                         apply_prod_card_legacy_hidden_fields(form_fields)
                         form_rules = apply_prod_card_supplement_rules(form_rules)
@@ -8552,7 +8659,7 @@ async def _resolve_current_task_for_viewer(
     """
     if not viewer_id:
         return None
-    allow_revise = inst.status in ("withdrawn", "rejected")
+    allow_revise = inst.status in ("withdrawn", "rejected", "returned")
     if inst.status != "running" and not allow_revise:
         return None
     assignees = [viewer_id]
@@ -8576,6 +8683,7 @@ async def _resolve_current_task_for_viewer(
     if not pending:
         return None
     from app.domains.lowcode.wf_field_writeback import load_field_values, parse_field_perms
+    from app.domains.lowcode.wf_node_actions import parse_node_actions
     from app.domains.lowcode.biz_field_catalog import get_catalog
 
     node_inst = await db.get(WfNodeInstance, pending.node_instance_id)
@@ -8652,8 +8760,10 @@ async def _resolve_current_task_for_viewer(
             from app.domains.lowcode.prod_card_contract_fill import (
                 apply_prod_card_detail_quick_fill_flags,
                 apply_prod_card_legacy_hidden_fields,
+                apply_prod_card_prune_std_room_columns,
             )
             patched_defs = list(catalog.values())
+            apply_prod_card_prune_std_room_columns(patched_defs)
             apply_prod_card_detail_quick_fill_flags(patched_defs)
             apply_prod_card_legacy_hidden_fields(patched_defs)
             catalog = {fd["id"]: fd for fd in patched_defs if isinstance(fd, dict) and fd.get("id")}
@@ -8707,6 +8817,10 @@ async def _resolve_current_task_for_viewer(
             item["props"] = meta["props"]
         field_meta.append(item)
 
+    if is_prod_card and field_meta:
+        from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_prune_std_room_columns
+        apply_prod_card_prune_std_room_columns(field_meta)
+
     value_ids = list(field_ids)
     for item in field_meta:
         scope = (item.get("props") or {}).get("pickable_scope") if isinstance(item.get("props"), dict) else None
@@ -8726,6 +8840,7 @@ async def _resolve_current_task_for_viewer(
         "task_kind": "revise" if is_revise else "approve",
         "field_perms": field_perms,
         "opinion_required": False if is_revise else bool(node.get("opinion_required")),
+        "node_actions": parse_node_actions(node if not is_revise else None, biz_type=inst.biz_type),
         "field_meta": field_meta,
         "field_values": field_values,
     }

@@ -10,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import re
 import re
 
-from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
+from app.dependencies import (
+    get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope,
+    require_form_list_access,
+)
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
 from app.common.error_codes import VALIDATION_ERROR, NOT_FOUND, FORBIDDEN
@@ -1014,6 +1017,23 @@ async def get_form_template_by_code(
     return ok(_tpl_dict(tpl))
 
 
+@router.get("/form-templates/workflow-visible-codes")
+async def form_templates_workflow_visible_codes(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """侧栏菜单：用户参与过流程的表单模板 code（无 form_data:view 时仍可见对应模块入口）。
+
+    须注册在 ``/form-templates/{template_id}`` 之前，否则会被当成模板 ID。
+    """
+    from app.domains.lowcode import workflow_service as wsvc
+    codes = await wsvc.form_template_codes_user_participates(
+        db, tenant_id, user.get("sub"),
+    )
+    return ok({"codes": codes})
+
+
 @router.get("/form-templates/{template_id}")
 async def get_form_template(
     template_id: str,
@@ -1315,7 +1335,7 @@ async def list_form_instances(
     filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_permissions("form_data:view")),
+    user: dict = Depends(require_form_list_access),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
     items, total = await service.list_instances(
@@ -1340,7 +1360,7 @@ async def payment_registration_dashboard_summary(
     filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]}'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_permissions("form_data:view")),
+    user: dict = Depends(require_form_list_access),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
     """收款登记仪表盘：来款合计等指标（筛选口径与列表一致）。"""
@@ -1353,7 +1373,7 @@ async def payment_registration_dashboard_summary(
 
 _INST_STATUS_LABELS = {
     "draft": "草稿", "submitted": "已提交", "running": "审批中",
-    "completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回",
+    "completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回", "returned": "已退回",
 }
 
 # 单次导出行上限(与 service.export_instances 的 clamp 上限一致);命中即在末尾追加截断提示。
@@ -1729,7 +1749,7 @@ async def export_form_instances(
     layout: str = Query("flat", description="flat=单 sheet 主从合并行展开；multi=主表+各明细分 sheet"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_permissions("form_data:view")),
+    user: dict = Depends(require_form_list_access),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
     """导出当前筛选下的表单数据为 Excel（默认单 sheet，主表与明细合并按行展开）。"""

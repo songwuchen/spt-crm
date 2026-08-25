@@ -15,6 +15,7 @@ import DepartmentSelect from '@/components/DepartmentSelect'
 import {
   type FormFilterDsl,
   type FormFilterRule,
+  FILTERABLE_FIELD_TYPES,
   loadDraftFilters,
   needsFilterValue,
   normalizeDraftDsl,
@@ -27,12 +28,6 @@ import {
 const { RangePicker } = DatePicker
 
 export type { FormFilterDsl, FormFilterRule } from '@/components/lowcode/formInstanceFilterUtils'
-
-const FILTERABLE_TYPES = new Set([
-  'text', 'textarea', 'auto_number', 'number', 'amount',
-  'select', 'radio', 'date', 'datetime',
-  'person', 'department', 'project', 'contract', 'customer',
-])
 
 const OP_LABELS: Record<string, string> = {
   eq: '等于',
@@ -93,7 +88,7 @@ export default function FormInstanceFilterPopover({ fields, value, onApply, stor
   const [rows, setRows] = useState<FormFilterRule[]>([])
 
   const filterFields = useMemo(
-    () => fields.filter((f) => FILTERABLE_TYPES.has(f.type)),
+    () => fields.filter((f) => FILTERABLE_FIELD_TYPES.has(f.type)),
     [fields],
   )
 

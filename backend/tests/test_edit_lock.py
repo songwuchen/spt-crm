@@ -25,6 +25,8 @@ def test_is_status_editable_matrix():
     assert is_status_editable("form_instance", "completed")
     assert is_status_editable("form_instance", "running")
     assert is_status_editable("form_instance", "submitted")
+    assert is_status_editable("form_instance", "returned")
+    assert is_status_editable("form_instance", "withdrawn")
     assert is_status_editable(
         "form_instance", "completed", template_code="drawing_requisition",
     )
@@ -206,6 +208,8 @@ async def test_assert_form_instance_editable_status():
         await assert_form_instance_editable(db, "t1", "fi1", "submitted")
         await assert_form_instance_editable(db, "t1", "fi1", "running")
         await assert_form_instance_editable(db, "t1", "fi1", "completed")
+        await assert_form_instance_editable(db, "t1", "fi1", "returned")
+        await assert_form_instance_editable(db, "t1", "fi1", "withdrawn")
 
 
 @pytest.mark.asyncio

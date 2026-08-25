@@ -238,9 +238,12 @@ def sub_columns(
             if isinstance(x, dict) and x.get("type") and x.get("type") not in SKIP_TYPES
         ]
     out = []
+    parent_lab = label_of(f) or f.get("name") or ""
     for c in cols:
         lab = label_of(c) or c.get("name") or "col"
         name = c.get("name") or ""
+        if parent_lab in ("标准化室填写", "电气车间填写") and lab == "理论重量":
+            continue
         if not should_keep_field(lab, name, required_widgets, rule_widgets):
             continue
         typ0 = (c.get("type") or "").lower()

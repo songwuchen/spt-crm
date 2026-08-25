@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,6 +77,25 @@ def require_any_permission(*perms: str):
         )
 
     return _checker
+
+
+async def require_form_list_access(
+    template_id: str = Query(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """表单列表/导出：form_data:view 或曾参与该模板下任一流程（审批人可见对应列表）。"""
+    perms = current_user.get("permissions") or []
+    if "form_data:view" in perms:
+        return current_user
+    from app.domains.lowcode import workflow_service as wsvc
+    uid = current_user.get("sub")
+    if uid and await wsvc.user_participates_in_form_template_workflow(
+        db, tenant_id, uid, template_id,
+    ):
+        return current_user
+    raise BusinessException(code=FORBIDDEN, message="缺少权限: form_data:view")
 
 
 async def get_data_scope(

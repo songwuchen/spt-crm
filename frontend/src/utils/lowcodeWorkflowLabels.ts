@@ -9,9 +9,25 @@ export const WF_ACTION_TEXT: Record<string, string> = {
 
 export interface WfStatusMeta { text: string; color: string; cls: string }
 
-export const WF_STATUS: Record<string, WfStatusMeta> = {
+/** 表单实例 / 流程实例状态（列表、详情底栏、审批抽屉共用） */
+export const FORM_INSTANCE_STATUS: Record<string, WfStatusMeta> = {
+  draft: { text: '草稿', color: 'default', cls: 'bg-slate-100 text-slate-500' },
+  submitted: { text: '已提交', color: 'blue', cls: 'bg-blue-50 text-blue-600' },
   running: { text: '审批中', color: 'gold', cls: 'bg-amber-50 text-amber-600' },
   completed: { text: '已通过', color: 'green', cls: 'bg-green-50 text-green-600' },
   rejected: { text: '已驳回', color: 'red', cls: 'bg-red-50 text-red-600' },
+  returned: { text: '已退回', color: 'orange', cls: 'bg-orange-50 text-orange-600' },
   withdrawn: { text: '已撤回', color: 'default', cls: 'bg-slate-100 text-slate-500' },
+  cancelled: { text: '已作废', color: 'default', cls: 'bg-slate-100 text-slate-400' },
+  terminated: { text: '已终止', color: 'red', cls: 'bg-red-50 text-red-600' },
+}
+
+export const WF_STATUS: Record<string, WfStatusMeta> = {
+  running: FORM_INSTANCE_STATUS.running,
+  completed: FORM_INSTANCE_STATUS.completed,
+  rejected: FORM_INSTANCE_STATUS.rejected,
+  returned: FORM_INSTANCE_STATUS.returned,
+  withdrawn: FORM_INSTANCE_STATUS.withdrawn,
+  cancelled: FORM_INSTANCE_STATUS.cancelled,
+  terminated: FORM_INSTANCE_STATUS.terminated,
 }

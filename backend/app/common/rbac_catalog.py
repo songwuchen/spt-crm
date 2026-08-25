@@ -201,14 +201,21 @@ STANDARD_ROLES = [
         ],
     },
     {
-        # 一线业务员：只看本人线索，收录后确认是否转商机（对齐简道云「业务员确认是否转商机」）
+        # 一线业务员：只看本人线索/客户/商机；方案三表（图纸领用/安装图/售前）仅本人单据
         "code": "salesperson", "name": "业务员", "scope": "self",
-        "desc": "业务员:仅看本人线索/客户/商机;收录后确认是否转化为客户与商机",
+        "scope_by_resource": {
+            "drawing_requisition": "self",
+            "install_drawing_notice": "self",
+            "presale_service_notice": "self",
+        },
+        "desc": "业务员:仅看本人线索/客户/商机及本人方案三表单据;收录后确认是否转化为客户与商机",
         "perms": [
             "customer:view", "customer:create",
             "contact:view", "contact:create",
             "lead:view", "lead:qualify",
             "project:view", "project:create",
+            # CORE 已含 form_data:view/create；显式写出便于对照方案三表菜单
+            "form_data:view", "form_data:create",
         ],
     },
     {
@@ -295,6 +302,12 @@ STANDARD_ROLES = [
     },
     {
         "code": "room_leader", "name": "设计指派27.3~4/1.2.8/6.8/27.16/19.3", "scope": "dept",
+        "scope_by_resource": {
+            "prod_card_supplement": "all",
+            "scheme_management": "all",
+            "drawing_requisition": "all",
+            "install_drawing_notice": "all",
+        },
         "desc": "对齐简道云设计指派人选（JDY role 63815e3a7fb607000acc9195）；方案/图纸/生产卡等「设计指派」字段",
         "perms": [
             "customer:view", "project:view", "quote:view", "contract:view", "product:view",
@@ -304,6 +317,10 @@ STANDARD_ROLES = [
     },
     {
         "code": "transfer_packaging", "name": "转新乡、工艺包装", "scope": "dept",
+        "scope_by_resource": {
+            "prod_card_supplement": "all",
+            "scheme_management": "all",
+        },
         "desc": "对齐简道云角色 6942502ab4606b6b5375dc4f：方案/图纸/生产卡「转新乡、工艺包装」人选",
         "perms": [
             "customer:view", "project:view", "quote:view", "contract:view", "product:view",
@@ -437,6 +454,7 @@ STANDARD_ROLES = [
     },
     {
         "code": "ship_sales_outbound", "name": "24.1发货通知流程-销售出库", "scope": "dept",
+        "scope_by_resource": {"shipment_notice": "all"},
         "desc": "简道云发货通知销售出库仓:仓库/仓库判定节点审批",
         "perms": [
             "order:view", "delivery:view",
@@ -445,6 +463,7 @@ STANDARD_ROLES = [
     },
     {
         "code": "gate_guard", "name": "240706门岗保卫组", "scope": "dept",
+        "scope_by_resource": {"shipment_notice": "all"},
         "desc": "简道云门岗保卫组:发货通知抄送门岗",
         "perms": [
             "delivery:view",
@@ -453,6 +472,7 @@ STANDARD_ROLES = [
     },
     {
         "code": "prod_material_code", "name": "1.2.8生产卡/补充流程-物料编码", "scope": "dept",
+        "scope_by_resource": {"prod_card_supplement": "all"},
         "desc": "简道云生产卡「物料编码」节点：韩青芳、司子潆、郭雪",
         "perms": [
             "order:view", "product:view",
@@ -470,6 +490,10 @@ STANDARD_ROLES = [
     },
     {
         "code": "legal", "name": "24.2.3合同/项目评审-法务审批多人", "scope": "all",
+        "scope_by_resource": {
+            "prod_card_supplement": "all",
+            "xunhan_contract_review": "all",
+        },
         "desc": "对齐简道云「24.2.3合同/项目评审-法务审批多人」/生产卡法务审核；成员杜习慧、孔雪、张孟杰",
         "perms": [
             "contract_review:view",

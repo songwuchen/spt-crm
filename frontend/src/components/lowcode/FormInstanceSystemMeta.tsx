@@ -2,15 +2,7 @@
 import type { ReactNode } from 'react'
 import { Tag } from 'antd'
 import type { WfFlowStep } from '@/types/lowcode'
-
-const STATUS_TAG: Record<string, { color: string; text: string }> = {
-  draft: { color: 'default', text: '草稿' },
-  submitted: { color: 'blue', text: '已提交' },
-  running: { color: 'processing', text: '进行中' },
-  completed: { color: 'success', text: '已通过' },
-  rejected: { color: 'error', text: '已驳回' },
-  withdrawn: { color: 'default', text: '已撤回' },
-}
+import { FORM_INSTANCE_STATUS } from '@/utils/lowcodeWorkflowLabels'
 
 function formatDt(v?: string | null): string {
   if (!v) return '—'
@@ -42,9 +34,7 @@ export default function FormInstanceSystemMeta({
   status?: string | null
   flowSteps?: WfFlowStep[] | null
 }) {
-  const statusTag = status
-    ? (STATUS_TAG[status] || { color: 'default', text: status })
-    : null
+  const statusMeta = status ? (FORM_INSTANCE_STATUS[status] ?? null) : null
   const currentSteps = (flowSteps || []).filter((s) => s.is_current)
   const currentNode = currentSteps.map((s) => s.node_name).filter(Boolean).join('、') || '—'
   const assignees = [
@@ -62,7 +52,11 @@ export default function FormInstanceSystemMeta({
         <MetaCell label="提交时间">{formatDt(createdAt)}</MetaCell>
         <MetaCell label="更新时间">{formatDt(updatedAt || createdAt)}</MetaCell>
         <MetaCell label="流程状态">
-          {statusTag ? <Tag color={statusTag.color} className="m-0">{statusTag.text}</Tag> : '—'}
+          {statusMeta
+            ? <Tag color={statusMeta.color} className="m-0">{statusMeta.text}</Tag>
+            : status
+              ? <Tag className="m-0">{status}</Tag>
+              : '—'}
         </MetaCell>
         {hasFlow ? (
           <>

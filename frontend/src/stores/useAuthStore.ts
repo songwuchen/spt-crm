@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { UserInfo } from '@/api/types'
+import { clearWorkflowFormTemplateCodesCache } from '@/hooks/useWorkflowFormTemplateCodes'
 
 interface AuthState {
   token: string | null
@@ -32,6 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    clearWorkflowFormTemplateCodesCache()
     set({ token: null, refreshToken: null, user: null, userLoading: false })
   },
 

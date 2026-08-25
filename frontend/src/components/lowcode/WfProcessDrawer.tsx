@@ -7,7 +7,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
   RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined, StopOutlined, SaveOutlined,
-  EditOutlined,
+  EditOutlined, FullscreenOutlined, FullscreenExitOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -30,6 +30,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
+import { resolveNodeActions } from '@/utils/wfNodeActions'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
 import {
   defaultProdCardPrintMode,
@@ -112,6 +113,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [contractLoading, setContractLoading] = useState(false)
   const [contractReview, setContractReview] = useState<ContractReview | null>(null)
   const [contractReviewLoading, setContractReviewLoading] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
 
   const loadContractBiz = async (d: WfInstanceDetail) => {
     if (d.biz_type !== 'contract_version') {
@@ -195,7 +197,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   }
 
   useEffect(() => {
-    if (!open || !instanceId) return
+    if (!open) {
+      setFullscreen(false)
+      return
+    }
+    if (!instanceId) return
     setOpinion(''); setTransferTo(undefined); setReturnTo(undefined); setFieldUpdates({}); setFieldHighlight(false); setMoreMode(null)
     setSideTab('flow'); setMainTab('original'); setContract(null); setContractVersion(null)
     setContractReview(null)
@@ -244,12 +250,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const isReviseTask = detail?.current_task?.task_kind === 'revise'
     || detail?.current_task?.node_type === 'revise'
   const canAct = !!effectiveTaskId && (detail?.status === 'running' || isReviseTask)
+  const nodeActs = resolveNodeActions(detail?.current_task?.node_actions, detail?.biz_type)
 
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
   const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail?.process_name)
-  const approveAndPrint = canAct && (
-    (canPrintScheme && isDrawingApproveAndPrintNode(detail?.current_task?.node_name))
-    || (canPrintProdCard && isProdCardApproveAndPrintNode(detail?.current_task?.node_name))
+  const approveAndPrint = canAct && nodeActs.submit_print && nodeActs.submit && (
+    (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
+    || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
   )
 
   const handlePrintScheme = async (prodMode?: ProdCardPrintMode) => {
@@ -484,7 +491,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     : taskFieldPerms
   const hasNodeFields = canAct && effectiveFieldPerms.length > 0 && !!detail?.current_task
   /** 审批抽屉内不整单编辑；修订待办除外（走原单据编辑页） */
-  const canSaveDraft = canAct && !isLeadIntel && !isLeadOwnerConfirm
+  const canSaveDraft = canAct && !isLeadIntel && !isLeadOwnerConfirm && nodeActs.save
+    && (detail?.current_task?.field_perms?.length ?? 0) > 0
     && (isReviseTask || effectiveFieldPerms.length > 0)
   const formEditPath = detail?.form_instance_id && detail?.form_code
     ? formModuleInstancePath(detail.form_code, detail.form_instance_id, { edit: true })
@@ -611,6 +619,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           }) : undefined}
           rules={detail?.form_rules || []}
           applyFieldPerms={false}
+          gridLayout={fullscreen ? 'adaptive' : 'default'}
         />
       ) : detail?.biz_type === 'contract_version' ? (
         contractLoading ? (
@@ -666,7 +675,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   return (
     <Drawer
       title={null}
-      width="min(1100px, 96vw)"
+      width={fullscreen ? '100vw' : 'min(1100px, 96vw)'}
       open={open}
       onClose={onClose}
       destroyOnClose
@@ -675,7 +684,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         wrapper: { height: '100%' },
       }}
       className="wf-approve-drawer"
-      rootClassName="wf-approve-drawer-root"
+      rootClassName={fullscreen ? 'wf-approve-drawer-root spt-drawer-fullscreen' : 'wf-approve-drawer-root'}
     >
       {loading || !detail ? (
         <div className="flex items-center justify-center h-full min-h-[560px]"><Spin /></div>
@@ -763,6 +772,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       编辑原单据
                     </Button>
                   )}
+                  <Button
+                    size="small"
+                    icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                    onClick={() => setFullscreen((v) => !v)}
+                    title={fullscreen ? '退出全屏' : '全屏查看'}
+                    aria-label={fullscreen ? '退出全屏' : '全屏查看'}
+                  >
+                    {fullscreen ? '退出全屏' : '全屏'}
+                  </Button>
                 </Space>
               </div>
             </div>
@@ -806,16 +824,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               ) : (
                 <>
                   <section>{defaultBizSection}</section>
-                  <FormInstanceSystemMeta
-                    initiatorName={detail.initiator_name}
-                    createdAt={detail.created_at || detail.started_at}
-                    updatedAt={detail.updated_at}
-                    status={detail.status}
-                    flowSteps={detail.flow_steps}
-                  />
-                  {!isLeadReactivation && nodeFieldSection}
+                  {nodeFieldSection}
                 </>
               )}
+              <FormInstanceSystemMeta
+                initiatorName={detail.initiator_name}
+                createdAt={detail.created_at || detail.started_at}
+                updatedAt={detail.updated_at}
+                status={detail.status}
+                flowSteps={detail.flow_steps}
+              />
             </div>
 
             {/* 底部固定：操作意见 + 操作按钮（线索按钮为收录/袭击/回退/暂存） */}
@@ -920,44 +938,52 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         暂存
                       </Button>
                     )}
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      loading={busy}
-                      onClick={() => act('approve')}
-                    >
-                      {approveAndPrint ? '通过并打印' : '通过'}
-                    </Button>
-                    <Button
-                      loading={busy}
-                      icon={<RollbackOutlined />}
-                      onClick={() => {
-                        if (!(detail.approval_nodes?.length)) {
-                          message.info('当前流程无可退回节点')
-                          return
-                        }
-                        setMoreMode((m) => (m === 'return' ? null : 'return'))
-                      }}
-                      disabled={!(detail.approval_nodes?.length)}
-                    >
-                      退回
-                    </Button>
-                    <Button
-                      loading={busy}
-                      icon={<SwapOutlined />}
-                      onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))}
-                    >
-                      转交
-                    </Button>
-                    <Button
-                      danger
-                      icon={<CloseCircleOutlined />}
-                      loading={busy}
-                      onClick={() => act('reject')}
-                      title="驳回后发起人可修改并重新提交"
-                    >
-                      驳回
-                    </Button>
+                    {nodeActs.submit && (
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        loading={busy}
+                        onClick={() => act('approve')}
+                      >
+                        {approveAndPrint ? '通过并打印' : '通过'}
+                      </Button>
+                    )}
+                    {nodeActs.return && (
+                      <Button
+                        loading={busy}
+                        icon={<RollbackOutlined />}
+                        onClick={() => {
+                          if (!(detail.approval_nodes?.length)) {
+                            message.info('当前流程无可退回节点')
+                            return
+                          }
+                          setMoreMode((m) => (m === 'return' ? null : 'return'))
+                        }}
+                        disabled={!(detail.approval_nodes?.length)}
+                      >
+                        退回
+                      </Button>
+                    )}
+                    {nodeActs.transfer && (
+                      <Button
+                        loading={busy}
+                        icon={<SwapOutlined />}
+                        onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))}
+                      >
+                        转交
+                      </Button>
+                    )}
+                    {nodeActs.reject && (
+                      <Button
+                        danger
+                        icon={<CloseCircleOutlined />}
+                        loading={busy}
+                        onClick={() => act('reject')}
+                        title="驳回后发起人可修改并重新提交"
+                      >
+                        驳回
+                      </Button>
+                    )}
                   </div>
                 )}
                 {!isLeadIntel && !isReviseTask && moreMode && (

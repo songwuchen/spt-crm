@@ -152,6 +152,39 @@ def test_apply_prod_card_detail_quick_fill_flags():
     assert defs[0]["props"]["quick_fill"] is True
 
 
+def test_apply_prod_card_prune_std_room_columns():
+    from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_prune_std_room_columns
+
+    defs = [
+        {
+            "id": "std_room_fill",
+            "type": "detail_table",
+            "label": "标准化室填写",
+            "detail_table_columns": [
+                {"id": "material_code", "type": "text", "label": "物料代码"},
+                {"id": "theoretical_weight", "type": "number", "label": "理论重量"},
+                {"id": "designer", "type": "person", "label": "设计人"},
+            ],
+        },
+        {
+            "id": "elec_workshop_fill",
+            "type": "detail_table",
+            "label": "电气车间填写",
+            "detail_table_columns": [
+                {"id": "material_code", "type": "text", "label": "物料代码"},
+                {"id": "theoretical_weight_2", "type": "number", "label": "理论重量"},
+            ],
+        },
+    ]
+    apply_prod_card_prune_std_room_columns(defs)
+    std_ids = [c["id"] for c in defs[0]["detail_table_columns"]]
+    elec_ids = [c["id"] for c in defs[1]["detail_table_columns"]]
+    assert "theoretical_weight" not in std_ids
+    assert std_ids == ["material_code", "designer"]
+    assert "theoretical_weight_2" not in elec_ids
+    assert elec_ids == ["material_code"]
+
+
 def test_apply_prod_card_design_assign_field_perms():
     from app.domains.lowcode.prod_card_contract_fill import (
         apply_prod_card_design_assign_field_perms,

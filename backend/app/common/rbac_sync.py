@@ -305,14 +305,15 @@ async def ensure_business_roles(
             if rd.get("desc") is not None and role.description != rd.get("desc"):
                 role.description = rd.get("desc")
             want_sbr = dict(rd.get("scope_by_resource") or {})
+            changed_sbr = False
             if want_sbr:
                 cur = dict(role.scope_by_resource or {})
-                changed = False
                 for k, v in want_sbr.items():
-                    if k not in cur:
+                    # 目录有明确覆盖时写入/校正（如业务员方案三表 self）
+                    if cur.get(k) != v:
                         cur[k] = v
-                        changed = True
-                if changed:
+                        changed_sbr = True
+                if changed_sbr:
                     role.scope_by_resource = cur
             # 补齐目录权限（含 CORE），避免新建后缺 form_data:view 等
             changed_perms = False
@@ -339,7 +340,7 @@ async def ensure_business_roles(
                 ))
                 have_pids.add(perm.id)
                 changed_perms = True
-            if changed_perms:
+            if changed_perms or changed_sbr:
                 from app.domains.auth.service import invalidate_tenant_auth_cache
                 await invalidate_tenant_auth_cache(tenant_id)
             continue
@@ -1024,3 +1025,77 @@ async def ensure_fujiajing_jdy_role_members(
             real_names,
         )
     return out
+
+
+async def ensure_wf_assignees_have_form_view(db, tenant_id: str) -> dict:
+    """流程任务处理人若缺 form_data:view，补挂 employee 基础角色（含 CORE）。"""
+    from app.domains.auth.models import UserRole, Role, Permission, RolePermission
+    from app.domains.lowcode.workflow_models import WfTaskInstance
+
+    employee = (await db.execute(
+        select(Role).where(Role.tenant_id == tenant_id, Role.code == "employee")
+    )).scalar_one_or_none()
+    if not employee:
+        await ensure_business_roles(db, tenant_id, ["employee"])
+        employee = (await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "employee")
+        )).scalar_one_or_none()
+    if not employee:
+        return {"patched": 0, "reason": "no_employee_role"}
+
+    assignee_ids = list({
+        uid for uid in (await db.execute(
+            select(WfTaskInstance.assignee_id).distinct()
+        )).scalars().all() if uid
+    })
+    if not assignee_ids:
+        return {"patched": 0}
+
+    patched = 0
+    for uid in assignee_ids:
+        has_fdv = (await db.execute(
+            select(RolePermission.id).join(UserRole, UserRole.role_id == RolePermission.role_id)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(
+                UserRole.user_id == uid,
+                UserRole.tenant_id == tenant_id,
+                Permission.code == "form_data:view",
+            ).limit(1)
+        )).scalar_one_or_none()
+        if has_fdv:
+            continue
+        has_employee = (await db.execute(
+            select(UserRole.id).where(
+                UserRole.user_id == uid,
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == employee.id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if not has_employee:
+            db.add(UserRole(
+                id=generate_uuid(),
+                tenant_id=tenant_id,
+                user_id=uid,
+                role_id=employee.id,
+            ))
+            patched += 1
+    if patched:
+        from app.domains.auth.service import invalidate_tenant_auth_cache
+        await invalidate_tenant_auth_cache(tenant_id)
+    return {"patched": patched, "assignees_scanned": len(assignee_ids)}
+
+
+async def ensure_approval_roles_list_access(db, tenant_id: str) -> dict:
+    """审批相关角色/人员：同步 CORE 权限、业务角色 scope、九流程成员、任务处理人 form_data:view。"""
+    rbac_result = await apply(db, tenant_id, mode="additive", create_missing_roles=True)
+    biz_created = await ensure_business_roles(db, tenant_id)
+    nine = await ensure_nine_flow_role_members(db, tenant_id)
+    cs = await ensure_cs_customer_scope_roles(db, tenant_id)
+    assignees = await ensure_wf_assignees_have_form_view(db, tenant_id)
+    return {
+        "rbac": rbac_result,
+        "business_roles_created": biz_created,
+        "nine_flow": nine,
+        "cs_scope_roles": cs,
+        "wf_assignees": assignees,
+    }

@@ -97,8 +97,12 @@ function TodoTab({ active, autoOpen }: {
             size="small"
             type="primary"
             onClick={() => {
-              if (revise && docPath) navigate(docPath)
-              else openWith(r.process_instance_id, r.task_id)
+              if (r.process_instance_id) {
+                openWith(r.process_instance_id, r.task_id)
+                return
+              }
+              if (docPath) navigate(docPath)
+              else message.warning('无法打开该待办')
             }}
           >
             {revise ? '去修改' : '处理'}

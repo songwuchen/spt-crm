@@ -151,6 +151,8 @@ class WorkflowEngine:
         self._deferred_complete: tuple | None = None
         # 本批是否因「节点已完成」跳过激活（采购回路等才允许据此发明 end）
         self._skipped_reactivate_this_batch = False
+        # 本批是否因多入边汇聚延后激活（不得据此发明 end / 补收尾）
+        self._deferred_convergence_this_batch = False
 
     async def _has_downstream_approval(self, process_instance_id: str) -> bool:
         """下一节点（或任一审批节点）已有人审批通过 → 不可撤回。"""
@@ -476,6 +478,50 @@ class WorkflowEngine:
     def _outgoing(self, version: WfProcessDefinitionVersion, node_id: str) -> list[dict]:
         return [r for r in (version.route_definitions or []) if r.get("source") == node_id]
 
+    def _incoming_count(self, version: WfProcessDefinitionVersion, node_id: str) -> int:
+        return len([r for r in (version.route_definitions or []) if r.get("target") == node_id])
+
+    def _route_adjacency(self, version: WfProcessDefinitionVersion) -> dict[str, list[str]]:
+        adj: dict[str, list[str]] = {}
+        for r in version.route_definitions or []:
+            src, tgt = r.get("source"), r.get("target")
+            if src and tgt:
+                adj.setdefault(str(src), []).append(str(tgt))
+        return adj
+
+    def _can_reach(self, version: WfProcessDefinitionVersion, src: str, dst: str) -> bool:
+        """静态图可达（不评估条件）：用于多入边审批节点的隐式汇聚。"""
+        if str(src) == str(dst):
+            return True
+        adj = self._route_adjacency(version)
+        seen = {str(src)}
+        stack = [str(src)]
+        while stack:
+            cur = stack.pop()
+            for nxt in adj.get(cur, []):
+                if nxt == str(dst):
+                    return True
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        return False
+
+    async def _other_running_can_reach(
+        self, inst: WfProcessInstance, version: WfProcessDefinitionVersion, target_node_id: str,
+    ) -> bool:
+        """是否仍有其它在途审批节点可到达 target（隐式 AND-join）。"""
+        rows = (await self.db.execute(
+            select(WfNodeInstance.node_def_id).where(
+                WfNodeInstance.process_instance_id == inst.id,
+                WfNodeInstance.status == "running",
+                WfNodeInstance.node_type == "approval",
+            )
+        )).scalars().all()
+        return any(
+            self._can_reach(version, str(nid), str(target_node_id))
+            for nid in rows if nid
+        )
+
     async def _has_live_work(self, inst: WfProcessInstance) -> bool:
         """是否仍有未办结的审批节点或待办（旁路抄送触达 end 时用来判断能否收尾）。"""
         other_running = (await self.db.execute(select(WfNodeInstance.id).where(
@@ -714,7 +760,7 @@ class WorkflowEngine:
 
     def _should_invent_end(
         self, from_node: dict, ordered: list[str], nodes: dict[str, dict],
-        *, has_live_work: bool, skipped_reactivate: bool,
+        *, has_live_work: bool, skipped_reactivate: bool, deferred_convergence: bool = False,
     ) -> bool:
         """无在途待办时要不要发明 end。
 
@@ -723,8 +769,9 @@ class WorkflowEngine:
         - 后继全是旁路抄送且已无在途：收尾（生产卡「销售订单→结束」与「安排设计→抄送」
           并行时，先到结束会被挡住；设计支路后走完只剩抄送，必须在此补收尾）
         - 主链目标被 skip_reactivate：可收尾；主链仍会激活则不发明 end
+        - 主链目标被 defer_convergence 延后：不收尾
         """
-        if has_live_work:
+        if has_live_work or deferred_convergence:
             return False
         if (from_node or {}).get("type") == "cc":
             return False
@@ -767,6 +814,38 @@ class WorkflowEngine:
             return False
         return any(isinstance(x, dict) and x.get("await_end") for x in raw)
 
+    def _has_pending_convergence(self, inst: WfProcessInstance) -> bool:
+        raw = getattr(inst, "pending_joins", None)
+        if not isinstance(raw, list):
+            return False
+        return any(isinstance(x, dict) and x.get("pending_convergence") for x in raw)
+
+    def _mark_pending_convergence(self, inst: WfProcessInstance, node_id: str) -> None:
+        raw = getattr(inst, "pending_joins", None)
+        items: list = list(raw) if isinstance(raw, list) else ([] if raw is None else [raw])
+        if any(isinstance(x, dict) and x.get("pending_convergence") == node_id for x in items):
+            return
+        items.append({"pending_convergence": node_id})
+        inst.pending_joins = items
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
+    def _clear_pending_convergence(self, inst: WfProcessInstance, node_id: str) -> None:
+        raw = getattr(inst, "pending_joins", None)
+        if not isinstance(raw, list):
+            return
+        nxt = [
+            x for x in raw
+            if not (isinstance(x, dict) and x.get("pending_convergence") == node_id)
+        ]
+        inst.pending_joins = nxt or None
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
     async def _try_finish_await_end(
         self, inst: WfProcessInstance, version: WfProcessDefinitionVersion, ctx: ApprovalContext,
     ) -> None:
@@ -774,6 +853,8 @@ class WorkflowEngine:
         if self.db is None or inst.status != "running":
             return
         if not self._has_await_end(inst):
+            return
+        if self._has_pending_convergence(inst):
             return
         if await self._has_live_work(inst):
             return
@@ -805,6 +886,7 @@ class WorkflowEngine:
         }
         ordered = self._order_advance_targets(version, from_node_id, targets)
         self._skipped_reactivate_this_batch = False
+        self._deferred_convergence_this_batch = False
         self._advance_batch_depth += 1
         try:
             for tid in ordered:
@@ -831,6 +913,7 @@ class WorkflowEngine:
                 from_node, ordered, nodes,
                 has_live_work=live,
                 skipped_reactivate=self._skipped_reactivate_this_batch,
+                deferred_convergence=self._deferred_convergence_this_batch,
             )
         ):
             end = next(
@@ -929,6 +1012,22 @@ class WorkflowEngine:
                             f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
                         )
                         return
+            # 多入边审批节点（如生产卡「销售订单登记」）：简道云会等所有仍可能
+            # 汇入的在途分支结束后再开待办；无显式 merge 节点时在此做隐式汇聚。
+            if (
+                not allow_reenter
+                and self._incoming_count(version, node["id"]) > 1
+                and await self._other_running_can_reach(inst, version, node["id"])
+            ):
+                self._deferred_convergence_this_batch = True
+                self._mark_pending_convergence(inst, node["id"])
+                self._log(
+                    inst.id, None, None, {"sub": "system"}, "defer_convergence",
+                    f"节点「{node.get('name') or node['id']}」尚有在途分支未汇入，延后激活",
+                )
+                return
+
+        self._clear_pending_convergence(inst, node["id"])
 
         # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会申报人后直通结束
         if (
@@ -1240,7 +1339,7 @@ class WorkflowEngine:
             node_inst and (node_inst.node_type == "revise" or node_inst.node_def_id == REVISE_NODE_DEF_ID)
         )
         if is_revise:
-            if inst.status not in ("withdrawn", "rejected"):
+            if inst.status not in ("withdrawn", "rejected", "returned"):
                 raise BusinessException(code=BUSINESS_ERROR, message="当前状态不可重新提交")
             if action not in ("approve", "resubmit"):
                 raise BusinessException(code=VALIDATION_ERROR, message="修订待办请修改后重新提交")
@@ -1277,6 +1376,21 @@ class WorkflowEngine:
         version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
         ctx = ApprovalContext(initiator_id=inst.initiator_id, form_data=await self._form_data(inst),
                               nominated=inst.nominated_approvers or {})
+
+        node_def_id = node_inst.node_def_id if node_inst else None
+        node_def = self._nodes_by_id(version).get(node_def_id or "") or {}
+        from app.domains.lowcode.wf_node_actions import node_action_allowed
+        _action_gate = {
+            "approve": "submit",
+            "resubmit": "submit",
+            "save": "save",
+            "transfer": "transfer",
+            "return": "return",
+            "reject": "reject",
+        }
+        gate = _action_gate.get(action)
+        if gate and not node_action_allowed(node_def, gate, biz_type=inst.biz_type):
+            raise BusinessException(code=VALIDATION_ERROR, message="当前节点未启用该操作")
 
         # 审批通过：按节点 field_perms 写回业务字段（对齐简道云 optAuth）
         if action == "approve":
@@ -1323,7 +1437,9 @@ class WorkflowEngine:
                 task.version += 1
                 self._log(inst.id, task.node_instance_id, task.id, actor, "return", opinion)
                 self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
-                await self._reject_flow(inst, reason=opinion)
+                await self._return_to_initiator_flow(
+                    inst, reason=opinion, current_node_id=task.node_instance_id,
+                )
                 revise_assignee = inst.initiator_id
                 # 线索回退：优先给申报人改完再提（对齐业务口径）
                 if inst.biz_type == "lead" and inst.biz_id:
@@ -1983,6 +2099,50 @@ class WorkflowEngine:
             ni.completed_at = now
         await self._complete_instance(inst, "rejected", reason=reason)
 
+    async def _return_to_initiator_flow(
+        self, inst, reason: str | None = None, *, current_node_id: str | None = None,
+    ) -> None:
+        """退回发起人：流程置 returned（非 rejected），当前审批节点完成，其它在途节点取消。"""
+        tasks = (await self.db.execute(
+            select(WfTaskInstance).where(
+                WfTaskInstance.process_instance_id == inst.id,
+                WfTaskInstance.status.in_(["pending", "waiting"]),
+            )
+        )).scalars().all()
+        for t in tasks:
+            t.status = "cancelled"
+        self._queue("todos_done", [t.id for t in tasks])
+        now = _now()
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            if current_node_id and ni.id == current_node_id:
+                ni.status = "completed"
+            else:
+                ni.status = "cancelled"
+            ni.completed_at = now
+        inst.status = "returned"
+        inst.completed_at = now
+        if inst.form_instance_id:
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi:
+                fi.status = "returned"
+        if inst.biz_type and inst.biz_id:
+            from app.domains.lowcode.wf_biz_writeback import writeback
+            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "returned")
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(
+            self.db, self.tenant_id, "workflow.returned", inst, {"reason": reason} if reason else None,
+        )
+        from app.domains.lowcode import shipment_notice_events as sne
+        await sne.emit_from_process(
+            self.db, self.tenant_id, sne.EVENT_CANCELLED, inst,
+            {"reason": reason} if reason else None,
+        )
+        self._queue("finished", "returned", reason, inst)
+
     # ---------- 收尾 / 回写 ----------
 
     async def _flush_deferred_complete(self, inst) -> None:
@@ -2368,8 +2528,8 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         if not inst:
             raise BusinessException(code=NOT_FOUND, message="流程不存在")
-        if inst.status not in ("rejected", "withdrawn"):
-            raise BusinessException(code=BUSINESS_ERROR, message="仅已驳回或已撤回的流程可手动结束")
+        if inst.status not in ("rejected", "withdrawn", "returned"):
+            raise BusinessException(code=BUSINESS_ERROR, message="仅已驳回、已退回或已撤回的流程可手动结束")
 
         uid = actor.get("sub")
         revise_assignees = (await self.db.execute(
@@ -2421,8 +2581,8 @@ class WorkflowEngine:
             raise BusinessException(code=NOT_FOUND, message="流程不存在")
         if inst.initiator_id != actor.get("sub"):
             raise BusinessException(code=FORBIDDEN, message="仅发起人可重新提交")
-        if inst.status not in ("withdrawn", "rejected"):
-            raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回或已驳回的流程可重新提交")
+        if inst.status not in ("withdrawn", "rejected", "returned"):
+            raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回、已退回或已驳回的流程可重新提交")
 
         # 清掉发起人修订待办（若从「我发起的」直接重提，也可能仍挂着）
         await self._cancel_initiator_revise_todos(inst.id)

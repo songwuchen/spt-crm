@@ -26,7 +26,7 @@ import {
   applyProdCardOrderTypeMerged,
   applySimpleFormulas,
 } from '@/utils/lowcodeSimpleFormulas'
-import { filterProdCardLegacyFieldPerms, PROD_CARD_LEGACY_HIDDEN_FIELD_IDS } from '@/constants/prodCardLegacyFields'
+import { filterProdCardLegacyFieldPerms, PROD_CARD_LEGACY_HIDDEN_FIELD_IDS, pruneProdCardDetailColumns } from '@/constants/prodCardLegacyFields'
 import { prodCardInstallClearKeys } from '@/constants/prodCardInstallLinks'
 
 const { Text } = Typography
@@ -90,7 +90,10 @@ function buildApproveFields(
       label: m.label || base?.label || m.id,
       type: (m.type || base?.type || 'text') as FieldDefinition['type'],
       options: m.options?.length ? m.options : base?.options,
-      detail_table_columns: m.detail_table_columns || base?.detail_table_columns,
+      detail_table_columns: pruneProdCardDetailColumns(
+        m.id,
+        m.detail_table_columns || base?.detail_table_columns,
+      ),
       props: { ...(base?.props || {}), ...(m.props || {}) },
       required: false,
     })
@@ -290,7 +293,10 @@ export default function ApproveFieldForm({
           const status = err ? 'error' as const : undefined
           const label = meta.label || formFd?.label || p.field
           const options = (meta.options?.length ? meta.options : formFd?.options) || []
-          const detailCols = mergeDetailTableColumns(formFd, meta.detail_table_columns)
+          const detailCols = pruneProdCardDetailColumns(
+            p.field,
+            mergeDetailTableColumns(formFd, meta.detail_table_columns),
+          )
           const fieldProps = {
             ...((formFd?.props as Record<string, unknown> | undefined) || {}),
             ...((meta.props as Record<string, unknown> | undefined) || {}),

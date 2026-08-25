@@ -8,7 +8,7 @@ import {
 } from 'antd'
 import { PlusOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import DetailQuickFillModal from '@/components/DetailQuickFillModal'
-import { PROD_CARD_QUICK_FILL_FIELD_IDS } from '@/constants/prodCardLegacyFields'
+import { PROD_CARD_QUICK_FILL_FIELD_IDS, pruneProdCardDetailColumns } from '@/constants/prodCardLegacyFields'
 import { detailColumnsToQuickFillSpecs } from '@/utils/detailQuickFill'
 import { applyDetailRowDefaults, buildDetailRowDefaults } from '@/utils/lowcodeFormDefaults'
 import dayjs from 'dayjs'
@@ -101,8 +101,40 @@ interface Props {
    * 默认 false，避免创建/草稿编辑页露出审批字段。
    */
   includeApproverFields?: boolean
+  /** 已办节点处理人补改：流程继续后仍可编辑本节点曾可填字段 */
+  retroactiveFieldPerms?: { field: string; access: string; node_name?: string }[]
   /** 明细「选择数据」等联动回填父级字段时的旁路回调（审批抽屉与 value 结构解耦时使用） */
   onPatch?: (patch: Record<string, unknown>) => void
+  /**
+   * default：按字段 span 单列/设计器布局；
+   * adaptive：宽屏/全屏下短字段自动 2～3 列，明细/富文本仍整行。
+   */
+  gridLayout?: 'default' | 'adaptive'
+}
+
+const ADAPTIVE_FULL_ROW = new Set(['detail_table'])
+const ADAPTIVE_HALF_ROW = new Set([
+  'file', 'image', 'rich_text', 'textarea', 'address', 'cascade', 'signature', 'project', 'contract', 'customer',
+])
+
+function colPropsForField(
+  field: FieldDefinition,
+  span: number,
+  gridLayout: 'default' | 'adaptive',
+): { span?: number; xs?: number; sm?: number; md?: number; lg?: number; xl?: number } {
+  if (gridLayout !== 'adaptive') {
+    return { span }
+  }
+  if (ADAPTIVE_FULL_ROW.has(field.type)) {
+    return { xs: 24, span: 24 }
+  }
+  if (span < 24) {
+    return { xs: 24, lg: span }
+  }
+  if (ADAPTIVE_HALF_ROW.has(field.type)) {
+    return { xs: 24, lg: 12, xl: 12 }
+  }
+  return { xs: 24, sm: 12, xl: 8 }
 }
 
 export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]): FieldPermission[] {
@@ -135,7 +167,7 @@ export function isFieldFormReadonly(field: FieldDefinition): boolean {
   return fe === false || fe === 'false' || fe === 0
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false, onPatch: onPatchExternal }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true, includeApproverFields = false, retroactiveFieldPerms = [], onPatch: onPatchExternal, gridLayout = 'default' }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const valueRef = useRef(value)
   valueRef.current = value
@@ -143,14 +175,32 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
     [applyFieldPerms, fields, userRoles],
   )
+  const retroFieldIds = useMemo(
+    () => new Set((retroactiveFieldPerms || []).map((p) => p.field).filter(Boolean)),
+    [retroactiveFieldPerms],
+  )
+  const mergedPerms = useMemo(() => {
+    if (!retroactiveFieldPerms?.length) return rolePerms
+    const byId = new Map(rolePerms.map((p) => [p.fieldId, p]))
+    for (const p of retroactiveFieldPerms) {
+      if (!p.field) continue
+      const prev = byId.get(p.field)
+      if (prev?.access === 'hidden' || prev?.access === 'masked') continue
+      byId.set(p.field, {
+        fieldId: p.field,
+        access: p.access === 'required' ? 'required' : 'editable',
+      })
+    }
+    return [...byId.values()]
+  }, [rolePerms, retroactiveFieldPerms])
   // 本表单字段值优先于外部上下文（同名时以用户在本表单里填的为准）
   const ruleValues = useMemo(
     () => (ruleContext ? { ...ruleContext, ...value } : value),
     [ruleContext, value],
   )
   const states = useMemo(
-    () => computeFieldStates(fields, ruleValues, rules, rolePerms),
-    [fields, ruleValues, rules, rolePerms],
+    () => computeFieldStates(fields, ruleValues, rules, mergedPerms),
+    [fields, ruleValues, rules, mergedPerms],
   )
 
   const applyFormulas = (values: Record<string, unknown>, changedField?: string) => {
@@ -170,18 +220,23 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
   if (!topFields.length) return <Empty description="该表单暂无字段" />
 
-  const hideApproverOnEdit = mode === 'edit' && !includeApproverFields
+  const hideApproverOnEdit = mode === 'edit' && !includeApproverFields && retroFieldIds.size === 0
 
   const isShown = (field: FieldDefinition): boolean => {
     if (field.type === 'section' || field.type === 'separator') return false
     if (hideApproverOnEdit && isCreateHiddenField(field)) return false
+    if (mode === 'edit' && isCreateHiddenField(field) && retroFieldIds.has(field.id)) return true
     const st = states[field.id]
+    if (mode === 'edit' && retroFieldIds.has(field.id)) {
+      if (st?.masked) return false
+      return true
+    }
     if (st && !st.visible) return false
     return true
   }
 
   return (
-    <Row gutter={16}>
+    <Row gutter={[16, 8]} className={gridLayout === 'adaptive' ? 'lc-form-grid-adaptive' : undefined}>
       {topFields.map((field, idx) => {
         // 布局误挂同一 field.id 多次时，用 index 保证 React key 唯一
         const rowKey = `${field.id}__${idx}`
@@ -200,16 +255,15 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
             </Col>
           )
         }
-        // 审批阶段才填的字段：创建/草稿编辑不展示；流程通过后整单编辑可展示
-        if (hideApproverOnEdit && isCreateHiddenField(field)) return null
+        if (!isShown(field)) return null
         const st = states[field.id]
-        if (st && !st.visible) return null
         // detail_table 强制整行；附件/图片按 layout span 与简道云 lineWidth 同排
         const span = field.type === 'detail_table' ? 24 : (field.span || 24)
         const narrowCol = field.type === 'file' || field.type === 'image' || field.type === 'radio'
+        const colLayout = colPropsForField(field, span, gridLayout)
         return (
           <Col
-            span={span}
+            {...colLayout}
             key={rowKey}
             className={narrowCol ? 'min-w-0 max-w-full overflow-hidden' : undefined}
           >
@@ -227,8 +281,9 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               rules={rules}
               fields={fields}
               detailLayout={detailLayout}
-              detailCreateFill={includeApproverFields ? false : detailCreateFill}
+              detailCreateFill={includeApproverFields || retroFieldIds.size > 0 ? false : detailCreateFill}
               fieldSpan={span}
+              retroEditable={retroFieldIds.has(field.id)}
             />
           </Col>
         )
@@ -238,7 +293,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, onPatch, serialPreview, onRefreshSerial, refreshingSerial, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan,
+  field, state, mode, value, allValues, onChange, onPatch, serialPreview, onRefreshSerial, refreshingSerial, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan, retroEditable = false,
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -255,10 +310,16 @@ function FieldItem({
   detailLayout?: 'table' | 'cards'
   detailCreateFill?: boolean
   fieldSpan?: number
+  /** 已办节点补改：忽略 form_editable / 字段级 readonly 标记 */
+  retroEditable?: boolean
 }) {
-  const readonly = mode === 'readonly' || state?.readonly
-    || !!(field.props as { read_only?: boolean } | undefined)?.read_only
-    || isFieldFormReadonly(field)
+  const readonly = mode === 'readonly' || (
+    !retroEditable && (
+      !!state?.readonly
+      || !!(field.props as { read_only?: boolean } | undefined)?.read_only
+      || isFieldFormReadonly(field)
+    )
+  )
   const required = state?.required
   // 脱敏字段一律不渲染真实控件：后端已把值换成 "***"，但若值恰好没被裁到（如设计器预览），
   // 这里也不能把明文渲染出去。
@@ -837,7 +898,7 @@ function DetailTable({
 }) {
   const rows = Array.isArray(value) ? value : []
   const [qfOpen, setQfOpen] = useState(false)
-  const allCols = (field.detail_table_columns || []).filter((c) => {
+  const allCols = (pruneProdCardDetailColumns(field.id, field.detail_table_columns) || []).filter((c) => {
     // 发起填报：隐藏审批阶段列（简道云 optAuth 未授权给发起节点）
     if (createFill && !readonly && (c.available_on_create === false || c.fill_stage === 'approver')) {
       return false
@@ -1010,7 +1071,15 @@ function DetailTable({
     )
   }
 
+  const opColumn: ColumnType<Record<string, unknown>>[] = readonly ? [] : [{
+    title: '操作', key: '__op', width: 70, fixed: 'left' as const,
+    render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
+      <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(idx)} />
+    ),
+  }]
+
   const columns: ColumnType<Record<string, unknown>>[] = [
+    ...opColumn,
     ...cols.map((c) => {
       const w = widthOf(c)
       const wrap = detailColWraps(c)
@@ -1044,12 +1113,6 @@ function DetailTable({
         },
       }
     }),
-    ...(readonly ? [] : [{
-      title: '操作', key: '__op', width: 70,
-      render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
-        <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(idx)} />
-      ),
-    }]),
   ]
 
   return (

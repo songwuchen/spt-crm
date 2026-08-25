@@ -519,6 +519,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             f["props"] = props
 
     apply_prod_card_std_room_detail_defaults(defs)
+    apply_prod_card_prune_std_room_columns(defs)
     apply_prod_card_approver_only_fields(defs)
     apply_prod_card_legacy_hidden_fields(defs)
     apply_prod_card_detail_quick_fill_flags(defs)
@@ -554,6 +555,27 @@ _PROD_CARD_APPROVER_ONLY: dict[str, str] = {
 
 
 PROD_CARD_DETAIL_QUICK_FILL_FIELDS: frozenset[str] = frozenset({"std_room_fill"})
+
+
+PROD_CARD_DROPPED_DETAIL_COLUMNS: dict[str, frozenset[str]] = {
+    "std_room_fill": frozenset({"theoretical_weight"}),
+    "elec_workshop_fill": frozenset({"theoretical_weight_2"}),
+}
+
+
+def apply_prod_card_prune_std_room_columns(defs: list) -> None:
+    """生产卡明细子表：移除业务废弃列（标准化室/电气车间「理论重量」）。"""
+    for f in defs:
+        if not isinstance(f, dict):
+            continue
+        drop = PROD_CARD_DROPPED_DETAIL_COLUMNS.get(f.get("id") or "")
+        if not drop:
+            continue
+        cols = f.get("detail_table_columns") or []
+        f["detail_table_columns"] = [
+            c for c in cols
+            if isinstance(c, dict) and c.get("id") not in drop
+        ]
 
 
 def apply_prod_card_std_room_detail_defaults(defs: list) -> None:

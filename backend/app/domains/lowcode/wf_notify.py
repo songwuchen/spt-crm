@@ -230,6 +230,159 @@ def _biz_detail_to_form(detail: dict | None, *, limit: int = 4) -> list[dict[str
     return rows
 
 
+# 简道云抄送/知会卡：按表单定制标题与摘要列（对齐 JDY OA 样式）
+_CC_NOTIFY_TITLES: dict[str, str] = {
+    "prod_card_supplement": "「CRM-生产卡/补充流程」有新的流程待办事项",
+}
+
+# (field_id, 展示标签)；__drawing_no_formula__ 为虚拟列
+_CC_NOTIFY_FIELD_PREFS: dict[str, list[tuple[str, str]]] = {
+    "prod_card_supplement": [
+        ("card_date", "下卡日期"),
+        ("department", "所在部门"),
+        ("__drawing_no_formula__", "图纸编号（筛选用）（公式的）"),
+    ],
+}
+
+
+def _collect_ref_ids(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        out: list[str] = []
+        for x in value:
+            out.extend(_collect_ref_ids(x))
+        return out
+    if isinstance(value, dict):
+        rid = value.get("id")
+        return [str(rid)] if rid else []
+    s = str(value).strip()
+    return [s] if s else []
+
+
+def _short_date_text(val) -> str:
+    """日期字段抄送卡只展示 yyyy-MM-dd（对齐简道云）。"""
+    s = str(val or "").strip()
+    if not s:
+        return ""
+    if "T" in s:
+        s = s.split("T", 1)[0]
+    elif " " in s:
+        s = s.split(" ", 1)[0]
+    return s[:10] if len(s) >= 10 else s
+
+
+def _prod_card_drawing_no(data: dict) -> str:
+    """生产卡「图纸编号（筛选用）（公式的）」：优先带出字段，其次查询引用。"""
+    for k in ("no_drawing_no", "drawing_no_query"):
+        v = data.get(k)
+        if v in (None, "", [], {}):
+            continue
+        if isinstance(v, dict):
+            return str(v.get("name") or v.get("label") or v.get("id") or "").strip()
+        return str(v).strip()
+    return ""
+
+
+def _format_cc_field_value(
+    field_type: str | None, value, label_maps: dict[str, dict[str, str]] | None,
+) -> str:
+    """表单字段 → 抄送卡可读文本（人员/部门 id 转名）。"""
+    if value is None or value == "":
+        return ""
+    labels = label_maps or {}
+    if field_type in ("person", "person_multi"):
+        m = labels.get("users") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if field_type in ("department", "department_multi"):
+        m = labels.get("depts") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("label") or value.get("text") or value)
+    if isinstance(value, list):
+        return "、".join(
+            str(v.get("name") or v.get("label") or v.get("id") or v) if isinstance(v, dict) else str(v)
+            for v in value
+        )
+    return str(value)
+
+
+async def _cc_notify_label_maps(
+    db: AsyncSession, tenant_id: str, field_defs: list, form_data: dict,
+) -> dict[str, dict[str, str]]:
+    """抄送卡所需的人员/部门 id → 显示名。"""
+    from sqlalchemy import bindparam, text as sql_text
+
+    person_ids: set[str] = set()
+    dept_ids: set[str] = set()
+    for fd in field_defs or []:
+        if not isinstance(fd, dict):
+            continue
+        fid = fd.get("id")
+        ftype = fd.get("type")
+        if not fid or not ftype:
+            continue
+        val = form_data.get(fid)
+        if ftype in ("person", "person_multi"):
+            person_ids.update(_collect_ref_ids(val))
+        elif ftype in ("department", "department_multi"):
+            dept_ids.update(_collect_ref_ids(val))
+
+    async def _map(sql: str, ids: set[str]) -> dict[str, str]:
+        clean = [i for i in ids if i]
+        if not clean:
+            return {}
+        stmt = sql_text(sql).bindparams(bindparam("ids", expanding=True))
+        rows_db = (await db.execute(stmt, {"t": tenant_id, "ids": clean})).fetchall()
+        return {str(r[0]): str(r[1] or "") for r in rows_db if r[0]}
+
+    users = await _map(
+        "SELECT id, COALESCE(NULLIF(real_name,''), username, id) FROM users "
+        "WHERE tenant_id = :t AND id IN :ids",
+        person_ids,
+    )
+    depts = await _map(
+        "SELECT id, name FROM departments WHERE tenant_id = :t AND id IN :ids",
+        dept_ids,
+    )
+    return {"users": users, "depts": depts}
+
+
+async def _cc_form_fields_from_prefs(
+    db: AsyncSession, tenant_id: str, form_code: str,
+    data: dict, field_defs: list,
+) -> list[dict[str, str]]:
+    """按表单预设列顺序构建抄送摘要（对齐简道云字段表）。"""
+    prefs = _CC_NOTIFY_FIELD_PREFS.get(form_code)
+    if not prefs:
+        return []
+    types_by_id = {
+        str(fd["id"]): str(fd.get("type") or "")
+        for fd in (field_defs or [])
+        if isinstance(fd, dict) and fd.get("id")
+    }
+    label_maps = await _cc_notify_label_maps(db, tenant_id, field_defs, data)
+    rows: list[dict[str, str]] = []
+    for fid_k, label in prefs:
+        if fid_k == "__drawing_no_formula__":
+            val = _prod_card_drawing_no(data)
+        elif fid_k == "card_date":
+            raw = data.get(fid_k)
+            val = _short_date_text(raw) or _format_cc_field_value(
+                types_by_id.get(fid_k), raw, label_maps,
+            )
+        else:
+            val = _format_cc_field_value(
+                types_by_id.get(fid_k), data.get(fid_k), label_maps,
+            )
+        if val in (None, "", "-"):
+            continue
+        rows.append({"key": label, "value": str(val)})
+    return rows
+
+
 async def _cc_process_name(db: AsyncSession, inst: WfProcessInstance) -> str:
     """流程展示名（对齐简道云「收款登记流程」）：优先流程定义名，其次实例标题。"""
     try:
@@ -271,11 +424,22 @@ async def _cc_form_fields(db: AsyncSession, tenant_id: str, inst: WfProcessInsta
     if not fid:
         return []
     try:
-        from app.domains.lowcode.models import FormInstance
+        from app.domains.lowcode.models import FormInstance, FormTemplate
         fi = await db.get(FormInstance, fid)
         if not fi or not isinstance(fi.form_data, dict):
             return []
         data = fi.form_data
+        form_code = getattr(inst, "biz_type", None)
+        if not form_code and fi.template_id:
+            tpl = await db.get(FormTemplate, fi.template_id)
+            if tpl and tpl.code:
+                form_code = tpl.code
+        if form_code and form_code in _CC_NOTIFY_FIELD_PREFS:
+            rows = await _cc_form_fields_from_prefs(
+                db, tenant_id, form_code, data, fi.field_definitions or [],
+            )
+            if rows:
+                return rows
         labels: dict[str, str] = {}
         for fd in (fi.field_definitions or []):
             if isinstance(fd, dict) and fd.get("id"):
@@ -317,8 +481,13 @@ async def notify_cc_users(
             author = _fmt_cc_author(initiator)
             form_rows = await _cc_form_fields(db, tenant_id, inst)
 
-            # 简道云同款主标题
-            ding_title = f"抄送：「{process_name}」有新的流程处理结果抄送给你"
+            form_code = getattr(inst, "biz_type", None)
+            custom_title = _CC_NOTIFY_TITLES.get(form_code or "")
+            if custom_title:
+                ding_title = custom_title
+            else:
+                # 简道云同款主标题
+                ding_title = f"抄送：「{process_name}」有新的流程处理结果抄送给你"
             # OA content 作兜底；有 form 时钉钉优先展示 form
             ding_content = "请点击查看详情"
             if form_rows:
@@ -405,7 +574,7 @@ async def notify_flow_finished(
     """
     if not inst.initiator_id:
         return
-    label = {"completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回"}.get(status)
+    label = {"completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回", "returned": "已退回"}.get(status)
     if not label:
         return
     try:

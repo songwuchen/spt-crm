@@ -233,25 +233,24 @@ export default function ApprovalCenter() {
   }, [location.state, searchParams])
 
   const openWfHandle = (item: UnifiedPendingItem) => {
-    if (item.engine === 'wf' && item.taskKind === 'revise') {
-      const path = resolveWorkflowBizPath({
-        bizType: item.bizType,
-        bizId: item.bizId,
-        formInstanceId: item.formInstanceId,
-        formCode: item.formCode,
-        taskKind: item.taskKind,
-        taskId: item.taskId,
-      })
-      if (path) {
-        navigate(path)
-        return
-      }
-    }
-    if (!item.instanceId) {
-      message.warning('缺少流程实例，无法打开')
+    // 有流程实例时统一在审批中心抽屉处理（含退回后的修订待办），不跳转业务列表页
+    if (item.instanceId) {
+      openWfDrawer(item.instanceId, item.taskId)
       return
     }
-    openWfDrawer(item.instanceId, item.taskId)
+    const path = resolveWorkflowBizPath({
+      bizType: item.bizType,
+      bizId: item.bizId,
+      formInstanceId: item.formInstanceId,
+      formCode: item.formCode,
+      taskKind: item.taskKind,
+      taskId: item.taskId,
+    })
+    if (path) {
+      navigate(path)
+      return
+    }
+    message.warning('缺少流程实例，无法打开')
   }
 
   const openOriginalDoc = (opts: {

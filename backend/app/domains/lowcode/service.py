@@ -1687,22 +1687,47 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
             apply_prod_card_detail_quick_fill_flags,
             apply_prod_card_install_pick_fields,
             apply_prod_card_legacy_hidden_fields,
+            apply_prod_card_prune_std_room_columns,
             apply_prod_card_supplement_rules,
             overlay_prod_card_contract_live,
         )
         apply_prod_card_install_pick_fields(field_defs)
+        apply_prod_card_prune_std_room_columns(field_defs)
         apply_prod_card_detail_quick_fill_flags(field_defs)
         apply_prod_card_legacy_hidden_fields(field_defs)
         out["form_data"] = await overlay_prod_card_contract_live(
             db, tenant_id, out.get("form_data"), user,
         )
         rule_defs = apply_prod_card_supplement_rules(rule_defs)
+    retroactive_perms: list[dict] = []
+    if inst.process_instance_id:
+        from app.domains.lowcode.wf_field_writeback import (
+            collect_retroactive_field_perms,
+            user_can_retroactive_edit,
+        )
+        can_retro = user_can_retroactive_edit(user, inst.status, template_code=tpl_code)
+        retroactive_perms = await collect_retroactive_field_perms(
+            db, tenant_id, inst.process_instance_id, can_edit=can_retro,
+        )
     field_defs, out["form_data"] = filter_read(
         field_defs, out.get("form_data"), (user or {}).get("roles"),
         is_creator=is_creator,
     )
+    if retroactive_perms:
+        allowed = {p["field"] for p in retroactive_perms if p.get("field")}
+        patched_defs: list[dict] = []
+        for fd in field_defs:
+            if not isinstance(fd, dict):
+                patched_defs.append(fd)
+                continue
+            fid = fd.get("id")
+            if fid in allowed:
+                fd = {**fd, "readonly": False, "form_editable": True}
+            patched_defs.append(fd)
+        field_defs = patched_defs
     out["field_definitions"] = field_defs
     out["rule_definitions"] = rule_defs
+    out["retroactive_field_perms"] = retroactive_perms
     if inst.initiator_id:
         names = await user_display_names(db, tenant_id, [inst.initiator_id])
         out["initiator_name"] = names.get(inst.initiator_id)
@@ -1782,6 +1807,63 @@ _REF_FILTER_TYPES = frozenset({
     "department", "department_multi", "person", "person_multi",
     "contract", "customer", "project",
 })
+
+# 列表/审批筛选可选字段类型（含明细子表列）
+FILTERABLE_FIELD_TYPES = frozenset({
+    "text", "textarea", "auto_number", "number", "amount",
+    "select", "radio", "date", "datetime",
+    "person", "department", "project", "contract", "customer",
+})
+
+
+def expand_filterable_form_fields(field_definitions: list | None) -> list[dict]:
+    """主表 + 明细子表可筛列。子表列 field id 写入 form_data 行 JSON，查询侧 _form_data_filter_clause 已支持。"""
+    if not field_definitions:
+        return []
+    label_count: dict[str, int] = {}
+    for fd in field_definitions:
+        if not isinstance(fd, dict) or fd.get("type") != "detail_table":
+            continue
+        for col in fd.get("detail_table_columns") or []:
+            if isinstance(col, dict) and col.get("label"):
+                lab = str(col["label"])
+                label_count[lab] = label_count.get(lab, 0) + 1
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def _append(item: dict) -> None:
+        fid = item.get("id")
+        ftype = item.get("type") or "text"
+        if not fid or fid in seen or ftype not in FILTERABLE_FIELD_TYPES:
+            return
+        seen.add(fid)
+        out.append({
+            "id": fid,
+            "label": item.get("label") or fid,
+            "type": ftype,
+            "options": item.get("options") or [],
+        })
+
+    for fd in field_definitions:
+        if not isinstance(fd, dict):
+            continue
+        if fd.get("type") == "detail_table":
+            parent = fd.get("label") or fd.get("id") or "明细"
+            for col in fd.get("detail_table_columns") or []:
+                if not isinstance(col, dict):
+                    continue
+                cid = col.get("id")
+                ctype = col.get("type") or "text"
+                if not cid or cid in seen or ctype not in FILTERABLE_FIELD_TYPES:
+                    continue
+                label = col.get("label") or cid
+                if label_count.get(str(col.get("label") or ""), 0) > 1:
+                    label = f"{parent}·{label}"
+                _append({**col, "label": label})
+            continue
+        _append(fd)
+    return out
 
 
 def _form_data_filter_clause(rule: dict):
@@ -2053,6 +2135,7 @@ def _instance_list_conds(
     form_dept_scope_ids: list[str] | None = None,
     form_dept_name_literals: list[str] | None = None,
     scope_viewer_id: str | None = None,
+    workflow_participant_user_id: str | None = None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
@@ -2109,6 +2192,15 @@ def _instance_list_conds(
                         owner_clause,
                         _form_data_text_in_literals(nf, form_dept_name_literals),
                     )
+        if workflow_participant_user_id:
+            from app.domains.lowcode import workflow_service as wsvc
+            # 兼容未热更到最新 workflow_service 的环境
+            clause_fn = getattr(wsvc, "form_instance_workflow_participant_clause", None)
+            if clause_fn is not None:
+                owner_clause = or_(
+                    owner_clause,
+                    clause_fn(workflow_participant_user_id, tenant_id),
+                )
         conds.append(owner_clause)
     if filter_clauses is not None:
         if filter_clauses:
@@ -2219,6 +2311,10 @@ _OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
         "install_applicant", "req_applicant", "cs_applicant",
         "coop_applicant", "coop_order_person",
     ],
+    # 方案三表：本人=发起人 / 申请人 / 业务员 / 下单人
+    "drawing_requisition": ["applicant", "order_person"],
+    "install_drawing_notice": ["applicant", "sales_person", "order_person"],
+    "presale_service_notice": ["applicant"],
 }
 
 # 部门档：form_data 部门控件 id 落在组织/负责业务部门子树内即可见（对齐线索 department_id）
@@ -2272,11 +2368,10 @@ async def _resolve_form_list_owner_ids(
         if template_code.startswith("cs_"):
             if await resolve_module_scope(db, user, tenant_id, biz_type="form_data") == "all":
                 return None
-        if template_code == "shipment_notice":
-            if await resolve_module_scope(
-                db, user, tenant_id, biz_type="shipment_notice",
-            ) == "all":
-                return None
+        elif await resolve_module_scope(
+            db, user, tenant_id, biz_type=template_code,
+        ) == "all":
+            return None
     return owner_ids
 
 # 部门档：业务部门等文本字段按部门名称匹配
@@ -2314,7 +2409,10 @@ async def _form_list_scope_extras(
     template_code: str | None,
     owner_ids: list[str] | None,
 ) -> tuple[list[str], list[str] | None, list[str] | None]:
-    """部门档表单列表：除发起人/业务员外，按单据部门字段与负责业务部门匹配。"""
+    """部门档表单列表：除发起人/业务员外，按单据部门字段与负责业务部门匹配。
+
+    self 档不按部门放大（业务员看方案三表等只看本人单据）。
+    """
     if owner_ids is None or not template_code or not user:
         return [], None, None
     person_fields = list(_OWNER_PERSON_FIELDS_BY_TEMPLATE.get(template_code) or [])
@@ -2323,7 +2421,15 @@ async def _form_list_scope_extras(
     if not dept_fields and not name_fields:
         return person_fields, None, None
 
-    from app.common.data_scope import managed_department_ids, org_department_subtree_ids
+    from app.common.data_scope import (
+        managed_department_ids,
+        org_department_subtree_ids,
+        resolve_module_scope,
+    )
+
+    # 本人档：只按发起人/人员字段，不把同部门他人单据带进来
+    if await resolve_module_scope(db, user, tenant_id, biz_type=template_code) == "self":
+        return person_fields, None, None
 
     uid = user.get("sub")
     org = await org_department_subtree_ids(db, tenant_id, uid)
@@ -2413,6 +2519,7 @@ async def list_instances(
         form_dept_scope_ids=form_dept_scope_ids,
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
+        workflow_participant_user_id=viewer_id if owner_ids is not None else None,
     )
 
     total = (await db.execute(
@@ -2466,6 +2573,7 @@ async def form_instance_summary(
         form_dept_scope_ids=form_dept_scope_ids,
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
+        workflow_participant_user_id=viewer_id if owner_ids is not None else None,
     )
     txt = FormInstance.form_data.op("->>")(sum_field)
     safe_num = case(
@@ -2528,6 +2636,7 @@ async def export_instances(
         form_dept_scope_ids=form_dept_scope_ids,
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
+        workflow_participant_user_id=viewer_id if owner_ids is not None else None,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)
@@ -2557,6 +2666,8 @@ async def update_instance(
     if data.remark is not None:
         inst.remark = data.remark
     form_changes: dict[str, dict] = {}
+    retroactive_perms: list[dict] = []
+    update_field_defs: list[dict] = []
     if data.form_data is not None:
         from app.domains.lowcode.edit_lock import assert_form_instance_editable
         tpl_code = (await db.execute(
@@ -2570,6 +2681,7 @@ async def update_instance(
         )
         version = await db.get(FormTemplateVersion, inst.template_version_id)
         field_defs = (version.field_definitions if version else inst.field_definitions) or []
+        update_field_defs = field_defs
         user_name = user.get("real_name") or user.get("username") or ""
         old_form_data = dict(inst.form_data or {})
         # 字段级权限：不可编辑字段保留原值，忽略用户改动（后端权威边界）
@@ -2577,6 +2689,17 @@ async def update_instance(
             data.form_data, inst.form_data, field_defs, user.get("roles"),
             is_creator=bool(inst.created_by and user.get("sub") == inst.created_by),
         )
+        if inst.process_instance_id:
+            from app.domains.lowcode.wf_field_writeback import (
+                collect_retroactive_field_perms,
+                merge_retroactive_form_writes,
+                user_can_retroactive_edit,
+            )
+            can_retro = user_can_retroactive_edit(user, inst.status, template_code=tpl_code)
+            retroactive_perms = await collect_retroactive_field_perms(
+                db, tenant_id, inst.process_instance_id, can_edit=can_retro,
+            )
+            raw = merge_retroactive_form_writes(raw, data.form_data, retroactive_perms)
         form_data = compute_formula_fields(dict(raw), field_defs, user_name)
         from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
         form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
@@ -2619,21 +2742,38 @@ async def update_instance(
     if form_changes or data.title is not None or data.remark is not None:
         from app.domains.lowcode.form_audit import log_form_instance_changes
         from app.common.audit_diff import serialize_value
+        from app.domains.lowcode.wf_field_writeback import retroactive_change_summary
         meta_changes: dict[str, dict] = {}
         if data.title is not None and data.title != old_title:
             meta_changes["title"] = {"old": serialize_value(old_title), "new": serialize_value(data.title), "label": "标题"}
         if data.remark is not None and data.remark != old_remark:
             meta_changes["remark"] = {"old": serialize_value(old_remark), "new": serialize_value(data.remark), "label": "备注"}
-        all_changes = {**meta_changes, **form_changes}
-        if all_changes:
+        audit_field_defs = update_field_defs if data.form_data is not None else (inst.field_definitions or [])
+        retro_ids = {p["field"] for p in retroactive_perms if p.get("field")}
+        retro_changes = {k: v for k, v in form_changes.items() if k in retro_ids}
+        other_form_changes = {k: v for k, v in form_changes.items() if k not in retro_ids}
+        other_changes = {**meta_changes, **other_form_changes}
+        if retro_changes:
             await log_form_instance_changes(
                 db,
                 tenant_id=tenant_id,
                 user_id=user["sub"],
                 user_name=user.get("real_name") or user.get("username"),
                 form_instance_id=inst.id,
-                field_defs=field_defs if data.form_data is not None else (inst.field_definitions or []),
-                changes=all_changes,
+                field_defs=audit_field_defs,
+                changes=retro_changes,
+                action="update",
+                summary=retroactive_change_summary(retro_changes, retroactive_perms, audit_field_defs),
+            )
+        if other_changes:
+            await log_form_instance_changes(
+                db,
+                tenant_id=tenant_id,
+                user_id=user["sub"],
+                user_name=user.get("real_name") or user.get("username"),
+                form_instance_id=inst.id,
+                field_defs=audit_field_defs,
+                changes=other_changes,
                 action="update",
                 summary=f"更新表单: {inst.title or inst.business_no or inst.id}",
             )
@@ -2654,8 +2794,8 @@ async def submit_instance(
     )).scalar_one_or_none()
     if not inst:
         raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
-    if inst.status not in ("draft", "rejected"):
-        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或已驳回可提交审批")
+    if inst.status not in ("draft", "rejected", "returned"):
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿、已退回或已驳回可提交审批")
 
     # 提交时按最新已发布版本校验并定稿，与设计器当前规则对齐
     published = await _get_published_version(db, tenant_id, inst.template_id)

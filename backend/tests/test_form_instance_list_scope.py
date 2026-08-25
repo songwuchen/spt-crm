@@ -81,6 +81,20 @@ def test_payment_registration_dept_primary_scope():
     assert "u-mkt-a" in compiled
 
 
+def test_instance_list_conds_workflow_participant_or():
+    """数据范围受限时，仍可通过流程参与旁路看到单据。"""
+    conds = _instance_list_conds(
+        "t1", "tpl-pc",
+        owner_ids=["u-other"],
+        template_code="prod_card_supplement",
+        workflow_participant_user_id="u-approver",
+    )
+    owner_cond = conds[-1]
+    compiled = str(owner_cond.compile(compile_kwargs={"literal_binds": True}))
+    assert "initiator_id" in compiled
+    assert "wf_process_instance" in compiled or "EXISTS" in compiled.upper()
+
+
 def test_form_data_text_in_literals_builds_or():
     clause = _form_data_text_in_literals("business_dept", ["冶金矿山"])
     assert clause is not False

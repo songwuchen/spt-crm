@@ -12,6 +12,7 @@ import {
 import {
   type FormFilterDsl,
   type FormFilterRule,
+  expandFilterableFormFields,
   needsFilterValue,
   normalizeFilterDsl,
   ruleValid,
@@ -36,12 +37,6 @@ const OP_LABELS: Record<string, string> = {
   is_empty: '为空',
   is_not_empty: '不为空',
 }
-
-const FILTERABLE_TYPES = new Set([
-  'text', 'textarea', 'auto_number', 'number', 'amount',
-  'select', 'radio', 'date', 'datetime',
-  'person', 'department', 'project', 'contract', 'customer',
-])
 
 export interface ApprovalFilterBarProps {
   filters: ApprovalListFilters
@@ -81,7 +76,7 @@ export default function ApprovalFilterBar({
   const activeCount = countActive(filters)
 
   const filterFields = useMemo(
-    () => processFields.filter((f) => FILTERABLE_TYPES.has(f.type)),
+    () => expandFilterableFormFields(processFields),
     [processFields],
   )
 

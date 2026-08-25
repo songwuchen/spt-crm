@@ -502,3 +502,205 @@ async def _patch_contract_registration(
     c.registration_json = reg
     flag_modified(c, "registration_json")
     await db.flush()
+
+
+def _merge_field_perm_lists(perms_list: list[list[dict[str, str]]]) -> list[dict[str, str]]:
+    """合并多节点 field_perms；同字段 required 优先于 editable。"""
+    merged: dict[str, str] = {}
+    nodes: dict[str, str] = {}
+    for perms in perms_list:
+        for p in perms:
+            fid = p.get("field")
+            if not fid:
+                continue
+            acc = p.get("access") or "editable"
+            if fid not in merged or (merged[fid] != "required" and acc == "required"):
+                merged[fid] = acc
+            nodes.setdefault(fid, p.get("node_name") or "")
+    return [
+        {"field": fid, "access": acc, "node_name": nodes.get(fid, "")}
+        for fid, acc in merged.items()
+    ]
+
+
+async def _node_defs_for_process(
+    db: AsyncSession, tenant_id: str, process_instance_id: str,
+) -> tuple[dict[str, dict], dict[str, dict], str | None]:
+    """返回 (by_id, by_name, process_definition_id)。"""
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfProcessDefinitionVersion
+
+    inst = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.id == process_instance_id,
+            WfProcessInstance.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not inst:
+        return {}, {}, None
+    version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
+    nodes = [n for n in (version.node_definitions if version else []) if isinstance(n, dict)]
+    by_id = {str(n.get("id")): n for n in nodes if n.get("id")}
+    by_name = {str(n.get("name")): n for n in nodes if n.get("name")}
+    return by_id, by_name, inst.process_definition_id
+
+
+async def _latest_published_node_defs(
+    db: AsyncSession, tenant_id: str, process_definition_id: str | None,
+) -> tuple[dict[str, dict], dict[str, dict]]:
+    if not process_definition_id:
+        return {}, {}
+    from app.domains.lowcode.workflow_models import WfProcessDefinitionVersion
+
+    pub = (await db.execute(
+        select(WfProcessDefinitionVersion)
+        .where(
+            WfProcessDefinitionVersion.process_definition_id == process_definition_id,
+            WfProcessDefinitionVersion.tenant_id == tenant_id,
+            WfProcessDefinitionVersion.status == "published",
+        )
+        .order_by(WfProcessDefinitionVersion.version_number.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    nodes = [n for n in (pub.node_definitions if pub else []) if isinstance(n, dict)]
+    by_id = {str(n.get("id")): n for n in nodes if n.get("id")}
+    by_name = {str(n.get("name")): n for n in nodes if n.get("name")}
+    return by_id, by_name
+
+
+def user_can_retroactive_edit(
+    user: dict | None,
+    inst_status: str | None,
+    *,
+    template_code: str | None = None,
+) -> bool:
+    """有 form_data:edit 且实例状态允许编辑 → 可补改已办节点字段。"""
+    if not user:
+        return False
+    if "form_data:edit" not in (user.get("permissions") or []):
+        return False
+    from app.domains.lowcode.edit_lock import is_status_editable
+
+    return is_status_editable(
+        "form_instance", inst_status or "", template_code=template_code,
+    )
+
+
+async def collect_retroactive_field_perms(
+    db: AsyncSession,
+    tenant_id: str,
+    process_instance_id: str | None,
+    *,
+    can_edit: bool = False,
+) -> list[dict[str, str]]:
+    """有编辑权限的用户：可补改流程中所有已办审批节点曾可填字段。"""
+    if not process_instance_id or not can_edit:
+        return []
+    from app.domains.lowcode.workflow_models import WfNodeInstance, WfProcessInstance
+
+    inst_row = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.id == process_instance_id,
+            WfProcessInstance.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not inst_row or inst_row.status not in ("running", "completed"):
+        return []
+
+    from app.domains.lowcode.prod_card_contract_fill import filter_prod_card_legacy_field_perms
+
+    by_id, by_name, def_id = await _node_defs_for_process(db, tenant_id, process_instance_id)
+    pub_by_id, pub_by_name = await _latest_published_node_defs(db, tenant_id, def_id)
+
+    node_instances = (await db.execute(
+        select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == process_instance_id,
+            WfNodeInstance.status == "completed",
+        )
+    )).scalars().all()
+
+    perms_batches: list[list[dict[str, str]]] = []
+    for ni in node_instances:
+        if ni.node_type in ("revise", "start", "end", "condition", "parallel", "cc"):
+            continue
+        if ni.node_def_id == "__initiator_revise__":
+            continue
+        node = by_id.get(ni.node_def_id or "") or by_name.get(ni.node_name or "") or {}
+        node_type = node.get("type") or ni.node_type
+        if node_type not in (None, "approval"):
+            continue
+        perms = parse_field_perms(node)
+        if pub_by_id or pub_by_name:
+            latest = pub_by_id.get(ni.node_def_id or "") or pub_by_name.get(ni.node_name or "")
+            if latest:
+                perms = parse_field_perms(latest)
+        perms = filter_prod_card_legacy_field_perms(perms)
+        if not perms:
+            continue
+        perms_batches.append([
+            {**p, "node_name": ni.node_name or node.get("name") or ""} for p in perms
+        ])
+    return _merge_field_perm_lists(perms_batches)
+
+
+async def collect_user_retroactive_field_perms(
+    db: AsyncSession,
+    tenant_id: str,
+    process_instance_id: str | None,
+    user_id: str | None,
+    *,
+    can_edit: bool | None = None,
+) -> list[dict[str, str]]:
+    """兼容旧调用；can_edit 为真时按「所有已办节点」收集 field_perms。"""
+    del user_id  # 不再限定原节点处理人
+    return await collect_retroactive_field_perms(
+        db, tenant_id, process_instance_id,
+        can_edit=bool(can_edit),
+    )
+
+
+def retroactive_change_summary(
+    changes: dict[str, dict[str, Any]],
+    retroactive_perms: list[dict[str, str]] | None,
+    field_defs: list[dict[str, Any]] | None,
+) -> str:
+    """补改已办节点字段的数据日志摘要（含字段名与来源节点）。"""
+    from app.common.audit_diff import labels_from_field_defs
+
+    if not changes:
+        return "补改已办节点字段"
+    labels = labels_from_field_defs(field_defs)
+    perm_by_field = {p["field"]: p for p in (retroactive_perms or []) if p.get("field")}
+    parts: list[str] = []
+    for fid in changes:
+        label = labels.get(fid) or fid
+        node = (perm_by_field.get(fid) or {}).get("node_name")
+        parts.append(f"{label}({node})" if node else str(label))
+    head = "、".join(parts[:10])
+    if len(parts) > 10:
+        head += f" 等{len(parts)}项"
+    return f"补改已办节点字段: {head}"
+
+
+def merge_retroactive_form_writes(
+    sanitized: dict[str, Any],
+    raw_incoming: dict[str, Any] | None,
+    retroactive_perms: list[dict[str, str]] | None,
+) -> dict[str, Any]:
+    """整单保存：允许有编辑权限的用户覆盖已办节点 field_perms 内字段。"""
+    from app.domains.lowcode.prod_card_contract_fill import PROD_CARD_LEGACY_HIDDEN_FIELDS
+
+    if not retroactive_perms:
+        return sanitized
+    allowed = {
+        p["field"] for p in retroactive_perms
+        if p.get("access") in ("editable", "required") and p.get("field")
+    }
+    allowed -= PROD_CARD_LEGACY_HIDDEN_FIELDS
+    if not allowed:
+        return sanitized
+    out = dict(sanitized or {})
+    raw = raw_incoming if isinstance(raw_incoming, dict) else {}
+    for fid in allowed:
+        if fid in raw:
+            out[fid] = raw[fid]
+    return out

@@ -177,6 +177,8 @@ class FormInstanceOut(BaseModel):
     amount: Decimal | None = None
     form_data: dict[str, Any]
     field_definitions: list[dict[str, Any]]
+    rule_definitions: list[dict[str, Any]] | None = None
+    retroactive_field_perms: list[dict[str, Any]] | None = None
     process_instance_id: str | None = None
     remark: str | None = None
     created_at: datetime

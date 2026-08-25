@@ -34,6 +34,7 @@ import {
   formModuleInstancePath,
   workflowDocOpenLabel,
 } from '@/utils/workflowBizPath'
+import { resolveNodeActions } from '@/utils/wfNodeActions'
 
 export default function MobileLowcodeApprovalDetail() {
   usePageTitle('审批详情')
@@ -281,9 +282,10 @@ export default function MobileLowcodeApprovalDetail() {
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail.process_name)
   const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail.process_name)
-  const approveAndPrint = canAct && (
-    (canPrintScheme && isDrawingApproveAndPrintNode(detail.current_task?.node_name))
-    || (canPrintProdCard && isProdCardApproveAndPrintNode(detail.current_task?.node_name))
+  const nodeActs = resolveNodeActions(detail.current_task?.node_actions, detail.biz_type)
+  const approveAndPrint = canAct && nodeActs.submit_print && nodeActs.submit && (
+    (canPrintScheme && (isDrawingApproveAndPrintNode(detail.current_task?.node_name) || nodeActs.submit_print))
+    || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail.current_task?.node_name) || nodeActs.submit_print))
   )
 
   const handlePrintScheme = async (prodMode?: ProdCardPrintMode) => {
@@ -650,7 +652,7 @@ export default function MobileLowcodeApprovalDetail() {
             style={{ marginBottom: 8 }}
           />
           <div className="grid grid-cols-2 gap-2">
-            {(detail.current_task?.field_perms?.length ?? 0) > 0 ? (
+            {nodeActs.save && (detail.current_task?.field_perms?.length ?? 0) > 0 ? (
               <button
                 onClick={() => act('save')}
                 disabled={busy}
@@ -659,24 +661,32 @@ export default function MobileLowcodeApprovalDetail() {
                 暂存
               </button>
             ) : null}
-            <button onClick={() => act('approve')} disabled={busy} className="h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">
-              {approveAndPrint ? '通过并打印' : '通过'}
-            </button>
-            <button
-              onClick={() => {
-                if (!(detail.approval_nodes?.length)) {
-                  message.info('当前流程无可退回节点')
-                  return
-                }
-                setMoreMode((m) => (m === 'return' ? null : 'return'))
-              }}
-              disabled={busy || !(detail.approval_nodes?.length)}
-              className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60"
-            >
-              退回
-            </button>
-            <button onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))} disabled={busy} className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60">转交</button>
-            <button onClick={() => act('reject')} disabled={busy} className="h-11 rounded-xl bg-red-50 text-red-600 font-bold border-0 disabled:opacity-60">驳回</button>
+            {nodeActs.submit && (
+              <button onClick={() => act('approve')} disabled={busy} className="h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">
+                {approveAndPrint ? '通过并打印' : '通过'}
+              </button>
+            )}
+            {nodeActs.return && (
+              <button
+                onClick={() => {
+                  if (!(detail.approval_nodes?.length)) {
+                    message.info('当前流程无可退回节点')
+                    return
+                  }
+                  setMoreMode((m) => (m === 'return' ? null : 'return'))
+                }}
+                disabled={busy || !(detail.approval_nodes?.length)}
+                className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60"
+              >
+                退回
+              </button>
+            )}
+            {nodeActs.transfer && (
+              <button onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))} disabled={busy} className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60">转交</button>
+            )}
+            {nodeActs.reject && (
+              <button onClick={() => act('reject')} disabled={busy} className="h-11 rounded-xl bg-red-50 text-red-600 font-bold border-0 disabled:opacity-60">驳回</button>
+            )}
           </div>
           {moreMode && (
             <div className="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-3">

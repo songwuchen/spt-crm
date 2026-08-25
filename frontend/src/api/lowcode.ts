@@ -127,4 +127,11 @@ export const lowcodeApi = {
     client.get<unknown, ApiResponse<{
       id: string; code: string; name: string; description?: string | null; member_count: number
     }[]>>('/api/v1/lc/pickable-roles', { params }),
+
+  /** 用户参与过流程的表单模板 code（审批人可见对应侧栏模块） */
+  getWorkflowVisibleFormCodes: () =>
+    client.get<unknown, ApiResponse<{ codes: string[] }>>(
+      '/api/v1/lc/form-templates/workflow-visible-codes',
+      { headers: { 'X-Silent-Error': '1' } },
+    ),
 }
