@@ -8126,6 +8126,7 @@ async def _build_flow_steps(
             # 转交卡片标签对齐简道云观感：已转交
             if act in ("transfer", "auto_transfer"):
                 step["status_text"] = "已转交"
+                step["node_name"] = f"{n.node_name} · 转交"
             out.append(step)
             prev_at = done_at
 

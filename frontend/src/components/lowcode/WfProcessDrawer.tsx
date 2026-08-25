@@ -7,6 +7,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
   RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined, StopOutlined, SaveOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -73,6 +74,7 @@ function BizDetailGrid({ entries }: { entries: [string, unknown][] }) {
 
 import {
   bizEntityPath,
+  formModuleInstancePath,
   resolveWorkflowBizPath,
   workflowDocOpenLabel,
 } from '@/utils/workflowBizPath'
@@ -345,11 +347,10 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     setBusy(true)
     try {
       if (action === 'save') {
-        if (detail?.form_instance_id) {
+        if (isReviseTask && detail?.form_instance_id) {
           const nextData = { ...formData, ...fieldUpdates }
           await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
         } else {
-          const ct = detail?.current_task
           const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
           const updates = actPerms.length
             ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
@@ -482,11 +483,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     ? LEAD_INTEL_FIELD_PERMS
     : taskFieldPerms
   const hasNodeFields = canAct && effectiveFieldPerms.length > 0 && !!detail?.current_task
-  const canEditForm = Boolean(
-    canAct && detail?.form_instance_id && !isLeadIntel && !isLeadOwnerConfirm,
-  )
+  /** 审批抽屉内不整单编辑；修订待办除外（走原单据编辑页） */
   const canSaveDraft = canAct && !isLeadIntel && !isLeadOwnerConfirm
-    && (isReviseTask || effectiveFieldPerms.length > 0 || canEditForm)
+    && (isReviseTask || effectiveFieldPerms.length > 0)
+  const formEditPath = detail?.form_instance_id && detail?.form_code
+    ? formModuleInstancePath(detail.form_code, detail.form_instance_id, { edit: true })
+    : null
 
   const isLeadReactivationFollow = detail?.biz_type === 'lead_reactivation' && canAct && !!effectiveTaskId
     && isLeadReactivationFollowTodo({
@@ -601,9 +603,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       {fields.length ? (
         <FormRenderer
           fields={fields}
-          mode={canEditForm || isReviseTask ? 'edit' : 'readonly'}
-          value={canEditForm || isReviseTask ? { ...formData, ...fieldUpdates } : formData}
-          onChange={canEditForm || isReviseTask ? ((v) => {
+          mode={isReviseTask ? 'edit' : 'readonly'}
+          value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+          onChange={isReviseTask ? ((v) => {
             setFormData(v)
             setFieldUpdates(v)
           }) : undefined}
@@ -750,6 +752,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       onClick={() => { onClose(); navigate(docPath) }}
                     >
                       {contract ? '打开合同页' : docOpenLabel}
+                    </Button>
+                  )}
+                  {formEditPath && !isReviseTask && (
+                    <Button
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => { onClose(); navigate(formEditPath) }}
+                    >
+                      编辑原单据
                     </Button>
                   )}
                 </Space>

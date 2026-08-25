@@ -54,7 +54,7 @@ export type WorkflowBizPathInput = {
 export function formModuleInstancePath(
   formCode: string,
   formInstanceId: string,
-  opts?: { reviseTaskId?: string | null; mobile?: boolean },
+  opts?: { reviseTaskId?: string | null; edit?: boolean; mobile?: boolean },
 ): string | null {
   const base = FORM_MODULE_BASE_PATHS[formCode]
   if (!base) return null
@@ -63,6 +63,8 @@ export function formModuleInstancePath(
   const q = new URLSearchParams({ instance: formInstanceId })
   if (opts?.reviseTaskId) {
     q.set('reviseTask', opts.reviseTaskId)
+    q.set('edit', '1')
+  } else if (opts?.edit) {
     q.set('edit', '1')
   }
   return `${base}?${q.toString()}`

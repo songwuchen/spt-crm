@@ -31,6 +31,7 @@ import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 import {
   isReviseWorkflowTask,
   resolveWorkflowBizPath,
+  formModuleInstancePath,
   workflowDocOpenLabel,
 } from '@/utils/workflowBizPath'
 
@@ -99,9 +100,9 @@ export default function MobileLowcodeApprovalDetail() {
   )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!detail?.biz_id && !!effectiveTaskId
     && !isReviseTask && !isLeadOwnerConfirm
-  const canEditForm = Boolean(
-    canAct && detail?.form_instance_id && !isLeadIntel && !isLeadOwnerConfirm,
-  )
+  const formEditPath = detail?.form_instance_id && detail?.form_code
+    ? formModuleInstancePath(detail.form_code, detail.form_instance_id, { edit: true })
+    : null
 
   // 线索修订：跳到申报编辑页（与第一次报项目同体验）
   useEffect(() => {
@@ -178,7 +179,7 @@ export default function MobileLowcodeApprovalDetail() {
     setBusy(true)
     try {
       if (action === 'save') {
-        if (detail?.form_instance_id) {
+        if (isReviseTask && detail?.form_instance_id) {
           const nextData = { ...formData, ...fieldUpdates }
           await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
         } else {
@@ -383,20 +384,27 @@ export default function MobileLowcodeApprovalDetail() {
                 {docOpenLabel}
               </button>
             )}
+            {formEditPath && !isReviseTask && (
+              <button
+                type="button"
+                onClick={() => nav(formEditPath)}
+                className="flex-1 h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+              >
+                编辑原单据
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <div className="text-sm font-bold text-slate-500 mb-2">
-            {canEditForm || isReviseTask ? '可编辑表单内容' : '表单内容'}
-          </div>
+          <div className="text-sm font-bold text-slate-500 mb-2">表单内容</div>
           <FormRenderer
             fields={fields}
-            mode={canEditForm || isReviseTask ? 'edit' : 'readonly'}
-            value={canEditForm || isReviseTask ? { ...formData, ...fieldUpdates } : formData}
-            onChange={canEditForm || isReviseTask ? ((v) => {
+            mode={isReviseTask ? 'edit' : 'readonly'}
+            value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+            onChange={isReviseTask ? ((v) => {
               setFormData(v)
               setFieldUpdates(v)
             }) : undefined}
@@ -642,7 +650,7 @@ export default function MobileLowcodeApprovalDetail() {
             style={{ marginBottom: 8 }}
           />
           <div className="grid grid-cols-2 gap-2">
-            {(detail.current_task?.field_perms?.length ?? 0) > 0 || canEditForm ? (
+            {(detail.current_task?.field_perms?.length ?? 0) > 0 ? (
               <button
                 onClick={() => act('save')}
                 disabled={busy}

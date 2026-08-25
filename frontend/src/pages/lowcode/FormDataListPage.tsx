@@ -1121,7 +1121,7 @@ export default function FormDataListPage({
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
-  /** 流程单据任意状态可编辑（不再锁定审批中/已通过） */
+  /** 列表弹窗内可编辑（审批中/已通过也允许，走 form-instances PUT） */
   const canEditRecord = (_status?: string | null) => true
   const canResubmitRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
@@ -1178,7 +1178,12 @@ export default function FormDataListPage({
 
   // 列表操作列只保留「查看」；打印/编辑/删除放到详情工具栏（对齐简道云）
   const renderOps = (r: FormInstance) => (
-    <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
+    <Space size={0}>
+      <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
+      {canEditRecord(r.status) && (
+        <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
+      )}
+    </Space>
   )
 
   const listColWidths = useMemo(() => resolveListColumnWidths(templateCode) || {}, [templateCode])

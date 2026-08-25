@@ -1804,6 +1804,7 @@ class WorkflowEngine:
         siblings = (await self.db.execute(
             select(WfTaskInstance).where(WfTaskInstance.node_instance_id == task.node_instance_id)
         )).scalars().all()
+        transfer_intent = list(targets)
         busy = {
             s.assignee_id
             for s in siblings
@@ -1847,6 +1848,51 @@ class WorkflowEngine:
             inst.id, task.node_instance_id, task.id, actor, "transfer", note,
         )
         self._queue("tasks_created", fresh_ids, inst)
+        await self.db.flush()
+        await self._cancel_or_sign_siblings_except(
+            task.node_instance_id, set(transfer_intent), keep_task_ids=set(fresh_ids),
+        )
+
+    async def _cancel_or_sign_siblings_except(
+        self,
+        node_instance_id: str,
+        keep_assignee_ids: set[str],
+        *,
+        keep_task_ids: set[str] | None = None,
+    ) -> None:
+        """转交后取消同节点非接收人的待办，避免或签角色节点「全员仍待办」。
+
+        简道云转交后仅接收人继续处理；原角色或签产生的其他 pending 应撤销。
+        """
+        if not keep_assignee_ids:
+            return
+        siblings = (await self.db.execute(
+            select(WfTaskInstance).where(WfTaskInstance.node_instance_id == node_instance_id)
+        )).scalars().all()
+        cancelled: list[str] = []
+        seen_assignee: set[str] = set()
+        keep_ids = keep_task_ids or set()
+        for s in sorted(
+            siblings,
+            key=lambda x: (
+                0 if x.id in keep_ids else 1,
+                0 if x.assignee_id in keep_assignee_ids else 1,
+                x.created_at or _now(),
+            ),
+        ):
+            if s.status not in ("pending", "waiting"):
+                continue
+            if s.assignee_id not in keep_assignee_ids:
+                s.status = "cancelled"
+                cancelled.append(s.id)
+                continue
+            if s.assignee_id in seen_assignee:
+                s.status = "cancelled"
+                cancelled.append(s.id)
+                continue
+            seen_assignee.add(s.assignee_id)
+        if cancelled:
+            self._queue("todos_done", cancelled)
         await self.db.flush()
 
     async def _on_task_approved(self, inst, version, task, ctx) -> None:
