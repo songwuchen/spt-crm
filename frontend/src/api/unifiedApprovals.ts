@@ -17,6 +17,107 @@ export const APPROVAL_PENDING_CHANGED = 'spt:approval-pending-changed'
 
 /** 单页条数：过大时 WF enrich / 旧引擎 list 会明显拖慢审批中心首屏 */
 const PAGE_SIZE = 40
+const PAGE_SIZE_FILTERED = 100
+
+import type { FormFilterDsl } from '@/components/lowcode/formInstanceFilterUtils'
+
+export interface ApprovalListFilters {
+  keyword?: string
+  processDefinitionId?: string
+  formCode?: string
+  nodeName?: string
+  initiatorId?: string
+  createdFrom?: string
+  createdTo?: string
+  /** 流程表单字段筛选（需先选流程表单） */
+  formFilters?: FormFilterDsl | null
+}
+
+export interface WfFilterProcessOption {
+  id: string
+  name: string
+  form_code?: string | null
+}
+
+export interface WfFilterOptions {
+  processes: WfFilterProcessOption[]
+  node_names: string[]
+  fields?: Array<{ id: string; label: string; type: string; options?: unknown[] }>
+}
+
+export function countActiveFilters(f?: ApprovalListFilters): number {
+  if (!f) return 0
+  let n = 0
+  if (f.keyword?.trim()) n++
+  if (f.processDefinitionId) n++
+  if (f.nodeName) n++
+  if (f.initiatorId) n++
+  if (f.createdFrom || f.createdTo) n++
+  n += f.formFilters?.rules?.length || 0
+  return n
+}
+
+function toWfFilterParams(filters?: ApprovalListFilters): Record<string, unknown> {
+  if (!filters || !countActiveFilters(filters)) return {}
+  const params: Record<string, unknown> = {
+    keyword: filters.keyword?.trim() || undefined,
+    process_definition_id: filters.processDefinitionId,
+    form_code: filters.formCode,
+    node_name: filters.nodeName,
+    initiator_id: filters.initiatorId,
+    created_from: filters.createdFrom,
+    created_to: filters.createdTo,
+  }
+  if (filters.formFilters?.rules?.length) {
+    params.form_filters = JSON.stringify(filters.formFilters)
+  }
+  return params
+}
+
+/** 旧引擎条目客户端筛选（新引擎走服务端） */
+export function matchesClientFilters(
+  item: {
+    title?: string
+    subtitle?: string
+    processName?: string | null
+    nodeName?: string | null
+    initiatorId?: string | null
+    businessNo?: string | null
+    createdAt?: string
+    bizType?: string | null
+    engine?: ApprovalEngine
+  },
+  filters?: ApprovalListFilters,
+  processNameById?: Map<string, string>,
+): boolean {
+  if (!filters || !countActiveFilters(filters)) return true
+  if (filters.processDefinitionId && item.engine === 'legacy') {
+    const pname = processNameById?.get(filters.processDefinitionId)
+    if (pname && !(item.title || '').includes(pname) && item.bizType !== pname) {
+      return false
+    }
+  }
+  if (filters.keyword?.trim()) {
+    const kw = filters.keyword.trim().toLowerCase()
+    const hay = [
+      item.title, item.subtitle, item.processName, item.businessNo, item.bizType,
+    ].filter(Boolean).join(' ').toLowerCase()
+    if (!hay.includes(kw)) return false
+  }
+  if (filters.nodeName) {
+    const nodeHay = (item.nodeName || item.subtitle || '').toLowerCase()
+    if (!nodeHay.includes(filters.nodeName.toLowerCase())) return false
+  }
+  if (filters.initiatorId && item.initiatorId && item.initiatorId !== filters.initiatorId) {
+    return false
+  }
+  if (filters.createdFrom || filters.createdTo) {
+    const t = item.createdAt ? new Date(item.createdAt).getTime() : 0
+    if (filters.createdFrom && t < new Date(filters.createdFrom).getTime()) return false
+    if (filters.createdTo && t > new Date(filters.createdTo).getTime()) return false
+  }
+  return true
+}
 
 export interface UnifiedPendingItem {
   /** React key / 去重用，跨引擎唯一 */
@@ -36,6 +137,11 @@ export interface UnifiedPendingItem {
   taskKind?: 'approve' | 'revise'
   formInstanceId?: string | null
   formCode?: string | null
+  processName?: string | null
+  nodeName?: string | null
+  initiatorId?: string | null
+  initiatorName?: string | null
+  businessNo?: string | null
 }
 
 export interface UnifiedPendingResult {
@@ -50,12 +156,17 @@ export interface UnifiedPendingResult {
  * 任一侧失败不影响另一侧（仍返回另一侧的结果）；**两侧都失败时抛错**，否则调用方
  * 无法把「真的没有待办」和「后端挂了」区分开，会把故障渲染成「暂无待审批」。
  */
-export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
+export async function fetchUnifiedPending(
+  filters?: ApprovalListFilters,
+  processNameById?: Map<string, string>,
+): Promise<UnifiedPendingResult> {
+  const hasFilter = countActiveFilters(filters) > 0
+  const pageSize = hasFilter ? PAGE_SIZE_FILTERED : PAGE_SIZE
+  const wfParams = { pageNo: 1, pageSize, ...toWfFilterParams(filters) }
+
   const [legacy, wf] = await Promise.allSettled([
     approvalApi.myPending(),
-    // 注意：该端点的分页参数是 pageNo/pageSize（camelCase），写成 page_no/page_size
-    // 会被 FastAPI 忽略并静默退回默认的 20 条
-    workflowApi.todo({ pageNo: 1, pageSize: PAGE_SIZE }),
+    workflowApi.todo(wfParams),
   ])
 
   if (legacy.status === 'rejected' && wf.status === 'rejected') {
@@ -67,9 +178,8 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
 
   if (legacy.status === 'fulfilled') {
     const rows = legacy.value.data || []
-    total += rows.length
     for (const it of rows) {
-      out.push({
+      const mapped: UnifiedPendingItem = {
         key: `legacy:${it.id}`,
         taskId: it.id,
         engine: 'legacy',
@@ -80,11 +190,16 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
         ].filter(Boolean).join(' · '),
         bizType: it.flow?.biz_type,
         bizId: it.flow?.biz_id,
-        // flow_id 是待办自身的一级字段，比 flow?.id 可靠（flow 关联体可能未展开）
         instanceId: it.flow_id || it.flow?.id,
         createdAt: it.created_at,
-      })
+        initiatorId: it.flow?.submitted_by_id,
+        initiatorName: it.flow?.submitted_by_name,
+        nodeName: it.flow?.total_nodes ? `节点 ${it.node_order}` : undefined,
+      }
+      if (!matchesClientFilters(mapped, filters, processNameById)) continue
+      out.push(mapped)
     }
+    total += out.filter((i) => i.engine === 'legacy').length
   }
 
   if (wf.status === 'fulfilled') {
@@ -112,6 +227,11 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
         taskKind: it.task_kind === 'revise' ? 'revise' : 'approve',
         formInstanceId: it.form_instance_id || null,
         formCode: it.form_code || null,
+        processName: it.process_name || null,
+        nodeName: it.node_name || null,
+        initiatorId: it.initiator_id || null,
+        initiatorName: it.initiator_name || null,
+        businessNo: it.business_no || null,
       })
     }
   }
@@ -153,23 +273,35 @@ export interface UnifiedMineItem {
   formCode?: string | null
   subtitle?: string
   createdAt?: string
+  processName?: string | null
+  nodeName?: string | null
+  initiatorId?: string | null
+  businessNo?: string | null
 }
 
 /** 我发起的：旧引擎按发起人过滤 + 新工作流 mine。 */
-export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem[]> {
+export async function fetchUnifiedMine(
+  userId?: string,
+  filters?: ApprovalListFilters,
+  processNameById?: Map<string, string>,
+): Promise<UnifiedMineItem[]> {
+  const hasFilter = countActiveFilters(filters) > 0
+  const pageSize = hasFilter ? PAGE_SIZE_FILTERED : PAGE_SIZE
+  const wfParams = { pageNo: 1, pageSize, ...toWfFilterParams(filters) }
+
   const [legacy, wf] = await Promise.allSettled([
     approvalApi.list({
       pageNo: 1,
-      pageSize: PAGE_SIZE,
+      pageSize,
       ...(userId ? { submitted_by_id: userId } : {}),
     }),
-    workflowApi.mine({ pageNo: 1, pageSize: PAGE_SIZE }),
+    workflowApi.mine(wfParams),
   ])
   const out: UnifiedMineItem[] = []
 
   if (legacy.status === 'fulfilled') {
     for (const f of legacy.value.data?.items || []) {
-      out.push({
+      const mapped: UnifiedMineItem = {
         key: `legacy:${f.id}`,
         engine: 'legacy',
         instanceId: f.id,
@@ -179,7 +311,11 @@ export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem
         bizId: f.biz_id,
         subtitle: f.total_nodes ? `节点 ${f.current_node}/${f.total_nodes}` : undefined,
         createdAt: f.created_at,
-      })
+        nodeName: f.total_nodes ? `节点 ${f.current_node}` : undefined,
+        initiatorId: f.submitted_by_id,
+      }
+      if (!matchesClientFilters(mapped, filters, processNameById)) continue
+      out.push(mapped)
     }
   }
 
@@ -197,6 +333,9 @@ export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem
         formCode: it.form_code || null,
         subtitle: it.current_node_name ? `当前：${it.current_node_name}` : undefined,
         createdAt: it.created_at,
+        processName: it.process_name || null,
+        nodeName: it.current_node_name || null,
+        businessNo: it.business_no || null,
       })
     }
   }
@@ -215,13 +354,25 @@ export interface UnifiedDoneItem {
   bizType?: string | null
   subtitle?: string
   actionAt?: string
+  processName?: string | null
+  nodeName?: string | null
+  initiatorId?: string | null
+  createdAt?: string
 }
 
 /** 我已办：新工作流 done + 旧引擎 my/done。 */
-export async function fetchUnifiedDone(_userId?: string): Promise<UnifiedDoneItem[]> {
+export async function fetchUnifiedDone(
+  _userId?: string,
+  filters?: ApprovalListFilters,
+  processNameById?: Map<string, string>,
+): Promise<UnifiedDoneItem[]> {
+  const hasFilter = countActiveFilters(filters) > 0
+  const pageSize = hasFilter ? PAGE_SIZE_FILTERED : PAGE_SIZE
+  const wfParams = { pageNo: 1, pageSize, ...toWfFilterParams(filters) }
+
   const [wf, legacy] = await Promise.allSettled([
-    workflowApi.done({ pageNo: 1, pageSize: PAGE_SIZE }),
-    approvalApi.myDone({ pageSize: PAGE_SIZE }),
+    workflowApi.done(wfParams),
+    approvalApi.myDone({ pageSize }),
   ])
   const out: UnifiedDoneItem[] = []
 
@@ -240,6 +391,10 @@ export async function fetchUnifiedDone(_userId?: string): Promise<UnifiedDoneIte
           it.initiator_name ? `${it.initiator_name} 发起` : '',
         ].filter(Boolean).join(' · '),
         actionAt: it.action_at || it.created_at,
+        processName: it.process_name || null,
+        nodeName: it.node_name || null,
+        initiatorId: it.initiator_id || null,
+        createdAt: it.created_at,
       })
     }
   }
@@ -247,7 +402,7 @@ export async function fetchUnifiedDone(_userId?: string): Promise<UnifiedDoneIte
   if (legacy.status === 'fulfilled') {
     for (const it of legacy.value.data || []) {
       const f = it.flow
-      out.push({
+      const mapped: UnifiedDoneItem = {
         key: `legacy:${it.id}`,
         engine: 'legacy',
         taskId: it.id,
@@ -257,10 +412,30 @@ export async function fetchUnifiedDone(_userId?: string): Promise<UnifiedDoneIte
         bizType: f?.biz_type,
         subtitle: f?.total_nodes ? `节点 ${it.node_order}/${f.total_nodes}` : undefined,
         actionAt: it.decided_at || it.created_at,
-      })
+        nodeName: f?.total_nodes ? `节点 ${it.node_order}` : undefined,
+        initiatorId: f?.submitted_by_id,
+        createdAt: it.created_at,
+      }
+      if (!matchesClientFilters(mapped, filters, processNameById)) continue
+      out.push(mapped)
     }
   }
 
   out.sort((a, b) => (b.actionAt || '').localeCompare(a.actionAt || ''))
   return out
+}
+
+/** 抄送列表（新引擎），带筛选。 */
+export async function fetchUnifiedCc(filters?: ApprovalListFilters) {
+  const hasFilter = countActiveFilters(filters) > 0
+  const pageSize = hasFilter ? PAGE_SIZE_FILTERED : PAGE_SIZE
+  const r = await workflowApi.cc({ pageNo: 1, pageSize, ...toWfFilterParams(filters) })
+  return r.data?.items || []
+}
+
+export async function fetchFilterOptions(processDefinitionId?: string): Promise<WfFilterOptions> {
+  const r = await workflowApi.filterOptions(
+    processDefinitionId ? { process_definition_id: processDefinitionId } : undefined,
+  )
+  return r.data || { processes: [], node_names: [], fields: [] }
 }

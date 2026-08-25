@@ -59,6 +59,12 @@ export const workflowApi = {
       initiator_name?: string
       created_at?: string
     }>>>('/api/v1/lc/wf/instances/cc', { params }),
+  filterOptions: (params?: { process_definition_id?: string }) =>
+    client.get<unknown, ApiResponse<{
+      processes: Array<{ id: string; name: string; form_code?: string | null }>
+      node_names: string[]
+      fields?: Array<{ id: string; label: string; type: string; options?: unknown[] }>
+    }>>('/api/v1/lc/wf/instances/filter-options', { params }),
   /** 业务详情页：按 biz 查最新流程实例（含审批记录）；无流程时 data 为 null */
   byBiz: (params: { biz_type: string; biz_id: string }) =>
     client.get<unknown, ApiResponse<WfInstanceDetail | null>>('/api/v1/lc/wf/instances/by-biz', { params }),

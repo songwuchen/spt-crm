@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Tabs, Tag, Space, Modal, Input, Button, message, Spin, Select, Card, Statistic, Row, Col, DatePicker, Popconfirm } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
-import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined } from '@ant-design/icons'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
 import {
-  fetchUnifiedPending, decideUnified, fetchUnifiedMine, fetchUnifiedDone,
+  fetchUnifiedPending, decideUnified, fetchUnifiedMine, fetchUnifiedDone, fetchUnifiedCc,
+  fetchFilterOptions, countActiveFilters,
   type UnifiedPendingItem, type UnifiedMineItem, type UnifiedDoneItem,
+  type ApprovalListFilters, type WfFilterOptions,
 } from '@/api/unifiedApprovals'
 import { workflowApi, type WfAgent } from '@/api/lowcodeWorkflow'
 import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
@@ -31,6 +33,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
 
+import ApprovalFilterBar from './ApprovalFilterBar'
 import Icon from '@/components/Icon'
 export default function ApprovalCenter() {
   usePageTitle('审批中心')
@@ -83,25 +86,28 @@ export default function ApprovalCenter() {
   const [withdrawReason, setWithdrawReason] = useState('')
   // Bulk actions & filters
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
-  const [filterBizType, setFilterBizType] = useState<string>('')
-  const [filterDateRange, setFilterDateRange] = useState<[any, any] | null>(null)
+  const [listFilters, setListFilters] = useState<ApprovalListFilters>({})
+  const [filterOptions, setFilterOptions] = useState<WfFilterOptions>({ processes: [], node_names: [], fields: [] })
   const userSelect = useUserSelect()
+
+  const processNameById = useMemo(
+    () => new Map(filterOptions.processes.map((p) => [p.id, p.name])),
+    [filterOptions],
+  )
 
   // Statistics
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (filters: ApprovalListFilters = listFilters) => {
     setLoading(true)
     try {
-      // 合同/线索等已切到新工作流引擎：待办必须聚合两套引擎
-      // 「所有审批」tab 再按需拉 list，避免首屏多打一次重请求
-      const uRes = await fetchUnifiedPending()
+      const uRes = await fetchUnifiedPending(filters, processNameById)
       setPending(uRes.items || [])
     } finally {
       setLoading(false)
     }
-  }
+  }, [listFilters, processNameById])
 
   const loadAllFlows = useCallback(async () => {
     setTabLoading(true)
@@ -113,33 +119,45 @@ export default function ApprovalCenter() {
     }
   }, [])
 
-  const loadMine = useCallback(async () => {
+  const loadMine = useCallback(async (filters: ApprovalListFilters = listFilters) => {
     setTabLoading(true)
     try {
-      setMineItems(await fetchUnifiedMine(userInfo?.id))
+      setMineItems(await fetchUnifiedMine(userInfo?.id, filters, processNameById))
     } finally {
       setTabLoading(false)
     }
-  }, [userInfo?.id])
+  }, [userInfo?.id, listFilters, processNameById])
 
-  const loadDone = useCallback(async () => {
+  const loadDone = useCallback(async (filters: ApprovalListFilters = listFilters) => {
     setTabLoading(true)
     try {
-      setDoneItems(await fetchUnifiedDone(userInfo?.id))
+      setDoneItems(await fetchUnifiedDone(userInfo?.id, filters, processNameById))
     } finally {
       setTabLoading(false)
     }
-  }, [userInfo?.id])
+  }, [userInfo?.id, listFilters, processNameById])
 
-  const loadCc = useCallback(async () => {
+  const loadCc = useCallback(async (filters: ApprovalListFilters = listFilters) => {
     setTabLoading(true)
     try {
-      const r = await workflowApi.cc({ pageNo: 1, pageSize: 100 })
-      setCcItems(r.data?.items || [])
+      setCcItems(await fetchUnifiedCc(filters))
     } finally {
       setTabLoading(false)
     }
-  }, [])
+  }, [listFilters])
+
+  const applyListFilters = useCallback((filters: ApprovalListFilters) => {
+    setListFilters(filters)
+    setSelectedRowKeys([])
+    if (activeTab === 'pending') void fetchData(filters)
+    else if (activeTab === 'mine') void loadMine(filters)
+    else if (activeTab === 'done') void loadDone(filters)
+    else if (activeTab === 'cc') void loadCc(filters)
+  }, [activeTab, fetchData, loadMine, loadDone, loadCc])
+
+  const clearListFilters = useCallback(() => {
+    applyListFilters({})
+  }, [applyListFilters])
 
   const loadAgents = useCallback(async () => {
     setTabLoading(true)
@@ -168,7 +186,10 @@ export default function ApprovalCenter() {
     if (activeTab === 'cc') loadCc()
   })
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    void fetchData()
+    fetchFilterOptions().then(setFilterOptions).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 深链：?tab=cc → 抄送我的；通知/钉钉 → ?wf= / ?flow=
   useEffect(() => {
@@ -508,26 +529,15 @@ export default function ApprovalCenter() {
     }
   }
 
-  const filteredPending = useMemo(() => {
-    let list = pending
-    if (filterBizType) {
-      list = list.filter((p) => p.bizType === filterBizType)
-    }
-    if (filterDateRange && filterDateRange[0] && filterDateRange[1]) {
-      const start = filterDateRange[0].startOf('day').valueOf()
-      const end = filterDateRange[1].endOf('day').valueOf()
-      list = list.filter((p) => {
-        const t = p.createdAt ? new Date(p.createdAt).getTime() : 0
-        return t >= start && t <= end
-      })
-    }
-    return list
-  }, [pending, filterBizType, filterDateRange])
-
-  const pendingBizTypes = useMemo(() => {
-    const types = new Set(pending.map((p) => p.bizType).filter(Boolean))
-    return Array.from(types).map((t) => ({ value: t!, label: bizTypeLabels[t!] || t! }))
-  }, [pending])
+  const listFilterBar = (extra?: React.ReactNode) => (
+    <ApprovalFilterBar
+      filters={listFilters}
+      options={filterOptions}
+      onApply={applyListFilters}
+      onClear={clearListFilters}
+      extra={extra}
+    />
+  )
 
   const pendingColumns: ColumnsType<UnifiedPendingItem> = [
     {
@@ -801,28 +811,25 @@ export default function ApprovalCenter() {
               label: <span>待我审批 {pending.length > 0 && <Tag color="red" className="ml-1">{pending.length}</Tag>}</span>,
               children: (
                 <div>
-                  {pending.length > 0 && (
-                    <div className="mb-3 flex flex-wrap items-center gap-2 shrink-0">
-                      <FilterOutlined className="text-slate-400" />
-                      <Select size="small" allowClear placeholder="业务类型" value={filterBizType || undefined}
-                        onChange={(v) => { setFilterBizType(v || ''); setSelectedRowKeys([]) }}
-                        options={pendingBizTypes} style={{ width: 130 }} />
-                      <DatePicker.RangePicker size="small" value={filterDateRange as any}
-                        onChange={(v) => { setFilterDateRange(v as any); setSelectedRowKeys([]) }} />
-                      {(filterBizType || filterDateRange) && (
-                        <Button size="small" type="link" onClick={() => { setFilterBizType(''); setFilterDateRange(null); setSelectedRowKeys([]) }}>清除筛选</Button>
-                      )}
-                      <div className="flex-1" />
+                  {listFilterBar(
+                    <>
                       <Button size="small" type="primary" icon={<CheckCircleOutlined />}
                         disabled={selectedRowKeys.length === 0} loading={submitting}
                         onClick={() => handleBulkDecide('approved')}>批量通过</Button>
                       <Button size="small" danger icon={<CloseCircleOutlined />}
                         disabled={selectedRowKeys.length === 0} loading={submitting}
                         onClick={() => handleBulkDecide('rejected')}>批量驳回</Button>
-                      {selectedRowKeys.length > 0 && <span className="text-sm text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
-                    </div>
+                      {selectedRowKeys.length > 0 && (
+                        <span className="text-sm text-slate-400 self-center">
+                          已选 {selectedRowKeys.length}/{pending.length} 项
+                        </span>
+                      )}
+                    </>,
                   )}
-                  <FillHeightTable rowKey="key" columns={pendingColumns} dataSource={filteredPending}
+                  {countActiveFilters(listFilters) > 0 && (
+                    <div className="mb-2 text-xs text-slate-400">已应用筛选，共 {pending.length} 条</div>
+                  )}
+                  <FillHeightTable rowKey="key" columns={pendingColumns} dataSource={pending}
                     rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as string[]) }}
                     pagination={false} size="small" scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <div className="py-8 text-slate-400">暂无待审批任务</div> }} />
@@ -833,7 +840,9 @@ export default function ApprovalCenter() {
               key: 'mine',
               label: '我发起的',
               children: (
-                <FillHeightTable
+                <div>
+                  {listFilterBar()}
+                  <FillHeightTable
                   rowKey="key"
                   columns={mineColumns}
                   dataSource={mineItems}
@@ -843,13 +852,16 @@ export default function ApprovalCenter() {
                   scroll={{ x: 'max-content' }}
                   locale={{ emptyText: <div className="py-8 text-slate-400">暂无发起的审批</div> }}
                 />
+                </div>
               ),
             },
             {
               key: 'done',
               label: '已办',
               children: (
-                <FillHeightTable
+                <div>
+                  {listFilterBar()}
+                  <FillHeightTable
                   rowKey="key"
                   columns={doneColumns}
                   dataSource={doneItems}
@@ -859,13 +871,16 @@ export default function ApprovalCenter() {
                   scroll={{ x: 'max-content' }}
                   locale={{ emptyText: <div className="py-8 text-slate-400">暂无已办记录</div> }}
                 />
+                </div>
               ),
             },
             {
               key: 'cc',
               label: '抄送我的',
               children: (
-                <FillHeightTable<{
+                <div>
+                  {listFilterBar()}
+                  <FillHeightTable<{
                   cc_id: string
                   process_instance_id: string
                   title?: string
@@ -918,6 +933,7 @@ export default function ApprovalCenter() {
                     },
                   ]}
                 />
+                </div>
               ),
             },
             {

@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import cast, func, or_, select, text, String, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7185,7 +7186,214 @@ async def abort_processes_for_deleted_form(
     return n
 
 
-async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, biz_id=None):
+@dataclass
+class WfListFilters:
+    """审批中心列表筛选（待办/已办/我发起/抄送）。"""
+    keyword: str | None = None
+    process_definition_id: str | None = None
+    form_code: str | None = None
+    node_name: str | None = None
+    initiator_id: str | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    # JSON: {match,rules:[{field,op,value}]} — 与表单数据列表 filters 同格式
+    form_filters: str | None = None
+
+    def active(self) -> bool:
+        return any([
+            self.keyword and self.keyword.strip(),
+            self.process_definition_id,
+            self.form_code,
+            self.node_name,
+            self.initiator_id,
+            self.created_from,
+            self.created_to,
+            self.form_filters and self.form_filters.strip(),
+        ])
+
+
+_FILTERABLE_FIELD_TYPES = frozenset({
+    "text", "textarea", "auto_number", "number", "amount",
+    "select", "radio", "date", "datetime",
+    "person", "department", "project", "contract", "customer",
+})
+
+
+async def _form_field_filter_instance_clause(db, tenant_id: str, filters: WfListFilters):
+    """表单字段筛选 → form_instance_id 子查询条件。"""
+    if not filters.form_filters or not filters.form_filters.strip():
+        return None
+    from app.domains.lowcode.models import FormInstance
+    from app.domains.lowcode.service import (
+        _form_data_filter_clause,
+        _instance_list_filter_bundle,
+        _normalize_instance_filters,
+    )
+    template_id = None
+    if filters.process_definition_id:
+        template_id = (await db.execute(
+            select(WfProcessDefinition.form_template_id).where(
+                WfProcessDefinition.tenant_id == tenant_id,
+                WfProcessDefinition.id == filters.process_definition_id,
+            )
+        )).scalar_one_or_none()
+    match, rules = _normalize_instance_filters(filters.form_filters)
+    if not rules:
+        return None
+    fi_conds = [
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.is_deleted == False,  # noqa: E712
+    ]
+    if template_id:
+        fi_conds.append(FormInstance.template_id == template_id)
+        bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters.form_filters)
+        if bundle:
+            fi_conds.append(bundle[0])
+    else:
+        clauses = [_form_data_filter_clause(r) for r in rules]
+        combined = or_(*clauses) if match == "any" else and_(*clauses)
+        fi_conds.append(combined)
+    fi_sq = select(FormInstance.id).where(*fi_conds)
+    return WfProcessInstance.form_instance_id.in_(fi_sq)
+
+
+def _instance_filter_clauses(tenant_id: str, filters: WfListFilters) -> list:
+    clauses = []
+    if filters.keyword and filters.keyword.strip():
+        kw = f"%{filters.keyword.strip()}%"
+        def_sq = select(WfProcessDefinition.id).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.name.ilike(kw),
+        )
+        from app.domains.lowcode.models import FormInstance
+        fi_kw_sq = select(FormInstance.id).where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.is_deleted == False,  # noqa: E712
+            cast(FormInstance.form_data, String).ilike(kw),
+        )
+        clauses.append(or_(
+            WfProcessInstance.title.ilike(kw),
+            WfProcessInstance.business_no.ilike(kw),
+            WfProcessInstance.process_definition_id.in_(def_sq),
+            WfProcessInstance.form_instance_id.in_(fi_kw_sq),
+        ))
+    if filters.process_definition_id:
+        clauses.append(WfProcessInstance.process_definition_id == filters.process_definition_id)
+    if filters.form_code:
+        from app.domains.lowcode.models import FormInstance, FormTemplate
+        tpl_sq = select(FormTemplate.id).where(
+            FormTemplate.tenant_id == tenant_id,
+            FormTemplate.code == filters.form_code,
+        )
+        fi_sq = select(FormInstance.id).where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.template_id.in_(tpl_sq),
+            FormInstance.is_deleted == False,  # noqa: E712
+        )
+        clauses.append(WfProcessInstance.form_instance_id.in_(fi_sq))
+    if filters.initiator_id:
+        clauses.append(WfProcessInstance.initiator_id == filters.initiator_id)
+    if filters.created_from:
+        clauses.append(WfProcessInstance.created_at >= filters.created_from)
+    if filters.created_to:
+        clauses.append(WfProcessInstance.created_at <= filters.created_to)
+    return clauses
+
+
+async def _live_filtered_instance_subquery(db, tenant_id: str, filters: WfListFilters | None = None):
+    q = select(WfProcessInstance.id).where(
+        WfProcessInstance.tenant_id == tenant_id,
+        _live_form_process_clause(tenant_id),
+    )
+    if filters and filters.active():
+        q = q.where(*_instance_filter_clauses(tenant_id, filters))
+        form_clause = await _form_field_filter_instance_clause(db, tenant_id, filters)
+        if form_clause is not None:
+            q = q.where(form_clause)
+    return q
+
+
+def _running_node_name_instance_subquery(tenant_id: str, node_name: str):
+    return select(WfNodeInstance.process_instance_id).where(
+        WfNodeInstance.tenant_id == tenant_id,
+        WfNodeInstance.status == "running",
+        WfNodeInstance.node_type == "approval",
+        WfNodeInstance.node_name == node_name,
+    )
+
+
+def _task_node_name_clause(tenant_id: str, node_name: str):
+    node_sq = select(WfNodeInstance.id).where(
+        WfNodeInstance.tenant_id == tenant_id,
+        WfNodeInstance.node_name == node_name,
+    )
+    return WfTaskInstance.node_instance_id.in_(node_sq)
+
+
+async def list_filter_options(db, tenant_id: str, process_definition_id: str | None = None) -> dict:
+    """审批中心筛选项：已发布流程 + 常见节点名；指定流程时返回可筛字段。"""
+    from app.domains.lowcode.models import FormTemplate
+    from app.domains.lowcode.service import get_published_version
+    def_rows = (await db.execute(
+        select(
+            WfProcessDefinition.id,
+            WfProcessDefinition.name,
+            WfProcessDefinition.form_template_id,
+        ).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+            WfProcessDefinition.status == "published",
+        ).order_by(WfProcessDefinition.sort_order, WfProcessDefinition.name)
+    )).all()
+    tpl_ids = {r[2] for r in def_rows if r[2]}
+    tpl_code_map: dict[str, str] = {}
+    if tpl_ids:
+        tpl_code_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(FormTemplate.id, FormTemplate.code).where(FormTemplate.id.in_(tpl_ids))
+            )).all()
+        }
+    processes = [
+        {"id": r[0], "name": r[1], "form_code": tpl_code_map.get(r[2])}
+        for r in def_rows
+    ]
+    node_names = list((await db.execute(
+        select(WfNodeInstance.node_name).where(
+            WfNodeInstance.tenant_id == tenant_id,
+            WfNodeInstance.node_name.isnot(None),
+            WfNodeInstance.node_name != "",
+        ).distinct().order_by(WfNodeInstance.node_name).limit(300)
+    )).scalars().all())
+    fields: list[dict] = []
+    if process_definition_id:
+        tpl_id = (await db.execute(
+            select(WfProcessDefinition.form_template_id).where(
+                WfProcessDefinition.tenant_id == tenant_id,
+                WfProcessDefinition.id == process_definition_id,
+            )
+        )).scalar_one_or_none()
+        if tpl_id:
+            ver = await get_published_version(db, tenant_id, tpl_id)
+            for fd in (ver.field_definitions if ver else []) or []:
+                if not isinstance(fd, dict):
+                    continue
+                fid = fd.get("id")
+                ftype = fd.get("type") or "text"
+                if not fid or ftype not in _FILTERABLE_FIELD_TYPES:
+                    continue
+                fields.append({
+                    "id": fid,
+                    "label": fd.get("label") or fid,
+                    "type": ftype,
+                    "options": fd.get("options") or [],
+                })
+    return {"processes": processes, "node_names": node_names, "fields": fields}
+
+
+async def list_todo(
+    db, tenant_id, user_id, page_no, page_size,
+    biz_type=None, biz_id=None, filters: WfListFilters | None = None,
+):
     """我的待办。biz_type/biz_id 可选，用于业务详情页精确查「这单是否轮到我审」——
     否则调用方只能拉一页待办再在前端过滤，待办多时会漏掉。"""
     # 待办 = 本人被指派 + 本人作为「有效代理人」代办的委托人任务
@@ -7193,15 +7401,14 @@ async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, b
     assignees = [user_id, *principals]
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id.in_(assignees),
              WfTaskInstance.status == "pending"]
-    inst_q = select(WfProcessInstance.id).where(
-        WfProcessInstance.tenant_id == tenant_id,
-        _live_form_process_clause(tenant_id),
-    )
+    inst_q = await _live_filtered_instance_subquery(db, tenant_id, filters)
     if biz_type:
         inst_q = inst_q.where(WfProcessInstance.biz_type == biz_type)
     if biz_id:
         inst_q = inst_q.where(WfProcessInstance.biz_id == biz_id)
     conds.append(WfTaskInstance.process_instance_id.in_(inst_q))
+    if filters and filters.node_name:
+        conds.append(_task_node_name_clause(tenant_id, filters.node_name))
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.created_at.desc())
@@ -7209,15 +7416,13 @@ async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, b
     return await _enrich_tasks(db, list(tasks), viewer_id=user_id), total
 
 
-async def list_done(db, tenant_id, user_id, page_no, page_size):
+async def list_done(db, tenant_id, user_id, page_no, page_size, filters: WfListFilters | None = None):
+    inst_q = await _live_filtered_instance_subquery(db, tenant_id, filters)
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id == user_id,
              WfTaskInstance.status.in_(["approved", "rejected", "transferred", "returned"]),
-             WfTaskInstance.process_instance_id.in_(
-                 select(WfProcessInstance.id).where(
-                     WfProcessInstance.tenant_id == tenant_id,
-                     _live_form_process_clause(tenant_id),
-                 )
-             )]
+             WfTaskInstance.process_instance_id.in_(inst_q)]
+    if filters and filters.node_name:
+        conds.append(_task_node_name_clause(tenant_id, filters.node_name))
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.action_at.desc())
@@ -7225,12 +7430,18 @@ async def list_done(db, tenant_id, user_id, page_no, page_size):
     return await _enrich_tasks(db, list(tasks)), total
 
 
-async def list_initiated(db, tenant_id, user_id, page_no, page_size):
+async def list_initiated(db, tenant_id, user_id, page_no, page_size, filters: WfListFilters | None = None):
     conds = [
         WfProcessInstance.tenant_id == tenant_id,
         WfProcessInstance.initiator_id == user_id,
         _live_form_process_clause(tenant_id),
     ]
+    if filters and filters.active():
+        conds.extend(_instance_filter_clauses(tenant_id, filters))
+    if filters and filters.node_name:
+        conds.append(WfProcessInstance.id.in_(
+            _running_node_name_instance_subquery(tenant_id, filters.node_name)
+        ))
     total = (await db.execute(select(func.count()).select_from(WfProcessInstance).where(*conds))).scalar_one()
     rows = (await db.execute(select(WfProcessInstance).where(*conds)
             .order_by(WfProcessInstance.created_at.desc())
@@ -7238,17 +7449,17 @@ async def list_initiated(db, tenant_id, user_id, page_no, page_size):
     return await _enrich_instances(db, list(rows)), total
 
 
-async def list_cc(db, tenant_id, user_id, page_no, page_size):
+async def list_cc(db, tenant_id, user_id, page_no, page_size, filters: WfListFilters | None = None):
     """抄送给我的流程。"""
+    inst_q = await _live_filtered_instance_subquery(db, tenant_id, filters)
+    if filters and filters.node_name:
+        inst_q = inst_q.where(
+            WfProcessInstance.id.in_(_running_node_name_instance_subquery(tenant_id, filters.node_name))
+        )
     conds = [
         WfProcessCc.tenant_id == tenant_id,
         WfProcessCc.user_id == user_id,
-        WfProcessCc.process_instance_id.in_(
-            select(WfProcessInstance.id).where(
-                WfProcessInstance.tenant_id == tenant_id,
-                _live_form_process_clause(tenant_id),
-            )
-        ),
+        WfProcessCc.process_instance_id.in_(inst_q),
     ]
     total = (await db.execute(select(func.count()).select_from(WfProcessCc).where(*conds))).scalar_one()
     ccs = (await db.execute(select(WfProcessCc).where(*conds)

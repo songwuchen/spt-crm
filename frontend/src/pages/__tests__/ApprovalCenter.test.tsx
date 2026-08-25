@@ -43,6 +43,9 @@ vi.mock('@/api/unifiedApprovals', () => ({
   fetchUnifiedPending: vi.fn(),
   fetchUnifiedMine: vi.fn().mockResolvedValue([]),
   fetchUnifiedDone: vi.fn().mockResolvedValue([]),
+  fetchUnifiedCc: vi.fn().mockResolvedValue([]),
+  fetchFilterOptions: vi.fn().mockResolvedValue({ processes: [], node_names: [] }),
+  countActiveFilters: vi.fn().mockReturnValue(0),
   decideUnified: vi.fn(),
 }))
 
@@ -52,6 +55,7 @@ vi.mock('@/api/lowcodeWorkflow', () => ({
     done: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
     mine: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
     cc: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    filterOptions: vi.fn().mockResolvedValue({ data: { processes: [], node_names: [] } }),
     listAgents: vi.fn().mockResolvedValue({ data: [] }),
     createAgent: vi.fn(),
     deleteAgent: vi.fn(),

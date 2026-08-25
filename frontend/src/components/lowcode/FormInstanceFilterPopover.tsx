@@ -51,7 +51,7 @@ const OP_LABELS: Record<string, string> = {
   is_not_empty: '不为空',
 }
 
-function opsForType(type: string): string[] {
+export function opsForType(type: string): string[] {
   if (type === 'date' || type === 'datetime') {
     return ['between', 'eq', 'before', 'after', 'is_empty', 'is_not_empty']
   }
@@ -68,7 +68,7 @@ function opsForType(type: string): string[] {
   return ['contains', 'not_contains', 'eq', 'ne', 'in', 'is_empty', 'is_not_empty']
 }
 
-function defaultOp(type: string): string {
+export function defaultOp(type: string): string {
   if (type === 'date' || type === 'datetime') return 'between'
   if (type === 'select' || type === 'radio') return 'eq'
   if (type === 'number' || type === 'amount') return 'eq'
@@ -234,7 +234,7 @@ export default function FormInstanceFilterPopover({ fields, value, onApply, stor
                 options={ops.map((op) => ({ value: op, label: OP_LABELS[op] || op }))}
               />
               <div className="flex-1 min-w-0">
-                <ValueControl
+                <FilterValueControl
                   field={f}
                   op={row.op}
                   value={row.value}
@@ -280,7 +280,7 @@ export default function FormInstanceFilterPopover({ fields, value, onApply, stor
   )
 }
 
-function ValueControl({
+export function FilterValueControl({
   field, op, value, onChange,
 }: {
   field?: FieldDefinition

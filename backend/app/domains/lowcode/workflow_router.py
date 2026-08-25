@@ -3,6 +3,8 @@
 - 流程定义设计/管理: workflow:view / workflow:manage
 - 运行时(发起/待办/审批): 登录即可,授权在引擎内做行级校验(assignee/initiator)。
 """
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +24,29 @@ def _def_dict(d):
 
 def _ver_dict(v):
     return ws.WfVersionOut.model_validate(v).model_dump(mode="json")
+
+
+def _parse_list_filters(
+    keyword: str | None = Query(None, description="标题/单号/流程名/表单字段关键词"),
+    process_definition_id: str | None = Query(None),
+    form_code: str | None = Query(None),
+    node_name: str | None = Query(None, description="当前节点/任务节点"),
+    initiator_id: str | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+    form_filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]}'),
+) -> wsvc.WfListFilters | None:
+    f = wsvc.WfListFilters(
+        keyword=keyword,
+        process_definition_id=process_definition_id,
+        form_code=form_code,
+        node_name=node_name,
+        initiator_id=initiator_id,
+        created_from=created_from,
+        created_to=created_to,
+        form_filters=form_filters,
+    )
+    return f if f.active() else None
 
 
 # ==================== 流程定义 ====================
@@ -92,36 +117,51 @@ async def list_versions(def_id: str, tenant_id: str = Depends(get_tenant_id),
 @router.get("/tasks/todo")
 async def my_todo(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
                   biz_type: str | None = Query(None), biz_id: str | None = Query(None),
+                  filters: wsvc.WfListFilters | None = Depends(_parse_list_filters),
                   tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                   user: dict = Depends(get_current_user)):
     items, total = await wsvc.list_todo(db, tenant_id, user.get("sub"), pageNo, pageSize,
-                                        biz_type=biz_type, biz_id=biz_id)
+                                        biz_type=biz_type, biz_id=biz_id, filters=filters)
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/tasks/done")
 async def my_done(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
+                  filters: wsvc.WfListFilters | None = Depends(_parse_list_filters),
                   tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                   user: dict = Depends(get_current_user)):
-    items, total = await wsvc.list_done(db, tenant_id, user.get("sub"), pageNo, pageSize)
+    items, total = await wsvc.list_done(db, tenant_id, user.get("sub"), pageNo, pageSize, filters=filters)
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/instances/mine")
 async def my_initiated(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
+                       filters: wsvc.WfListFilters | None = Depends(_parse_list_filters),
                        tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                        user: dict = Depends(get_current_user)):
-    items, total = await wsvc.list_initiated(db, tenant_id, user.get("sub"), pageNo, pageSize)
+    items, total = await wsvc.list_initiated(db, tenant_id, user.get("sub"), pageNo, pageSize, filters=filters)
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/instances/cc")
 async def my_cc(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
+                filters: wsvc.WfListFilters | None = Depends(_parse_list_filters),
                 tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                 user: dict = Depends(get_current_user)):
     """抄送给我的。"""
-    items, total = await wsvc.list_cc(db, tenant_id, user.get("sub"), pageNo, pageSize)
+    items, total = await wsvc.list_cc(db, tenant_id, user.get("sub"), pageNo, pageSize, filters=filters)
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/instances/filter-options")
+async def filter_options(
+    process_definition_id: str | None = Query(None, description="指定流程时返回该表单可筛字段"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _u=Depends(get_current_user),
+):
+    """审批中心筛选项：已发布流程、常见节点名、流程表单字段。"""
+    return ok(await wsvc.list_filter_options(db, tenant_id, process_definition_id=process_definition_id))
 
 
 @router.get("/instances/by-biz")
