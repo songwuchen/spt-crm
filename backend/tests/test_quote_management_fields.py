@@ -48,7 +48,7 @@ def test_salesperson_cannot_see_cost_price_even_as_creator():
 
 def test_finance_and_sales_manager_can_see_cost():
     defs = prepare_quote_field_defs(_SAMPLE_DEFS)
-    for role in ("finance", "sales_manager", "lead_intel", "admin"):
+    for role in ("finance", "sales_manager", "lead_intel", "admin", "mkt_support"):
         _, data = filter_read(defs, _SAMPLE_DATA, [role])
         assert data["cost_price"] == 12345.6
         assert data["cost_attachments"] == _SAMPLE_DATA["cost_attachments"]

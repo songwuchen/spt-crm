@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""报价管理：可选关联商机（非必填）；成本价仅内勤/财务/销售经理/管理员可见。"""
+"""报价管理：可选关联商机（非必填）；成本价仅内勤/财务/市场技术支持中心/销售经理/管理员可见。"""
 from __future__ import annotations
 
 from typing import Any
@@ -20,6 +20,7 @@ QUOTE_COST_VISIBLE_ROLES = [
     "lead_intel",       # 信息情报部内勤
     "finance",          # 财务专员
     "finance_manager",  # 财务主管
+    "mkt_support",      # 市场技术支持中心
     "sales_manager",    # 销售经理
     "admin",            # 系统管理员
 ]
