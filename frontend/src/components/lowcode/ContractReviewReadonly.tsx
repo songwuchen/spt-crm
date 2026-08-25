@@ -120,7 +120,7 @@ export default function ContractReviewReadonly({
                   bizId={row.id}
                   title="成本附件"
                   compact={compactAttachments}
-                  readonly={compactAttachments}
+                  readonly
                 />
               </div>
             )}
@@ -131,7 +131,7 @@ export default function ContractReviewReadonly({
                   bizId={row.id}
                   title="附件"
                   compact={compactAttachments}
-                  readonly={compactAttachments}
+                  readonly
                 />
                 <AttachmentPanel
                   bizType="contract_review_image"
@@ -139,7 +139,7 @@ export default function ContractReviewReadonly({
                   title="图片"
                   accept="image/*"
                   compact={compactAttachments}
-                  readonly={compactAttachments}
+                  readonly
                 />
               </div>
             )}
@@ -150,7 +150,7 @@ export default function ContractReviewReadonly({
                   bizId={row.id}
                   title="反馈附件"
                   compact={compactAttachments}
-                  readonly={compactAttachments}
+                  readonly
                 />
                 <AttachmentPanel
                   bizType="contract_review_feedback_image"
@@ -158,7 +158,7 @@ export default function ContractReviewReadonly({
                   title="反馈图片"
                   accept="image/*"
                   compact={compactAttachments}
-                  readonly={compactAttachments}
+                  readonly
                 />
               </div>
             )}

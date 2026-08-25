@@ -144,6 +144,37 @@ async def test_attachment_rejects_exe(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_can_download_via_biz_visibility_parent_record(db):
+    """父业务在数据范围内即可预览附件，不必单独授予 attachment:download。"""
+    from sqlalchemy import text
+    from sqlalchemy.exc import ProgrammingError
+
+    from app.domains.attachment.router import _can_download_via_biz_visibility
+
+    tenant = "00000000-0000-0000-0000-000000000001"
+    try:
+        row = (await db.execute(text("""
+            SELECT c.id AS cust_id,
+                   al.attachment_id AS att_id,
+                   c.owner_id
+            FROM customer c
+            JOIN attachment_link al ON al.biz_id = c.id AND al.biz_type = 'customer'
+            WHERE c.tenant_id = :tenant
+            LIMIT 1
+        """), {"tenant": tenant})).mappings().first()
+    except ProgrammingError:
+        pytest.skip("本地库未初始化业务表")
+    if not row or not row["att_id"]:
+        pytest.skip("本地无客户附件样本")
+    ok = await _can_download_via_biz_visibility(
+        db, tenant,
+        {"sub": row["owner_id"], "roles": [], "permissions": ["customer:view"]},
+        attachment_id=row["att_id"],
+    )
+    assert ok is True
+
+
+@pytest.mark.asyncio
 async def test_can_download_via_wf_lowcode_form_participant(db):
     """流程审批人预览表单内附件，不必单独授予 attachment:download。"""
     from sqlalchemy import text

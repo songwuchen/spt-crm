@@ -147,6 +147,51 @@ async def _can_download_via_wf(
     return False
 
 
+async def _can_download_via_biz_visibility(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict | None,
+    *,
+    biz_type: str | None = None,
+    biz_id: str | None = None,
+    attachment_id: str | None = None,
+) -> bool:
+    """父业务对象在数据范围内即可预览/下载（与 list_by_biz 一致，不必单独 attachment:download）。
+
+    合同评审/技术协议评审等：有 contract_review:view 即可在线阅览附件。
+    """
+    if not user:
+        return False
+    from app.domains.activity.service import assert_biz_object_visible
+    from app.domains.attachment.models import AttachmentLink
+    from sqlalchemy import select
+
+    pairs: list[tuple[str, str]] = []
+    if biz_type and biz_id:
+        pairs.append((biz_type, biz_id))
+    if attachment_id:
+        links = (await db.execute(
+            select(AttachmentLink.biz_type, AttachmentLink.biz_id).where(
+                AttachmentLink.tenant_id == tenant_id,
+                AttachmentLink.attachment_id == attachment_id,
+            )
+        )).all()
+        pairs.extend((bt, bid) for bt, bid in links if bt and bid)
+
+    seen: set[tuple[str, str]] = set()
+    for bt, bid in pairs:
+        key = (bt, bid)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            await assert_biz_object_visible(db, tenant_id, user, bt, bid, label="该附件")
+            return True
+        except BusinessException:
+            continue
+    return False
+
+
 async def _require_attachment_download_or_wf(
     db: AsyncSession,
     tenant_id: str,
@@ -156,7 +201,7 @@ async def _require_attachment_download_or_wf(
     biz_id: str | None = None,
     attachment_id: str | None = None,
 ) -> bool:
-    """有 attachment:download，或流程审批相关人；返回是否走审批旁路（跳过数据范围）。"""
+    """有 attachment:download、流程审批相关人、或父业务可见；返回是否走审批旁路（跳过数据范围）。"""
     via_wf = await _can_download_via_wf(
         db, tenant_id, current_user.get("sub"),
         biz_type=biz_type, biz_id=biz_id, attachment_id=attachment_id,
@@ -165,6 +210,11 @@ async def _require_attachment_download_or_wf(
         return True
     perms = current_user.get("permissions") or []
     if "attachment:download" in perms:
+        return False
+    if await _can_download_via_biz_visibility(
+        db, tenant_id, current_user,
+        biz_type=biz_type, biz_id=biz_id, attachment_id=attachment_id,
+    ):
         return False
     raise BusinessException(code=FORBIDDEN, message="缺少权限: attachment:download")
 

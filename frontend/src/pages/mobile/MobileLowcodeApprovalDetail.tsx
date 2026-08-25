@@ -434,6 +434,24 @@ export default function MobileLowcodeApprovalDetail() {
           />
         </div>
       )}
+      {detail.biz_type === 'tech_agreement_review' && detail.biz_id && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3 space-y-3">
+          <AttachmentPanel
+            bizType="tech_agreement_review_drawing"
+            bizId={detail.biz_id}
+            title="认可图（附件）"
+            compact
+            readonly
+          />
+          <AttachmentPanel
+            bizType="tech_agreement_review"
+            bizId={detail.biz_id}
+            title="技术协议（附件）"
+            compact
+            readonly
+          />
+        </div>
+      )}
       {detail.biz_type === 'contract_review' && detail.biz_id && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3 space-y-3">
           <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact readonly />
