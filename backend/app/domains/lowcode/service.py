@@ -1835,6 +1835,9 @@ def expand_filterable_form_fields(field_definitions: list | None) -> list[dict]:
     def _append(item: dict) -> None:
         fid = item.get("id")
         ftype = item.get("type") or "text"
+        # 公式字段（如开票 total_amount=SUM(明细)）仍写入 form_data，可按数值筛选
+        if ftype == "formula":
+            ftype = "number"
         if not fid or fid in seen or ftype not in FILTERABLE_FIELD_TYPES:
             return
         seen.add(fid)
