@@ -26,6 +26,13 @@ import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contrac
 import dayjs from 'dayjs'
 import { formatFormDate, isValidFormDate } from '@/utils/formDate'
 
+/** 登记 JSON 字段（列表纯文本展示） */
+function regText(r: ContractItem, key: string): string {
+  const v = (r.registration_json as Record<string, unknown> | undefined)?.[key]
+  if (v == null || v === '') return '-'
+  if (Array.isArray(v)) return v.map(String).filter(Boolean).join('、') || '-'
+  return String(v)
+}
 
 export default function ContractList() {
   usePageTitle('合同登记')
@@ -342,48 +349,56 @@ export default function ContractList() {
 
   const columns: ColumnsType<ContractItem> = useMemo(() => {
     const cols: ColumnsType<ContractItem> = [
-    { title: '流水号', dataIndex: 'serial_no', width: 170, fixed: 'left',
-      render: (v: string, r: ContractItem) => (
-        <a className="font-mono text-xs" onClick={() => openDetail(r.id)}>{v || '—'}</a>
-      ),
-    },
-    { title: '合同编号', dataIndex: 'contract_no', width: 160,
-      render: (v: string, r: ContractItem) => (
-        <a className="font-mono font-bold text-primary" onClick={() => openDetail(r.id)}>{v}</a>
-      ),
-    },
-    { title: '图纸编号', dataIndex: 'drawing_no', width: 140, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '对方合同号', dataIndex: 'peer_contract_no', width: 120, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '客户名称', dataIndex: 'customer_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '商机名称', dataIndex: 'project_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
-    {
-      title: '项目名称', width: 140, ellipsis: true,
-      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.project_name || '-',
-    },
-    { title: '登记类型', dataIndex: 'change_type', width: 90,
-      render: (v: string) => formatChangeType(v) },
-    {
-      title: '合同类型', width: 100, ellipsis: true,
-      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.contract_type || '-',
-    },
-    {
-      title: '行业', width: 90, ellipsis: true,
-      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.industry || '-',
-    },
-    { title: '状态', dataIndex: 'status', width: 90,
-      render: (_: string, r: ContractItem) => {
-        const ds = resolveContractDisplayStatus(r.status, r.current_version_status)
-        return <Tag color={contractDisplayStatusColors[ds] || 'default'}>{contractDisplayStatusLabels[ds] || ds}</Tag>
+      // —— 对齐简道云合同登记列表（纯文本）——
+      {
+        title: '流水号', dataIndex: 'serial_no', width: 168, fixed: 'left',
+        render: (v: string, r: ContractItem) => (
+          <a className="font-mono text-xs" onClick={() => openDetail(r.id)}>{v || '—'}</a>
+        ),
       },
-    },
-    { title: '金额', dataIndex: 'amount_total', width: 120, align: 'right',
-      render: (v: number | string) => <span className="font-bold">{fmtMoney(v)}</span> },
-    { title: '订货日期', dataIndex: 'order_date', width: 110, render: (v: string) => v || '-' },
-    { title: '交货期', dataIndex: 'delivery_date', width: 110, render: (v: string) => v || '-' },
-    { title: '获取方式', dataIndex: 'acquire_method', width: 110, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '负责人', dataIndex: 'assignee_name', width: 90, render: (v: string) => v || '-' },
-    { title: '创建时间', dataIndex: 'created_at', width: 110,
-      render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+      { title: '提交人', dataIndex: 'created_by_name', width: 90, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '下卡日期', dataIndex: 'card_date', width: 108, render: (v: string) => v || '-' },
+      { title: '客户编号', width: 120, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'customer_code') },
+      { title: '单位名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '部门', dataIndex: 'department_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '业务人员', dataIndex: 'assignee_name', width: 90, render: (v: string) => v || '-' },
+      { title: '合同状态', dataIndex: 'change_type', width: 80, render: (v: string) => formatChangeType(v) },
+      { title: '变动原因', width: 160, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'change_reason') },
+      { title: '合同获取信息方式', dataIndex: 'acquire_method', width: 130, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '合同号', dataIndex: 'contract_no', width: 110,
+        render: (v: string, r: ContractItem) => (
+          <a className="font-mono" onClick={() => openDetail(r.id)}>{v}</a>
+        ),
+      },
+      { title: '合同/项目评审流水号', width: 150, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'review_sn') },
+      { title: '小萌合同评审流水号', width: 150, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'review_sn_xm') },
+      { title: '出厂编号', width: 100, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'factory_no') },
+      { title: '订货日期', dataIndex: 'order_date', width: 108, render: (v: string) => v || '-' },
+      { title: '合同类型', width: 90, render: (_: unknown, r: ContractItem) => regText(r, 'contract_type') },
+      { title: '图纸编号', dataIndex: 'drawing_no', width: 130, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '项目名称', width: 140, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'project_name') },
+      { title: '对方合同号', dataIndex: 'peer_contract_no', width: 130, ellipsis: true, render: (v: string) => v || '-' },
+      { title: '是否含税', width: 80, render: (_: unknown, r: ContractItem) => regText(r, 'tax_included') },
+      { title: '设备是否出口', width: 100, render: (_: unknown, r: ContractItem) => regText(r, 'is_export') },
+      { title: '是否需要安装', width: 110, render: (_: unknown, r: ContractItem) => regText(r, 'need_install') },
+      { title: '信息是否齐全', width: 110, render: (_: unknown, r: ContractItem) => regText(r, 'info_complete') },
+      { title: '缺少项', width: 120, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'missing_items') },
+      { title: '信息不齐全备注', width: 140, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'info_incomplete_note') },
+      { title: '出口类型', width: 100, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'export_type') },
+      { title: '合同形式', width: 130, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'contract_form') },
+      { title: '是否标准交付', width: 110, render: (_: unknown, r: ContractItem) => regText(r, 'standard_delivery') },
+      { title: '方式', width: 90, render: (_: unknown, r: ContractItem) => regText(r, 'delivery_mode') },
+      { title: '是否为旋振筛', width: 100, render: (_: unknown, r: ContractItem) => regText(r, 'is_rotary_sieve') },
+      // CRM 补充（简道云列表无对应列）
+      {
+        title: '状态', dataIndex: 'status', width: 90,
+        render: (_: string, r: ContractItem) => {
+          const ds = resolveContractDisplayStatus(r.status, r.current_version_status)
+          return <Tag color={contractDisplayStatusColors[ds] || 'default'}>{contractDisplayStatusLabels[ds] || ds}</Tag>
+        },
+      },
+      { title: '金额', dataIndex: 'amount_total', width: 110, align: 'right',
+        render: (v: number | string) => fmtMoney(v) },
     ]
     if (canDelete) {
       cols.push({
@@ -435,6 +450,7 @@ export default function ContractList() {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
+          scroll={{ x: 3600 }}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },
