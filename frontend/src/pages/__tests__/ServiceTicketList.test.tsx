@@ -6,7 +6,6 @@ import type { UserInfo } from '@/api/types'
 vi.mock('@/api/serviceTicket', () => ({
   serviceTicketApi: {
     list: vi.fn(),
-    listRenewals: vi.fn(),
     slaStats: vi.fn(),
   },
 }))
@@ -39,9 +38,8 @@ const adminUser: UserInfo = {
 
 describe('ServiceTicketList', { timeout: 15000 }, () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     useAuthStore.getState().setUser(adminUser)
-    ;(serviceTicketApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+    vi.mocked(serviceTicketApi.list).mockResolvedValue({
       data: {
         items: [
           { id: 't-1', ticket_no: 'TK-001', type: 'fault', priority: 'high', status: 'open', description: '设备故障' },
@@ -50,8 +48,7 @@ describe('ServiceTicketList', { timeout: 15000 }, () => {
         total: 2,
       },
     })
-    ;(serviceTicketApi.listRenewals as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
-    ;(serviceTicketApi.slaStats as ReturnType<typeof vi.fn>).mockResolvedValue({
+    vi.mocked(serviceTicketApi.slaStats).mockResolvedValue({
       data: {
         open_tickets: 3, resolved_tickets: 10,
         breach_count: 1, near_breach_count: 2, on_time_rate: 92.3,

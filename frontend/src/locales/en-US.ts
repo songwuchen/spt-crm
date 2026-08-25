@@ -292,7 +292,7 @@ const enUS = {
     title: 'Service Tickets',
     subtitle: 'Manage after-sales tickets',
     pageTitle: 'After-Sales Service',
-    pageSubtitle: 'Manage service tickets and renewal/repurchase opportunities',
+    pageSubtitle: 'Manage service tickets',
     ticketNo: 'Ticket No.',
     priority: 'Priority',
     assignee: 'Assignee',

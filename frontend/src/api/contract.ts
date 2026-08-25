@@ -4,6 +4,15 @@ import type { ApiResponse, ContractItem, ContractVersion } from './types'
 export const contractApi = {
   list: (params?: Record<string, unknown>) =>
     client.get('/api/v1/contracts', { params }),
+  /** 合同管理仪表盘汇总 */
+  dashboardSummary: (params?: {
+    customer_name?: string
+    card_date_from?: string
+    card_date_to?: string
+    department_id?: string
+    assignee_id?: string
+  }) =>
+    client.get('/api/v1/contracts/dashboard/summary', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ContractItem[]>>(`/api/v1/projects/${projectId}/contracts`),
   /** 编号查询：合同图纸对应表 */
@@ -26,7 +35,12 @@ export const contractApi = {
       name: string
       label: string
     }>>>('/api/v1/contracts/base-lookups', { params }),
-  /** 新建合同登记：预览下一图纸编号（按取号当天，与订货日无关） */
+  /** 新建登记：预览下一流水号 */
+  peekSerialNo: (params?: { card_date?: string }) =>
+    client.get<unknown, ApiResponse<{ serial_no: string }>>(
+      '/api/v1/contracts/peek-serial-no', { params },
+    ),
+  /** 新建登记：预览下一图纸编号（按取号当天，与订货日无关） */
   peekDrawingNo: (params?: { number_attr?: string }) =>
     client.get<unknown, ApiResponse<{ drawing_no: string; number_attr?: string }>>(
       '/api/v1/contracts/peek-drawing-no', { params },
@@ -68,9 +82,6 @@ export const contractApi = {
   submitVersion: (vid: string, data?: { assignee_ids?: string[]; assignee_names?: string[] }) =>
     client.post<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}/submit`, data || {}),
 
-  // Renewal
-  renew: (contractId: string) =>
-    client.post(`/api/v1/contracts/${contractId}/renew`),
   batchExportPdf: (ids: string[]) =>
     client.post('/api/v1/contracts/batch_export/pdf', { ids }, { responseType: 'blob' }),
   related: (id: string) =>

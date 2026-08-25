@@ -191,43 +191,51 @@ export const quoteStatusColors: Record<string, string> = {
 }
 
 // --- Contract ---
-// 主合同 Contract.status = draft/signed/terminated（签署前一直是 draft）
+// 主合同 Contract.status = draft/signed/terminated（signed=审批已通过生效，展示为「已通过」）
 export const contractStatusLabels: Record<string, string> = {
-  draft: '草稿', signed: '已签署', terminated: '已终止',
+  draft: '草稿', signed: '已通过', terminated: '已终止',
 }
 export const contractStatusColors: Record<string, string> = {
   draft: 'default', signed: 'success', terminated: 'error',
 }
 // 合同版本 ContractVersion.status（审批写回的是版本，不是主合同）
 export const contractVersionStatusLabels: Record<string, string> = {
-  draft: '草稿', submitted: '审批中', approved: '已通过', rejected: '已驳回', signed: '已签署',
+  draft: '草稿', submitted: '审批中', approved: '已通过', rejected: '已驳回', signed: '已通过',
 }
 export const contractVersionStatusColors: Record<string, string> = {
   draft: 'default', submitted: 'processing', approved: 'success', rejected: 'error', signed: 'success',
 }
-/** 列表/详情展示态：主表签署态 + 当前版本审批态合成 */
+/** 列表/详情展示态：对齐客户/线索 review_status 口径（草稿/审批中/已通过/已驳回） */
 export const contractDisplayStatusLabels: Record<string, string> = {
   draft: '草稿',
   approving: '审批中',
-  pending_sign: '待签署',
+  approved: '已通过',
   rejected: '已驳回',
-  signed: '已签署',
   terminated: '已终止',
+  // 兼容旧数据/筛选项
+  pending_sign: '已通过',
+  signed: '已通过',
 }
 export const contractDisplayStatusColors: Record<string, string> = {
   draft: 'default',
   approving: 'processing',
-  pending_sign: 'warning',
+  approved: 'success',
   rejected: 'error',
-  signed: 'success',
   terminated: 'error',
+  pending_sign: 'success',
+  signed: 'success',
 }
 export function resolveContractDisplayStatus(
   contractStatus: string,
   versionStatus?: string | null,
+  wfStatus?: string | null,
 ): string {
-  if (contractStatus === 'signed' || contractStatus === 'terminated') return contractStatus
-  if (versionStatus === 'approved' || versionStatus === 'signed') return 'pending_sign'
+  if (contractStatus === 'terminated') return 'terminated'
+  if (contractStatus === 'signed') return 'approved'
+  if (wfStatus === 'completed') return 'approved'
+  if (wfStatus === 'running') return 'approving'
+  if (wfStatus === 'rejected') return 'rejected'
+  if (versionStatus === 'approved' || versionStatus === 'signed') return 'approved'
   if (versionStatus === 'submitted') return 'approving'
   if (versionStatus === 'rejected') return 'rejected'
   return 'draft'

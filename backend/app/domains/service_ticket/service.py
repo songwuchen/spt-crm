@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND
-from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
+from app.domains.service_ticket.models import ServiceTicket
 from app.domains.service_ticket.schemas import (
-    ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
+    ServiceTicketCreate, ServiceTicketUpdate,
 )
 from app.domains.audit.service import log_action
 from app.common.code_generator import generate_code
@@ -244,55 +244,3 @@ async def delete_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="delete", resource_type="service_ticket", resource_id=ticket_id,
                      summary=f"删除售后工单: {ticket_no}")
-
-
-# ==================== RenewalOpportunity ====================
-
-async def list_renewals(db: AsyncSession, tenant_id: str, customer_id: str | None = None, status: str | None = None):
-    q = select(RenewalOpportunity).where(RenewalOpportunity.tenant_id == tenant_id)
-    if customer_id:
-        q = q.where(RenewalOpportunity.customer_id == customer_id)
-    if status:
-        q = q.where(RenewalOpportunity.status == status)
-    result = await db.execute(q.order_by(RenewalOpportunity.created_at.desc()))
-    return result.scalars().all()
-
-
-async def get_renewal(db: AsyncSession, tenant_id: str, renewal_id: str) -> RenewalOpportunity:
-    r = (await db.execute(
-        select(RenewalOpportunity).where(RenewalOpportunity.id == renewal_id, RenewalOpportunity.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not r:
-        raise BusinessException(code=NOT_FOUND, message="复购机会不存在")
-    return r
-
-
-async def create_renewal(db: AsyncSession, tenant_id: str, data: RenewalCreate, user: dict) -> RenewalOpportunity:
-    dump = data.model_dump(exclude_unset=True)
-    if "owner_id" not in dump:
-        dump["owner_id"] = user["sub"]
-    if "owner_name" not in dump:
-        dump["owner_name"] = user.get("real_name") or user.get("username")
-    renewal = RenewalOpportunity(
-        id=generate_uuid(), tenant_id=tenant_id,
-        **dump,
-    )
-    db.add(renewal)
-    await db.commit()
-    await db.refresh(renewal)
-    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
-                     action="create", resource_type="renewal_opportunity", resource_id=renewal.id,
-                     summary=f"创建复购机会: {data.name}")
-    return renewal
-
-
-async def update_renewal(db: AsyncSession, tenant_id: str, renewal_id: str, data: RenewalUpdate, user: dict) -> RenewalOpportunity:
-    renewal = await get_renewal(db, tenant_id, renewal_id)
-    for field, val in data.model_dump(exclude_unset=True).items():
-        setattr(renewal, field, val)
-    await db.commit()
-    await db.refresh(renewal)
-    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
-                     action="update", resource_type="renewal_opportunity", resource_id=renewal_id,
-                     summary=f"更新复购机会: {renewal.name}")
-    return renewal

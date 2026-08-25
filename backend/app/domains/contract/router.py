@@ -49,6 +49,7 @@ def _contract_dict(c) -> dict:
     return {
         "id": c.id, "project_id": c.project_id, "customer_id": c.customer_id,
         "contract_no": c.contract_no,
+        "serial_no": getattr(c, "serial_no", None),
         "from_quote_id": c.from_quote_id,
         "current_version_no": c.current_version_no, "status": c.status,
         "signed_date": str(c.signed_date) if c.signed_date else None,
@@ -124,18 +125,24 @@ def _contract_customer_name_clause(tenant_id: str, customer_name: str):
 
 
 def _apply_contract_display_status_filter(q, cq, tenant_id: str, status: str):
-    """筛选「展示态」：draft/approving/pending_sign/rejected 看版本；signed/terminated 看主表。"""
+    """筛选「展示态」：draft/approving/approved/rejected 看版本；terminated 看主表；signed 兼容已通过。"""
     from app.domains.contract.models import Contract, ContractVersion
     from sqlalchemy import and_, exists
 
-    if status in ("signed", "terminated"):
+    if status in ("signed", "approved"):
+        return (
+            q.where(Contract.status == "signed"),
+            cq.where(Contract.status == "signed"),
+        )
+    if status == "terminated":
         return q.where(Contract.status == status), cq.where(Contract.status == status)
 
     ver_pred = {
         "draft": ContractVersion.status == "draft",
         "approving": ContractVersion.status == "submitted",
-        "pending_sign": ContractVersion.status.in_(("approved", "signed")),
         "rejected": ContractVersion.status == "rejected",
+        # 兼容旧筛选项 pending_sign
+        "pending_sign": ContractVersion.status.in_(("approved", "signed")),
     }.get(status)
     if ver_pred is None:
         # 兼容旧筛选项：直接按主表 status
@@ -238,6 +245,31 @@ async def list_contracts(
     return ok({"items": rows, "total": total})
 
 
+@router.get("/api/v1/contracts/dashboard/summary")
+async def contract_management_dashboard_summary(
+    customer_name: str = Query(None, description="客户名称（模糊）"),
+    card_date_from: str = Query(None, description="下卡日期起 YYYY-MM-DD"),
+    card_date_to: str = Query(None, description="下卡日期止 YYYY-MM-DD"),
+    department_id: str = Query(None),
+    assignee_id: str = Query(None, description="业务人员 user id"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:view")),
+):
+    """合同管理仪表盘：对齐简道云合同登记（下卡日期 + 合同总金额）聚合。"""
+    from app.domains.contract.dashboard import contract_dashboard_summary
+
+    data = await contract_dashboard_summary(
+        db, tenant_id, current_user,
+        customer_name=customer_name,
+        card_date_from=card_date_from,
+        card_date_to=card_date_to,
+        department_id=department_id,
+        assignee_id=assignee_id,
+    )
+    return ok(data)
+
+
 # --- Project-scoped routes ---
 @router.get("/api/v1/projects/{project_id}/contracts")
 async def list_project_contracts(
@@ -265,6 +297,27 @@ async def create_contract(
         "contract": _contract_dict(result["contract"]),
         "version": _version_dict(result["version"]),
     })
+
+
+@router.get("/api/v1/contracts/peek-serial-no")
+async def peek_contract_serial_no(
+    card_date: str | None = Query(None, description="下卡日期 YYYY-MM-DD（预览用，默认今天）"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("contract:create")),
+):
+    """新建合同登记：预览下一流水号（不消耗计数）。"""
+    from datetime import date as date_cls
+    from app.domains.contract.serial_no import peek_contract_serial_no
+
+    ref = None
+    if card_date:
+        try:
+            ref = date_cls.fromisoformat(card_date[:10])
+        except ValueError:
+            ref = None
+    serial = await peek_contract_serial_no(db, tenant_id, ref_date=ref)
+    return ok({"serial_no": serial})
 
 
 @router.get("/api/v1/contracts/peek-drawing-no")
@@ -609,52 +662,6 @@ async def submit_version(
         assignee_names=body.assignee_names,
     )
     return ok(_version_dict(v))
-
-
-# --- Renewal from Contract ---
-
-@router.post("/api/v1/contracts/{contract_id}/renew")
-async def create_renewal_from_contract(
-    contract_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("contract:edit")),
-):
-    """Create a renewal opportunity from an expiring contract."""
-    from app.domains.project.models import OpportunityProject
-    from app.domains.service_ticket.models import RenewalOpportunity
-
-    # 走 service 取，才能同时做数据范围校验（原先按 id 直查，看不见的合同也能发起续约）
-    contract = await service.get_contract(db, tenant_id, contract_id, current_user)
-
-    # Get project info for customer_id
-    project = (await db.execute(
-        select(OpportunityProject).where(OpportunityProject.id == contract.project_id, OpportunityProject.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-
-    customer_id = project.customer_id if project else None
-
-    renewal = RenewalOpportunity(
-        tenant_id=tenant_id,
-        customer_id=customer_id or "",
-        name=f"续约 - {contract.contract_no}",
-        amount_expect=float(contract.amount_total) if contract.amount_total else None,
-        status="open",
-        owner_id=current_user["sub"],
-        owner_name=current_user.get("real_name") or current_user.get("username"),
-        related_asset_json={"source_contract_id": contract.id, "contract_no": contract.contract_no},
-        remark=f"从合同 {contract.contract_no} 发起续约",
-    )
-    db.add(renewal)
-    await db.commit()
-    await db.refresh(renewal)
-
-    return ok({
-        "id": renewal.id,
-        "name": renewal.name,
-        "customer_id": renewal.customer_id,
-        "amount_expect": float(renewal.amount_expect) if renewal.amount_expect else None,
-    })
 
 
 # --- PDF Export ---

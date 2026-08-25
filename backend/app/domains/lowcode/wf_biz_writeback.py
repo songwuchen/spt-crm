@@ -164,3 +164,33 @@ async def writeback(
         await _lead_reset_reactivation_cycle(db, tenant_id, biz_id)
     elif biz_type == "lead" and flow_status == "rejected":
         await _lead_reactivation_on_reject(db, tenant_id, biz_id)
+    elif biz_type == "contract_version" and flow_status == "completed":
+        await _contract_version_on_complete(db, tenant_id, biz_id)
+
+
+async def _contract_version_on_complete(db: AsyncSession, tenant_id: str, version_id: str) -> None:
+    """合同登记审批通过：主表生效（不再单独走签署步骤）。"""
+    from datetime import date as date_cls
+
+    from app.domains.contract.models import Contract, ContractVersion
+
+    ver = (await db.execute(
+        select(ContractVersion).where(
+            ContractVersion.id == version_id, ContractVersion.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not ver:
+        return
+    contract = (await db.execute(
+        select(Contract).where(
+            Contract.id == ver.contract_id, Contract.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not contract or contract.status in ("signed", "terminated"):
+        return
+    contract.status = "signed"
+    if not contract.signed_date:
+        contract.signed_date = contract.card_date or date_cls.today()
+    if ver.status != "approved":
+        ver.status = "approved"
+    await db.flush()

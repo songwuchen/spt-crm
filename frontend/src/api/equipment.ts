@@ -13,8 +13,6 @@ export const equipmentApi = {
     client.delete<unknown, ApiResponse<void>>(`/api/v1/equipment/equipments/${id}`),
   replacementCandidates: (months = 12) =>
     client.get<unknown, ApiResponse<CustomerEquipment[]>>(`/api/v1/equipment/replacement-candidates?months=${months}`),
-  toRenewal: (id: string, data: { name?: string; amount_expect?: number; close_date_expect?: string }) =>
-    client.post<unknown, ApiResponse<{ id: string; name: string }>>(`/api/v1/equipment/equipments/${id}/to-renewal`, data),
   // process surveys
   listSurveys: (params: Record<string, unknown>) =>
     client.get<unknown, ApiResponse<PageData<CustomerProcessSurvey>>>('/api/v1/equipment/surveys', { params }),

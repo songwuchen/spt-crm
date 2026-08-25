@@ -1,0 +1,1687 @@
+{
+  "_id": "5d32c760d50bcb5d8f168201",
+  "appId": "56ca77ce1efc301d279b8a4d",
+  "entryId": "5d32c760d50bcb5d8f168200",
+  "name": "合同管理仪表盘",
+  "components": {
+    "_widget_1563608957858": {
+      "title": "客户数量",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_2",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 15,
+      "height": 14,
+      "posX": 0,
+      "posY": 146,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1563440544239",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "top": {},
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "xFields": [],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "creator",
+          "type": "user",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "title": "提交人",
+          "tag": "f_1563609516708",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563609961136": {
+      "title": "所属行业",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "pie_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 31,
+      "height": 16,
+      "posX": 29,
+      "posY": 146,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1563440544239",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "top": {},
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1551421199771",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "type": "combo",
+          "title": "所属行业",
+          "tag": "f_1563609516799"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "creator",
+          "type": "user",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "title": "提交人",
+          "tag": "f_1563609516809",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563611106644": {
+      "title": "客户性质",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "pie_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 31,
+      "height": 19,
+      "posX": 29,
+      "posY": 162,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1563440544239",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "top": {},
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1551421199720",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "type": "combo",
+          "title": "客户性质",
+          "tag": "f_1563610528178"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "creator",
+          "type": "user",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "title": "提交人",
+          "tag": "f_1563610528188",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563611558734": {
+      "title": "成立十年以上的客户",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 15,
+      "height": 21,
+      "posX": 0,
+      "posY": 160,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "value": [
+              "是"
+            ],
+            "method": "in",
+            "field": "_widget_1563440544239",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "hasEmpty": false,
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d"
+          },
+          {
+            "title": "成立年份",
+            "name": "_widget_1551421199707",
+            "format": "yyyy-MM-dd",
+            "type": "datetime",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1551421199707",
+            "method": "lte",
+            "value": [
+              "2009-01-01"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "top": {},
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "xFields": [],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "creator",
+          "type": "user",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "title": "提交人",
+          "tag": "f_1563611751960",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563612471123": {
+      "title": "省市分布",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "pivot_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 14,
+      "height": 35,
+      "posX": 15,
+      "posY": 146,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1563440544239",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "showSummary": {
+        "shouldShowSummaryRow": true,
+        "shouldShowSummaryCol": true,
+        "sumRowPosition": "bottom",
+        "sumColPosition": "right"
+      },
+      "defaultSort": [],
+      "mobile_value_size": "S",
+      "conditionalFormatting": [],
+      "xFields": [
+        {
+          "name": "_widget_1563241281630",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "type": "address",
+          "title": "地址",
+          "groupRule": "province",
+          "tag": "f_1563611752030"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "creator",
+          "type": "user",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "title": "客户数量",
+          "tag": "f_1563611752054",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563614013361": {
+      "title": "部门排序",
+      "form": "5d118dc922ba776f27472706",
+      "type": "bar_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 24,
+      "height": 38,
+      "posX": 0,
+      "posY": 70,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [
+        {
+          "label": "平均合同额",
+          "type": "dynamic",
+          "field": "f_1563613972956",
+          "aggregate": "avg",
+          "is_label_visible": true,
+          "is_value_visible": true,
+          "color": "#FFA665"
+        }
+      ],
+      "defaultSort": [
+        {
+          "f_1563613972956": -1
+        }
+      ],
+      "triggers": [
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "drilldown": "pc",
+      "conditionalFormatting": [
+        {
+          "tag": "f_1563613972946",
+          "defaultColor": "#76DA91"
+        }
+      ],
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499461",
+          "form": "5d118dc922ba776f27472706",
+          "type": "dept",
+          "title": "部门",
+          "tag": "f_1563613972946"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1563613972956",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0."
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1563614403126": {
+      "title": "合同数量和金额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "pivot_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 30,
+      "height": 38,
+      "posX": 0,
+      "posY": 108,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1570512270509": -1
+        },
+        {
+          "f_1565675368957": -1
+        }
+      ],
+      "drilldown": "pc",
+      "styles": {
+        "fontSetting": {
+          "textAlign": "center"
+        }
+      },
+      "colsWidth": {
+        "f_1570512270509,y_field_head": 115,
+        "f_1563614392152,y_field_head": 149,
+        "f_1563614392113": 90,
+        "f_1565675368957": 107,
+        "f_1565675369127": 97
+      },
+      "useMemberFormOpt": true,
+      "showSummary": {
+        "shouldShowSummaryRow": true,
+        "shouldShowSummaryCol": true,
+        "sumRowPosition": "bottom",
+        "sumColPosition": "right"
+      },
+      "conditionalFormatting": [],
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1563772783339",
+          "form": "5d118dc922ba776f27472706",
+          "type": "datetime",
+          "format": "yyyy年MM月",
+          "title": "下卡日期",
+          "groupRule": "year_month",
+          "tag": "f_1570512270509"
+        },
+        {
+          "name": "_widget_1561431499461",
+          "form": "5d118dc922ba776f27472706",
+          "type": "dept",
+          "title": "部门",
+          "tag": "f_1563614392152"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561431499698",
+          "form": "5d118dc922ba776f27472706",
+          "type": "text",
+          "title": "合同数量",
+          "tag": "f_1563614392113",
+          "format": "",
+          "op": "count"
+        },
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同金额",
+          "tag": "f_1565675368957",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        },
+        {
+          "type": "formula",
+          "form": "5d118dc922ba776f27472706",
+          "name": "_formula_1565675369101",
+          "title": "平均金额",
+          "tag": "f_1565675369127",
+          "formatType": "preset",
+          "format": "#,##0"
+        }
+      ],
+      "formulas": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "name": "_formula_1565675369101",
+          "title": "平均金额",
+          "formula": "SUM($_widget_1561511175392#5d118dc922ba776f27472706)/COUNT($_widget_1563607519120#5d118dc922ba776f27472706)"
+        }
+      ]
+    },
+    "_widget_1563614914830": {
+      "title": "每月合同额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "area_chart",
+      "hasExport": true,
+      "chart_label": {
+        "enable": true
+      },
+      "width": 44,
+      "height": 27,
+      "posX": 16,
+      "posY": 6,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [],
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "drilldown": "pc",
+      "xAxis": {
+        "label": {
+          "rotation": -25,
+          "step": false,
+          "enable": true
+        }
+      },
+      "palette": "preset_8",
+      "styles": {
+        "fontSetting": {
+          "titleColor": "#111121"
+        }
+      },
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1563772783339",
+          "form": "5d118dc922ba776f27472706",
+          "type": "datetime",
+          "format": "yyyy年MM月",
+          "title": "下卡日期",
+          "groupRule": "year_month",
+          "tag": "f_1570512270233"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565403043110",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0."
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1565676669130": {
+      "title": "年度合同额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 16,
+      "height": 16,
+      "posX": 0,
+      "posY": 17,
+      "permission": "form",
+      "value_size": "L",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "top": {},
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1577842507438": -1
+        }
+      ],
+      "drilldown": "pc",
+      "styles": {
+        "fontSetting": {
+          "titleColor": "#111121"
+        },
+        "background": {
+          "type": "image"
+        }
+      },
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1563772783339",
+          "form": "5d118dc922ba776f27472706",
+          "type": "datetime",
+          "format": "yyyy年",
+          "title": "下卡日期",
+          "groupRule": "year",
+          "tag": "f_1577842507438"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675369589",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1565676957092": {
+      "title": "业务人员年度合同排序",
+      "form": "5d118dc922ba776f27472706",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 18,
+      "height": 38,
+      "posX": 24,
+      "posY": 70,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "top": {
+        "enable": true,
+        "limit": 11
+      },
+      "defaultSort": [
+        {
+          "f_1565675369674": -1
+        }
+      ],
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499444",
+          "form": "5d118dc922ba776f27472706",
+          "type": "user",
+          "title": "业务人员",
+          "tag": "f_1565675369664"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675369674",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1565677469179": {
+      "title": "部门合同占比",
+      "form": "5d118dc922ba776f27472706",
+      "type": "pie_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "dimension": {
+          "enable": true
+        },
+        "value": {
+          "enable": false
+        },
+        "value_percent": {
+          "enable": true
+        },
+        "enable": true
+      },
+      "width": 26,
+      "height": 37,
+      "posX": 0,
+      "posY": 33,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1565675370002": -1
+        }
+      ],
+      "legend": {
+        "enable": false,
+        "position": "bottom"
+      },
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "drilldown": "pc",
+      "top": {
+        "enable": true,
+        "limit": 5
+      },
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499461",
+          "form": "5d118dc922ba776f27472706",
+          "type": "dept",
+          "title": "部门",
+          "tag": "f_1565675369992"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675370002",
+          "op": "sum"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1565677662739": {
+      "title": "合同数量和金额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "multi_axes_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 34,
+      "height": 37,
+      "posX": 26,
+      "posY": 33,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1565675368957": -1
+        }
+      ],
+      "yAxes": [
+        {
+          "chart_type": "line_chart",
+          "title": {
+            "text": "合同数量"
+          }
+        },
+        {
+          "chart_type": "area_chart",
+          "title": {
+            "text": "合同额"
+          }
+        }
+      ],
+      "xAxis": {
+        "label": {
+          "rotation": -25,
+          "step": false,
+          "enable": true
+        }
+      },
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "curve": false,
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499461",
+          "form": "5d118dc922ba776f27472706",
+          "type": "dept",
+          "title": "部门",
+          "tag": "f_1563614392152"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561431499698",
+          "form": "5d118dc922ba776f27472706",
+          "type": "text",
+          "title": "合同数量",
+          "tag": "f_1563614392113",
+          "format": "",
+          "op": "count",
+          "metricType": "left",
+          "color": "#EFA666"
+        },
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同金额",
+          "tag": "f_1565675368957",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "0.",
+          "metricType": "right"
+        }
+      ],
+      "formulas": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "name": "_formula_1565675369101",
+          "title": "平均金额",
+          "formula": "SUM($_widget_1561511175392#5d118dc922ba776f27472706)/COUNT($_widget_1563607519120#5d118dc922ba776f27472706)"
+        }
+      ]
+    },
+    "_widget_1565678308406": {
+      "title": "前10大客户",
+      "form": "5d118dc922ba776f27472706",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 18,
+      "height": 38,
+      "posX": 42,
+      "posY": 70,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "guideline": [],
+      "top": {
+        "enable": true,
+        "limit": 10
+      },
+      "defaultSort": [
+        {
+          "f_1565675369674": -1
+        }
+      ],
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499614",
+          "form": "5d118dc922ba776f27472706",
+          "type": "combo",
+          "title": "单位名称",
+          "tag": "f_1565675370267"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675369674",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1565678883109": {
+      "title": "部门工作量统计",
+      "form": "5d118dc922ba776f27472706",
+      "type": "pivot_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 30,
+      "height": 38,
+      "posX": 30,
+      "posY": 108,
+      "permission": "form",
+      "value_size": "M",
+      "filter": {
+        "cond": [
+          {
+            "name": "_widget_1563772783339",
+            "text": "下卡日期",
+            "labelHidden": false,
+            "lineWidth": 3,
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "type": "datetime",
+            "format": "yyyy-MM-dd",
+            "visible": true,
+            "rely": null,
+            "title": "下卡日期",
+            "entryId": "5d118dc922ba776f27472706",
+            "field": "_widget_1563772783339",
+            "method": "formula",
+            "value": [
+              {
+                "mode": "preset",
+                "formula": "thisYear"
+              }
+            ]
+          }
+        ],
+        "rel": "and"
+      },
+      "top": {},
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1570512270593": -1
+        }
+      ],
+      "yAxes": [
+        {
+          "chart_type": "line_chart",
+          "title": {
+            "text": "合同数量"
+          }
+        },
+        {
+          "chart_type": "area_chart",
+          "title": {
+            "text": "合同额"
+          }
+        }
+      ],
+      "xAxis": {
+        "label": {
+          "rotation": -25,
+          "step": false,
+          "enable": true
+        }
+      },
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "showSummary": {
+        "shouldShowSummaryRow": true,
+        "shouldShowSummaryCol": true,
+        "sumRowPosition": "bottom",
+        "sumColPosition": "right"
+      },
+      "conditionalFormatting": [],
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1563772783339",
+          "form": "5d118dc922ba776f27472706",
+          "type": "datetime",
+          "format": "yyyy年MM月",
+          "title": "下卡日期",
+          "groupRule": "year_month",
+          "tag": "f_1570512270593"
+        },
+        {
+          "name": "_widget_1561431499461",
+          "form": "5d118dc922ba776f27472706",
+          "type": "dept",
+          "title": "部门",
+          "tag": "f_1563614392152"
+        },
+        {
+          "name": "_widget_1563281842830",
+          "form": "5d118dc922ba776f27472706",
+          "type": "combo",
+          "title": "工作量",
+          "tag": "f_1565675370623"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675370638",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        }
+      ],
+      "formulas": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "name": "_formula_1565675369101",
+          "title": "平均金额",
+          "formula": "SUM($_widget_1561511175392#5d118dc922ba776f27472706)/COUNT($_widget_1563607519120#5d118dc922ba776f27472706)"
+        }
+      ]
+    },
+    "_widget_1566265228024": {
+      "title": "客户地图",
+      "form": "5c6f5b7ed6ff36235a34e66d",
+      "type": "map_chart",
+      "hasExport": true,
+      "chart_label": {
+        "dimension": {
+          "enable": true
+        },
+        "value": {
+          "enable": true
+        },
+        "enable": true
+      },
+      "width": 60,
+      "height": 33,
+      "posX": 0,
+      "posY": 181,
+      "permission": "form",
+      "value_size": "M",
+      "top": {},
+      "rowOrder": {},
+      "guideline": [],
+      "map_type": "area",
+      "defaultSort": [],
+      "filter": {
+        "cond": [
+          {
+            "title": "是否公司客户",
+            "name": "_widget_1563440544239",
+            "items": [
+              {
+                "text": "是",
+                "value": "是"
+              },
+              {
+                "text": "否",
+                "value": "否"
+              }
+            ],
+            "type": "text",
+            "entryId": "5c6f5b7ed6ff36235a34e66d",
+            "field": "_widget_1563440544239",
+            "method": "in",
+            "value": [
+              "是"
+            ],
+            "hasEmpty": false
+          }
+        ],
+        "rel": "and"
+      },
+      "thresholds": [],
+      "triggers": [
+        "_widget_1563608957858",
+        "_widget_1563612471123"
+      ],
+      "region": "country",
+      "region_area": {
+        "province": [
+          ""
+        ],
+        "city": [
+          ""
+        ],
+        "adcode": []
+      },
+      "drilldown": "pc",
+      "conditionalFormatting": [
+        {
+          "tag": "f_1566265085537",
+          "colorType": "gradation",
+          "colorGradation": {
+            "palette": "preset_map_7",
+            "color": "#7FE7C6 0%,#0251A1 100%"
+          }
+        }
+      ],
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1563241281630",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "type": "address",
+          "title": "地址",
+          "tag": "f_1566265085531"
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1550801790532",
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "type": "text",
+          "title": "客户数量",
+          "tag": "f_1566265085537",
+          "format": "",
+          "op": "count"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1568095572419": {
+      "title": "客户名称",
+      "defaultConfig": {
+        "value": ""
+      },
+      "valueMode": "custom",
+      "method": "like",
+      "type": "text_filter",
+      "fields": [
+        {
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "field": "_widget_1550801790532",
+          "type": "text"
+        },
+        {
+          "form": "5d118dc922ba776f27472706",
+          "field": "_widget_1561431499614",
+          "type": "combo"
+        }
+      ],
+      "triggers": [
+        "_widget_1563608957858",
+        "_widget_1563609961136",
+        "_widget_1563611106644",
+        "_widget_1563611558734",
+        "_widget_1563612471123",
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1566265228024"
+      ],
+      "width": 13,
+      "height": 6,
+      "posX": 0,
+      "posY": 0
+    },
+    "_widget_1568095572453": {
+      "title": "下卡日期",
+      "defaultConfig": {
+        "mode": "preset",
+        "formula": "thisYear"
+      },
+      "valueMode": "custom",
+      "method": "formula",
+      "type": "date_filter",
+      "fields": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "field": "_widget_1563772783339",
+          "type": "datetime"
+        },
+        {
+          "form": "5c6f5b7ed6ff36235a34e66d",
+          "field": "createTime",
+          "type": "datetime"
+        }
+      ],
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1566265228024"
+      ],
+      "width": 20,
+      "height": 6,
+      "posX": 13,
+      "posY": 0,
+      "rely": [],
+      "departments": {}
+    },
+    "_widget_1568095572544": {
+      "title": "部门",
+      "defaultConfig": {
+        "hasCurrentDept": false,
+        "hasEmpty": true,
+        "items": [
+          "56ca5b8af97e80434fc06113",
+          "56ca5b8af97e80434fc06114",
+          "56ca5b8af97e80434fc06116",
+          "56ca5b8af97e80434fc06117",
+          "56ca5b8af97e80434fc06119",
+          "56ca5b8af97e80434fc0611a",
+          "56ca5b8af97e80434fc0611b",
+          "56ca5b8af97e80434fc0611d",
+          "56ca5b8af97e80434fc0611f",
+          "56ca5b8af97e80434fc06120",
+          "56ca5b8af97e80434fc06121",
+          "56ca5b8af97e80434fc06122",
+          "56ca5b8af97e80434fc06124",
+          "56ca5b8af97e80434fc06126",
+          "56ca5b8af97e80434fc06127",
+          "56ca5b8af97e80434fc06128",
+          "56ca5b8af97e80434fc06129",
+          "56ca5b8af97e80434fc0612a",
+          "56ca5b8af97e80434fc0612e",
+          "56ca5b8af97e80434fc0612f",
+          "56ca5b8af97e80434fc06130",
+          "56ca5b8af97e80434fc06131",
+          "56ca5b8af97e80434fc06132",
+          "56ca5b8af97e80434fc06133",
+          "56ca5b8af97e80434fc06134",
+          "56ca5b8af97e80434fc06135",
+          "56ca5b8af97e80434fc06136",
+          "56ca5b8af97e80434fc06137",
+          "56ca5b8af97e80434fc06138",
+          "56ca5b8af97e80434fc06139",
+          "56ca5b8af97e80434fc0613c",
+          "56ca5b8af97e80434fc0613e",
+          "56ca5b8af97e80434fc0613f",
+          "56ca5b8af97e80434fc06140",
+          "56ca5b8af97e80434fc06141",
+          "56ca5b8af97e80434fc06142",
+          "56ca5b8af97e80434fc06143",
+          "56ca5b8af97e80434fc06144",
+          "56ca5b8af97e80434fc06146",
+          "56ca5b8af97e80434fc06147",
+          "56ca5b8af97e80434fc06148",
+          "56ca5b8af97e80434fc0614a",
+          "56ca5b8af97e80434fc0614b",
+          "56ca5b8af97e80434fc0614c",
+          "56ca5b8af97e80434fc0614e",
+          "56ca5b8af97e80434fc0614f",
+          "574d01c9dcb60c30bd067f22",
+          "57ce1791b6eb93772163787d",
+          "57ce1791b6eb93772163787f",
+          "57f618b4cf0caf81d12d8306",
+          "57f618b4cf0caf81d12d8307",
+          "57f618b4cf0caf81d12d8308",
+          "57f618b4cf0caf81d12d830b",
+          "57f618b4cf0caf81d12d830c",
+          "57f618b4cf0caf81d12d830d",
+          "57f618b4cf0caf81d12d830e",
+          "58394b65cf0caf81d12e2856",
+          "58a64a3f0c8103f1319c8754",
+          "58fb14db0c8103f1319eff03",
+          "59cb63fa0c8103f131a4333d",
+          "59dc5c5f0b18743912395106",
+          "59e4152b0b1874391268ffdf",
+          "59e4152b0b1874391268ffe1",
+          "5a054840b77d3d7d0e878bae",
+          "5a1f69ecb77d3d7d0e84e768",
+          "5a9fa0ada21496c4066c2c4b",
+          "5a9fa0ada21496c4066c2c4c",
+          "5aa37e54a21496c406944f49",
+          "5ad45730a21496c4063e0e15",
+          "5b7a45a631e0e85233661748",
+          "5b888bd2b239ae3e636efa91",
+          "5befc685711814e9a340e44b",
+          "5c0b3d4ba028fdc81b796d36",
+          "5c32eee3a028fdc81b7c3190",
+          "5c500ac3a028fdc81b7a2ab9",
+          "5c6f8e75a028fdc81bf2abe5",
+          "5cfebc6162d77b1308ba6c8b",
+          "5d2e3261a68ed3052ce759f1",
+          "5dcf0961a68ed3052ca6c7bf",
+          "60fc55223ec912e56dd675c7",
+          "65d397f47d6f29a2ffe03fea"
+        ],
+        "hasCurrentCascadeDept": false
+      },
+      "valueMode": "item",
+      "method": "in",
+      "type": "dept_filter",
+      "fields": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "field": "_widget_1561431499461",
+          "type": "dept"
+        }
+      ],
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "width": 12,
+      "height": 6,
+      "posX": 33,
+      "posY": 0,
+      "rely": [],
+      "departments": {}
+    },
+    "_widget_1568095572585": {
+      "title": "业务人员",
+      "defaultConfig": {
+        "value": null
+      },
+      "valueMode": "item",
+      "method": "eq",
+      "type": "user_filter",
+      "fields": [
+        {
+          "form": "5d118dc922ba776f27472706",
+          "field": "_widget_1561431499444",
+          "type": "user"
+        }
+      ],
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677469179",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "width": 15,
+      "height": 6,
+      "posX": 45,
+      "posY": 0,
+      "rely": []
+    },
+    "_widget_1596505076877": {
+      "title": "行业合同额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "pie_chart",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "dimension": {
+          "enable": true
+        },
+        "value": {
+          "enable": true
+        },
+        "value_percent": {
+          "enable": true
+        },
+        "enable": true
+      },
+      "width": 60,
+      "height": 24,
+      "posX": 0,
+      "posY": 214,
+      "permission": "form",
+      "value_size": "L",
+      "filter": {
+        "cond": [],
+        "rel": "and"
+      },
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [
+        {
+          "f_1565675370002": -1
+        }
+      ],
+      "legend": {
+        "enable": false,
+        "position": "bottom"
+      },
+      "triggers": [
+        "_widget_1563614013361",
+        "_widget_1563614403126",
+        "_widget_1563614914830",
+        "_widget_1565676669130",
+        "_widget_1565676957092",
+        "_widget_1565677662739",
+        "_widget_1565678308406",
+        "_widget_1565678883109"
+      ],
+      "top": {},
+      "color": "",
+      "drilldown": "pc",
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [
+        {
+          "name": "_widget_1561431499820",
+          "form": "5d118dc922ba776f27472706",
+          "type": "combo",
+          "title": "行业分类",
+          "tag": "f_1596503942653",
+          "colors": [
+            {
+              "value": "工业升级",
+              "color": "#EFA666"
+            },
+            {
+              "value": "基建民生",
+              "color": "#EDDD86"
+            },
+            {
+              "value": "其他",
+              "color": "#9987CE"
+            }
+          ]
+        }
+      ],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675370002",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00"
+        }
+      ],
+      "formulas": []
+    },
+    "_widget_1611733102098": {
+      "title": "当天合同额",
+      "form": "5d118dc922ba776f27472706",
+      "type": "metric_table",
+      "hasExport": true,
+      "palette": "preset_1",
+      "chart_label": {
+        "enable": true
+      },
+      "width": 16,
+      "height": 11,
+      "posX": 0,
+      "posY": 6,
+      "permission": "form",
+      "value_size": "L",
+      "filter": {
+        "cond": [
+          {
+            "title": "下卡日期",
+            "name": "_widget_1563772783339",
+            "format": "yyyy-MM-dd",
+            "type": "datetime",
+            "entryId": "5d118dc922ba776f27472706",
+            "field": "_widget_1563772783339",
+            "method": "formula",
+            "value": [
+              {
+                "mode": "preset",
+                "formula": "today"
+              }
+            ],
+            "hasEmpty": false,
+            "hasCurrentUser": false,
+            "hasCurrentDept": false
+          }
+        ],
+        "rel": "and"
+      },
+      "top": {},
+      "rowOrder": {},
+      "thresholds": [],
+      "guideline": [],
+      "defaultSort": [],
+      "drilldown": "pc",
+      "styles": {
+        "fontSetting": {
+          "valueColor": "#497884",
+          "titleColor": "#f52011"
+        },
+        "theme": {
+          "cardName": "preset_metric_1"
+        }
+      },
+      "useMemberFormOpt": true,
+      "mobile_value_size": "S",
+      "xFields": [],
+      "yFields": [],
+      "metrics": [
+        {
+          "name": "_widget_1561511175392",
+          "form": "5d118dc922ba776f27472706",
+          "type": "number",
+          "title": "合同总金额",
+          "tag": "f_1565675369589",
+          "op": "sum",
+          "formatType": "preset",
+          "format": "#,##0.00",
+          "unit": "元"
+        }
+      ],
+      "formulas": []
+    }
+  },
+  "styles": {
+    "theme": {
+      "name": "preset_style_light_1",
+      "highLightColor": "#0DB3A6",
+      "palette": "preset_1",
+      "gradation": "preset_map_1"
+    },
+    "background": {
+      "type": "color",
+      "color": "#F4F6F9"
+    },
+    "widget": {
+      "theme": {
+        "color": "#E9E9E9",
+        "icon": 1,
+        "cardName": "preset_metric_1"
+      },
+      "background": {
+        "type": "color",
+        "color": "#FFFFFF"
+      },
+      "fontSetting": {
+        "titleColor": "#1F2D3D",
+        "headColor": "#5E6D82",
+        "textColor": "#1F2D3D",
+        "textAlign": "default"
+      }
+    }
+  },
+  "mobileStyles": {},
+  "attr": {
+    "isPublic": false,
+    "parent": "5d118dc2829e1f6d5d0fd13c",
+    "isExport": true,
+    "isPublishedAsHome": false,
+    "isPublicExcelExport": false
+  },
+  "notify": {
+    "_id": "5e1fb16c6dd054f0911b6258",
+    "appId": "56ca77ce1efc301d279b8a4d",
+    "entryId": "5d32c760d50bcb5d8f168200",
+    "__v": 0,
+    "channels": [],
+    "data_filter": {},
+    "enabled": false,
+    "hash": "4fee03",
+    "message": "",
+    "mode": "custom",
+    "target": {
+      "type": "member",
+      "users": [],
+      "departs": [],
+      "roles": [],
+      "widgets": [],
+      "deptWidgets": []
+    },
+    "time": {
+      "repeat": "never",
+      "custom": "2020-01-16T00:42:20.568Z",
+      "custom_type": "preset"
+    }
+  },
+  "checkConfig": {}
+}

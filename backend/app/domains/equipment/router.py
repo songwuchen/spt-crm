@@ -5,7 +5,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.equipment import service
 from app.domains.equipment.schemas import (
-    EquipmentCreate, EquipmentUpdate, EquipmentToRenewal, SurveyCreate, SurveyUpdate,
+    EquipmentCreate, EquipmentUpdate, SurveyCreate, SurveyUpdate,
 )
 
 router = APIRouter(prefix="/api/v1/equipment", tags=["客户工艺设备档案"])
@@ -71,13 +71,6 @@ async def delete_equipment(eid: str, tenant_id: str = Depends(get_tenant_id),
                            db: AsyncSession = Depends(get_db), u=Depends(require_permissions("customer:edit"))):
     await service.delete_equipment(db, tenant_id, eid, u)
     return ok()
-
-
-@router.post("/equipments/{eid}/to-renewal")
-async def to_renewal(eid: str, body: EquipmentToRenewal, tenant_id: str = Depends(get_tenant_id),
-                     db: AsyncSession = Depends(get_db), u=Depends(require_permissions("service:edit"))):
-    r = await service.convert_to_renewal(db, tenant_id, eid, body, u)
-    return ok({"id": r.id, "name": r.name})
 
 
 # ---------- Surveys ----------

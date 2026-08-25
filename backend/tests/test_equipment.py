@@ -26,10 +26,6 @@ async def test_equipment_crud_and_replacement(client: AsyncClient, auth_headers:
     cand = await client.get("/api/v1/equipment/replacement-candidates", headers=h, params={"months": 12})
     assert any(x["id"] == eid for x in cand.json()["data"])
 
-    # convert to renewal opportunity
-    conv = await client.post(f"/api/v1/equipment/equipments/{eid}/to-renewal", json={"amount_expect": 200000}, headers=h)
-    assert conv.json()["code"] == 0 and conv.json()["data"]["id"]
-
     upd = await client.put(f"/api/v1/equipment/equipments/{eid}", json={"usage_years": 9}, headers=h)
     assert abs(upd.json()["data"]["usage_years"] - 9) < 1e-6
 

@@ -128,6 +128,9 @@ export default function ContractList() {
     setProjOpts([])
     searchProjects()
     setCreateOpen(true)
+    contractApi.peekSerialNo().then((r: { data?: { serial_no?: string } }) => {
+      if (r.data?.serial_no) createForm.setFieldsValue({ serial_no: r.data.serial_no })
+    }).catch(() => { /* 预览失败不阻塞 */ })
   }
   const handleCreate = async (andSubmit: boolean) => {
     let v: Record<string, unknown>
@@ -339,6 +342,11 @@ export default function ContractList() {
 
   const columns: ColumnsType<ContractItem> = useMemo(() => {
     const cols: ColumnsType<ContractItem> = [
+    { title: '流水号', dataIndex: 'serial_no', width: 170, fixed: 'left',
+      render: (v: string, r: ContractItem) => (
+        <a className="font-mono text-xs" onClick={() => openDetail(r.id)}>{v || '—'}</a>
+      ),
+    },
     { title: '合同编号', dataIndex: 'contract_no', width: 160,
       render: (v: string, r: ContractItem) => (
         <a className="font-mono font-bold text-primary" onClick={() => openDetail(r.id)}>{v}</a>

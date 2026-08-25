@@ -826,6 +826,8 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             if ver:
                 ver.status = "approved"
                 updated = True
+                from app.domains.lowcode.wf_biz_writeback import _contract_version_on_complete
+                await _contract_version_on_complete(db, tenant_id, flow.biz_id)
         elif flow.biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(

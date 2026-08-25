@@ -128,6 +128,7 @@ def contract_to_dto(c) -> dict:
     return {
         "id": c.id,
         "contract_no": c.contract_no,
+        "serial_no": getattr(c, "serial_no", None),
         "project_id": c.project_id,
         "customer_id": getattr(c, "customer_id", None),
         "status": sm.map_status(sm.CONTRACT_STATUS, c.status),

@@ -215,15 +215,11 @@ describe('ContractDetail', { timeout: 15000 }, () => {
     })
   })
 
-  it('shows signing workflow stepper', async () => {
+  it('shows approval status banner', async () => {
     render(<ContractDetail />)
     await waitFor(() => {
-      expect(screen.getByText('签章流程')).toBeInTheDocument()
-      // 状态标签现在也显示「草稿」（原为原始码 draft），故用 getAllByText
+      expect(screen.getByText(/完善登记信息后提交审批/)).toBeInTheDocument()
       expect(screen.getAllByText('草稿').length).toBeGreaterThan(0)
-      expect(screen.getByText('审批')).toBeInTheDocument()
-      expect(screen.getByText('签章')).toBeInTheDocument()
-      expect(screen.getByText('生效')).toBeInTheDocument()
     })
   })
 
@@ -234,11 +230,10 @@ describe('ContractDetail', { timeout: 15000 }, () => {
     })
   })
 
-  it('shows draft actions (submit approval + sign)', async () => {
+  it('shows draft actions (submit approval)', async () => {
     render(<ContractDetail />)
     await waitFor(() => {
-      expect(screen.getByText('提交审批')).toBeInTheDocument()
-      expect(screen.getByText('签署合同')).toBeInTheDocument()
+      expect(screen.getAllByText('提交审批').length).toBeGreaterThan(0)
     })
   })
 
@@ -265,7 +260,7 @@ describe('ContractDetail', { timeout: 15000 }, () => {
     })
   })
 
-  it('hides approval/sign buttons for signed contract', async () => {
+  it('hides approval button for approved contract', async () => {
     const signedContract = { ...mockContract, status: 'signed', signed_date: '2026-03-10' }
     ;(contractApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: signedContract })
     render(<ContractDetail />)
@@ -273,7 +268,5 @@ describe('ContractDetail', { timeout: 15000 }, () => {
       expect(screen.getByRole('heading', { name: /CT-2026-001/ })).toBeInTheDocument()
     })
     expect(screen.queryByText('提交审批')).not.toBeInTheDocument()
-    expect(screen.queryByText('签署合同')).not.toBeInTheDocument()
-    expect(screen.getByText('发起续约')).toBeInTheDocument()
   })
 })

@@ -386,3 +386,19 @@ async def test_contract_list_filter_by_customer_name(client: AsyncClient, auth_h
     await client.delete(f"/api/v1/projects/{proj}", headers=h)
     await client.delete(f"/api/v1/customers/{cust_a}", headers=h)
     await client.delete(f"/api/v1/customers/{cust_b}", headers=h)
+
+
+async def test_contract_dashboard_summary(client: AsyncClient, auth_headers: dict):
+    """合同管理仪表盘汇总接口应返回基础聚合字段。"""
+    r = await client.get("/api/v1/contracts/dashboard/summary", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["code"] == 0, body
+    data = body["data"]
+    for key in (
+        "count", "amount_total", "year_amount", "today_amount",
+        "by_month", "by_department", "by_sales", "top_customers",
+        "by_industry_contract", "dept_workload", "customers",
+    ):
+        assert key in data, key
+

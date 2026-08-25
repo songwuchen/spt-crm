@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Steps, Form, message } from 'antd'
-import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Form, message } from 'antd'
+import { CopyOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
@@ -12,7 +12,6 @@ import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
-import SignaturePad from '@/components/SignaturePad'
 import DataView, { formatMoney } from '@/components/DataView'
 import {
   PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor,
@@ -84,12 +83,7 @@ export default function ContractDetail() {
   const [versions, setVersions] = useState<ContractVersion[]>([])
   const [currentVersion, setCurrentVersion] = useState<ContractVersion | null>(null)
   const [selectedVersionId, setSelectedVersionId] = useState<string>('')
-  const [signModal, setSignModal] = useState(false)
-  const [signDate, setSignDate] = useState<dayjs.Dayjs | null>(dayjs())
-  const [signatureImage, setSignatureImage] = useState<string | null>(null)
-  const [showSignPad, setShowSignPad] = useState(false)
 
-  const [renewLoading, setRenewLoading] = useState(false)
   const projectId = projectIdParam || contract?.project_id || undefined
 
   // 条款 / 登记编辑
@@ -515,24 +509,6 @@ export default function ContractDetail() {
     fetchContract()
   }
 
-  const handleSign = async () => {
-    if (!signDate) return
-    try {
-      await contractApi.sign(cid!, {
-        signed_date: signDate.format('YYYY-MM-DD'),
-        ...(signatureImage ? { signature_image: signatureImage } : {}),
-      })
-      message.success('合同已签署')
-      setSignModal(false)
-      setSignatureImage(null)
-      setShowSignPad(false)
-      fetchContract()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      if (msg) message.error(msg)
-    }
-  }
-
   const openApprovalModal = () => {
     setSelectedApprovers([])
     setApprovalModal(true)
@@ -591,64 +567,25 @@ export default function ContractDetail() {
   if (!contract) return <DetailSkeleton />
 
   const verStatus = currentVersion?.status || 'draft'
-  // 主合同签署前 status 一直是 draft；展示态以版本审批进度 + 新引擎实例为准
   const displayStatus = (() => {
-    if (contract.status === 'signed' || contract.status === 'terminated') return contract.status
-    if (verStatus === 'approved' || wfInstance?.status === 'completed') return 'pending_sign'
-    if (verStatus === 'submitted' || wfInstance?.status === 'running') return 'approving'
-    if (verStatus === 'rejected' || wfInstance?.status === 'rejected') return 'rejected'
-    if (approvalFlow?.status === 'approved') return 'pending_sign'
-    if (approvalFlow?.status === 'pending') return 'approving'
-    if (approvalFlow?.status === 'rejected') return 'rejected'
-    return resolveContractDisplayStatus(contract.status, verStatus)
+    const wfSt = wfInstance?.status
+    if (approvalFlow?.status === 'pending' && !wfSt) return 'approving'
+    if (approvalFlow?.status === 'approved' && !wfSt) return 'approved'
+    if (approvalFlow?.status === 'rejected' && !wfSt) return 'rejected'
+    return resolveContractDisplayStatus(contract.status, verStatus, wfSt)
   })()
   const canSubmitApproval = contract.status === 'draft'
     && (verStatus === 'draft' || verStatus === 'rejected')
     && wfInstance?.status !== 'running'
     && approvalFlow?.status !== 'pending'
-  // 提交后不可改；仅草稿/驳回（且无进行中流程）可编辑
   const canEdit = canSubmitApproval
     && contract.status !== 'signed'
     && contract.status !== 'terminated'
-  const canSign = contract.status === 'draft'
   const canDelete = canDeleteContract
     && isContractDraftDeletable(contract.status, verStatus)
-  const stepCurrent = (() => {
-    if (contract.status === 'signed' || contract.status === 'terminated') return 3
-    if (verStatus === 'approved' || verStatus === 'signed') return 2
-    if (verStatus === 'submitted' || verStatus === 'rejected') return 1
-    if (wfInstance?.status === 'running' || approvalFlow?.status === 'pending') return 1
-    if (wfInstance?.status === 'completed' || approvalFlow?.status === 'approved') return 2
-    return 0
-  })()
-  const stepStatus: 'error' | undefined =
-    contract.status === 'terminated' || verStatus === 'rejected' || wfInstance?.status === 'rejected' || approvalFlow?.status === 'rejected'
-      ? 'error'
-      : undefined
-  const approvalDesc = (() => {
-    if (wfInstance) {
-      if (wfInstance.status === 'completed') return '已通过'
-      if (wfInstance.status === 'rejected') return '已驳回'
-      if (wfInstance.status === 'running') return wfInstance.flow_steps?.find((s) => s.is_current)?.node_name
-        ? `审批中 · ${wfInstance.flow_steps.find((s) => s.is_current)!.node_name}`
-        : '审批中'
-      if (wfInstance.status === 'withdrawn' || wfInstance.status === 'cancelled') return '已撤回'
-      return wfInstance.status
-    }
-    if (approvalFlow) {
-      if (approvalFlow.status === 'pending') return `${approvalFlow.current_node}/${approvalFlow.total_nodes} 审批中`
-      if (approvalFlow.status === 'approved') return '已通过'
-      if (approvalFlow.status === 'rejected') return '已驳回'
-      if (approvalFlow.status === 'withdrawn') return '已撤回'
-      return approvalFlow.status
-    }
-    if (verStatus === 'submitted') return '审批中'
-    if (verStatus === 'approved' || verStatus === 'signed') return '已通过'
-    if (verStatus === 'rejected') return '已驳回'
-    return '待提交'
-  })()
-  // 只有结构化（行数组）付款条款才能生成回款计划；非行结构（如 {method:"分期"}）不展示按钮
-  const canGenerate = toCanonicalRows(contract.payment_terms_json, resolvePayColumns()).length > 0 && contract.status !== 'terminated'
+  const canGenerate = toCanonicalRows(contract.payment_terms_json, resolvePayColumns()).length > 0
+    && contract.status !== 'terminated'
+    && displayStatus === 'approved'
   const genTotal = genRows.reduce((s, r) => s + (r.amount || 0), 0)
   const contractTotal = typeof contract.amount_total === 'number' ? contract.amount_total : null
   const genMismatch = contractTotal != null && Math.abs(genTotal - contractTotal) > 0.01
@@ -660,6 +597,9 @@ export default function ContractDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_no}</h1>
+            {contract.serial_no ? (
+              <Tag className="font-mono">{contract.serial_no}</Tag>
+            ) : null}
             <Tag color={contractDisplayStatusColors[displayStatus] || 'default'}>
               {contractDisplayStatusLabels[displayStatus] || displayStatus}
             </Tag>
@@ -685,19 +625,6 @@ export default function ContractDetail() {
           {canSubmitApproval && (
             <Button icon={<AuditOutlined />} loading={approvalSubmitting}
               onClick={() => handleSubmitApproval(false)}>提交审批</Button>
-          )}
-          {canSign && (
-            <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setSignModal(true)}>签署合同</Button>
-          )}
-          {contract.status === 'signed' && (
-            <Button type="primary" loading={renewLoading} onClick={async () => {
-              setRenewLoading(true)
-              try {
-                await contractApi.renew(contract.id)
-                message.success('续约机会已创建，请前往续约管理查看')
-              } catch { message.error('创建续约失败') }
-              finally { setRenewLoading(false) }
-            }}>发起续约</Button>
           )}
           <Button icon={<FilePdfOutlined />} onClick={() => downloadFile(`/api/v1/contracts/${cid}/export/pdf`, `contract_${contract.contract_no}.pdf`)}>导出PDF</Button>
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
@@ -863,61 +790,58 @@ export default function ContractDetail() {
         </div>
       </Modal>
 
-      {/* Signing Workflow Stepper */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-        <div className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">签章流程</div>
-        <Steps
-          size="small"
-          current={stepCurrent}
-          status={stepStatus}
-          items={[
-            {
-              title: '草稿',
-              description: stepCurrent === 0 ? '当前' : '完成',
-              icon: <Icon name="edit_document" style={{ fontSize: 20 }} />,
-            },
-            {
-              title: '审批',
-              description: approvalDesc,
-              icon: <Icon name="approval" style={{ fontSize: 20 }} />,
-            },
-            {
-              title: '签章',
-              description: contract.status === 'signed' ? '已签署' :
-                (verStatus === 'approved' || wfInstance?.status === 'completed' || approvalFlow?.status === 'approved')
-                  ? '待签署' : '等待中',
-              icon: <Icon name="draw" style={{ fontSize: 20 }} />,
-            },
-            {
-              title: contract.status === 'terminated' ? '已终止' : '生效',
-              description: contract.status === 'signed'
-                ? `${contract.signed_date || ''}`
-                : contract.status === 'terminated' ? '合同已终止' : '等待中',
-              icon: <Icon name={contract.status === 'terminated' ? 'cancel' : 'verified'} style={{ fontSize: 20 }} />,
-            },
-          ]}
-        />
-        {/* 旧引擎审批记录（新引擎改右侧「流程动态」） */}
-        {!wfInstance && approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <div className="text-sm font-bold text-slate-400 mb-2">审批记录</div>
-            <div className="flex flex-wrap gap-2">
-              {approvalFlow.tasks.map((t) => (
-                <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
-                  t.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-                  t.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-700' :
-                  t.status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700' :
-                  'bg-slate-50 border-slate-200 text-slate-500'
-                }`}>
-                  <Icon name={t.status === 'approved' ? 'check_circle' : t.status === 'rejected' ? 'cancel' : t.status === 'pending' ? 'schedule' : 'more_horiz'} style={{ fontSize: 14 }} />
-                  {t.assignee_name || '审批人'}
-                  {t.comment && <span className="text-slate-400 ml-1">"{t.comment}"</span>}
-                </div>
-              ))}
-            </div>
+      {/* 审批状态提示（流程进度见右侧「流程动态」） */}
+      {displayStatus !== 'approved' && displayStatus !== 'terminated' && (
+        <div className={`rounded-xl border p-4 mb-4 flex items-start gap-3 ${
+          displayStatus === 'rejected' ? 'border-red-200 bg-red-50' :
+          displayStatus === 'approving' ? 'border-amber-200 bg-amber-50' :
+          'border-slate-200 bg-slate-50'
+        }`}>
+          <Icon name={
+            displayStatus === 'rejected' ? 'cancel' :
+            displayStatus === 'approving' ? 'hourglass_top' : 'edit_note'
+          } style={{ fontSize: 20 }} className={
+            displayStatus === 'rejected' ? 'text-red-600' :
+            displayStatus === 'approving' ? 'text-amber-600' : 'text-slate-500'
+          } />
+          <div className="flex-1 text-sm text-slate-700">
+            {displayStatus === 'draft' && '完善登记信息后提交审批，可在右侧「流程动态」查看进度。'}
+            {displayStatus === 'approving' && '合同登记审批中，请在「审批中心」或右侧流程动态处理待办。'}
+            {displayStatus === 'rejected' && '审批已驳回，请修改登记信息后重新提交。'}
           </div>
-        )}
-      </div>
+          {canSubmitApproval && (
+            <Button size="small" type="primary" loading={approvalSubmitting}
+              onClick={() => handleSubmitApproval(false)}>提交审批</Button>
+          )}
+        </div>
+      )}
+      {displayStatus === 'approved' && contract.status === 'signed' && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-4 flex items-start gap-3">
+          <Icon name="verified" style={{ fontSize: 20 }} className="text-emerald-600" />
+          <div className="text-sm text-emerald-800 font-medium">合同登记审批已通过</div>
+        </div>
+      )}
+
+      {/* 旧引擎审批记录（新引擎改右侧「流程动态」） */}
+      {!wfInstance && approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+          <div className="text-sm font-bold text-slate-400 mb-2">审批记录</div>
+          <div className="flex flex-wrap gap-2">
+            {approvalFlow.tasks.map((t) => (
+              <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                t.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                t.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-700' :
+                t.status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                'bg-slate-50 border-slate-200 text-slate-500'
+              }`}>
+                <Icon name={t.status === 'approved' ? 'check_circle' : t.status === 'rejected' ? 'cancel' : t.status === 'pending' ? 'schedule' : 'more_horiz'} style={{ fontSize: 14 }} />
+                {t.assignee_name || '审批人'}
+                {t.comment && <span className="text-slate-400 ml-1">"{t.comment}"</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Contract Info — 简道云合同登记全部分区（空值也展示，便于对照） */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4 space-y-6">
@@ -1306,37 +1230,6 @@ export default function ContractDetail() {
           },
         ]} />
       </div>
-
-      {/* Sign Modal */}
-      <Modal title="签署合同" open={signModal} onOk={handleSign} onCancel={() => { setSignModal(false); setShowSignPad(false); setSignatureImage(null) }}
-        width={showSignPad ? 600 : 480}>
-        <div className="py-4">
-          <p className="text-sm text-slate-600 mb-3">确认签署合同 <span className="font-bold">{contract.contract_no}</span>？</p>
-          <div className="mb-4">
-            <label className="text-sm font-medium text-slate-700 mb-1 block">签署日期</label>
-            <DatePicker className="w-full" value={signDate} onChange={(d) => setSignDate(d)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-2 block">电子签名（可选）</label>
-            {signatureImage ? (
-              <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
-                <img src={signatureImage} alt="签名" className="max-h-24" />
-                <Button size="small" className="mt-2" onClick={() => { setSignatureImage(null); setShowSignPad(true) }}>重新签名</Button>
-              </div>
-            ) : showSignPad ? (
-              <SignaturePad
-                onSave={(dataUrl) => { setSignatureImage(dataUrl); setShowSignPad(false) }}
-                onCancel={() => setShowSignPad(false)}
-              />
-            ) : (
-              <Button onClick={() => setShowSignPad(true)} className="border-dashed">
-                <Icon name="draw" className="text-sm mr-1" />
-                添加手写签名
-              </Button>
-            )}
-          </div>
-        </div>
-      </Modal>
 
       {/* Submit Approval Modal — 仅旧引擎无策略时手动选人 */}
       <Modal title="提交合同审批" open={approvalModal} onOk={() => handleSubmitApproval(true)}

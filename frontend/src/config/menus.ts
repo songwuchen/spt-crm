@@ -79,6 +79,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/tech-agreement-reviews', icon: 'description', labelKey: 'nav.techAgreementReviews', permission: 'tech_agreement_review:view' },
       { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
+      { key: '/contracts/dashboard', icon: 'insert_chart', labelKey: 'nav.contractManagementDashboard', permission: 'contract:view' },
       { key: '/prod-card-supplements', icon: 'assignment', labelKey: 'nav.prodCardSupplements', permission: 'form_data:view' },
       { key: '/contract-outsource-early', icon: 'schedule', labelKey: 'nav.contractOutsourceEarly', permission: 'form_data:view' },
       { key: '/invoice-applications', icon: 'receipt_long', labelKey: 'nav.invoiceApplications', permission: 'form_data:view' },

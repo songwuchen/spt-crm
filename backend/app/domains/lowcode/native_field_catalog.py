@@ -376,6 +376,12 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
     "contract": [
         # 顺序对齐 frontend CONTRACT_REGISTRATION_SECTIONS（基本信息 → 产品 → 收款 → 其他 → 物流 → 验收）
         # ---- 基本信息（表列）----
+        _f("serial_no", "流水号", "auto_number", form_editable=False, available_on_create=True,
+           props={"serial_rules": [
+               {"type": "text", "value": "1.2.3-"},
+               {"type": "date", "format": "yyyyMMdd"},
+               {"type": "counter", "digits": 5, "fixed": True, "reset_period": "yearly", "initial_value": 1},
+           ]}),
         _f("customer_id", "关联客户", "customer", default_required=True),
         _f("card_date", "下卡日期", "date", default_required=True),
         _f("department_id", "部门", "department", companions=("department_name",),

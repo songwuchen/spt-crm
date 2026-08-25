@@ -11,7 +11,7 @@ from app.common.export import build_excel, build_template, excel_response
 from app.domains.service_ticket import service
 from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 from app.domains.service_ticket.schemas import (
-    ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
+    ServiceTicketCreate, ServiceTicketUpdate,
 )
 from app.domains.order import service as order_service
 from app.domains.customer.models import Customer
@@ -47,22 +47,6 @@ def _ticket_dict(t) -> dict:
         "custom_fields_json": t.custom_fields_json,
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
-    }
-
-
-def _renewal_dict(r) -> dict:
-    return {
-        "id": r.id, "customer_id": r.customer_id,
-        "name": r.name,
-        "amount_expect": float(r.amount_expect) if r.amount_expect is not None else None,
-        "close_date_expect": str(r.close_date_expect) if r.close_date_expect else None,
-        "probability": r.probability,
-        "related_asset_json": r.related_asset_json,
-        "status": r.status,
-        "owner_id": r.owner_id, "owner_name": r.owner_name,
-        "remark": r.remark,
-        "created_at": r.created_at.isoformat() if r.created_at else "",
-        "updated_at": r.updated_at.isoformat() if r.updated_at else "",
     }
 
 
@@ -343,61 +327,6 @@ async def rate_ticket(
     await db.commit()
     await db.refresh(t)
     return await ok_entity(db, tenant_id, "service_ticket", _ticket_dict(t), _user.get("roles"))
-
-
-# --- RenewalOpportunity ---
-
-@router.get("/api/v1/renewal_opportunities")
-async def list_renewals(
-    customer_id: str | None = Query(None),
-    status: str | None = Query(None),
-    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("service:view")),
-):
-    items = await service.list_renewals(db, tenant_id, customer_id=customer_id, status=status)
-    # Batch lookup customer names
-    cust_ids = list({r.customer_id for r in items if r.customer_id})
-    cust_names: dict[str, str] = {}
-    if cust_ids:
-        rows = (await db.execute(
-            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids), Customer.tenant_id == tenant_id)
-        )).all()
-        cust_names = {r.id: r.name for r in rows}
-    result = []
-    for r in items:
-        d = _renewal_dict(r)
-        d["customer_name"] = cust_names.get(r.customer_id, "")
-        result.append(d)
-    return ok(result)
-
-
-@router.post("/api/v1/renewal_opportunities")
-async def create_renewal(
-    body: RenewalCreate,
-    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("service:create")),
-):
-    r = await service.create_renewal(db, tenant_id, body, current_user)
-    return ok(_renewal_dict(r))
-
-
-@router.get("/api/v1/renewal_opportunities/{renewal_id}")
-async def get_renewal(
-    renewal_id: str, tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("service:view")),
-):
-    r = await service.get_renewal(db, tenant_id, renewal_id)
-    return ok(_renewal_dict(r))
-
-
-@router.put("/api/v1/renewal_opportunities/{renewal_id}")
-async def update_renewal(
-    renewal_id: str, body: RenewalUpdate,
-    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("service:edit")),
-):
-    r = await service.update_renewal(db, tenant_id, renewal_id, body, current_user)
-    return ok(_renewal_dict(r))
 
 
 # --- SLA Management ---

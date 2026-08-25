@@ -260,6 +260,7 @@ class OpenContractCreate(BaseModel):
     change_type: Optional[str] = Field(None, max_length=16)  # new / change
     order_date: Optional[str] = None
     card_date: Optional[str] = None
+    serial_no: Optional[str] = Field(None, max_length=64, description="登记流水号（简道云 sn；未传则自动生成）")
     # 业务员 / 部门：可传 UUID 或名称（名称按钉钉同步组织精确匹配）
     assignee_id: Optional[str] = Field(None, max_length=36)
     assignee_name: Optional[str] = Field(None, max_length=100)

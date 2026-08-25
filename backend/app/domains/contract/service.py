@@ -496,10 +496,25 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     if not as_draft and not customer_id:
         raise BusinessException(code=BUSINESS_ERROR, message="请选择关联客户")
 
+    from app.domains.contract.serial_no import allocate_contract_serial_no
+    from datetime import date as date_cls
+
+    card_for_serial = native.get("card_date", data.card_date)
+    ref_date = card_for_serial
+    if isinstance(ref_date, str):
+        try:
+            ref_date = date_cls.fromisoformat(ref_date[:10])
+        except ValueError:
+            ref_date = date_cls.today()
+    elif ref_date is None:
+        ref_date = date_cls.today()
+    serial_no = await allocate_contract_serial_no(db, tenant_id, ref_date=ref_date)
+
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id or None, customer_id=customer_id,
         contract_no=contract_no,
+        serial_no=serial_no,
         current_version_no=1,
         amount_total=native.get("amount_total", data.amount_total),
         end_date=native.get("end_date", data.end_date),

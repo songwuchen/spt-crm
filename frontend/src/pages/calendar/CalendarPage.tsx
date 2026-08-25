@@ -34,7 +34,7 @@ function getEventLink(e: CalendarEvent): string | null {
   switch (e.type) {
     case 'follow_up': return '/follow-ups'
     case 'payment_due': return '/payments'
-    case 'contract_expiry': return '/renewals'
+    case 'contract_expiry': return '/contracts'
     case 'milestone': return '/opportunities'
     default: return null
   }

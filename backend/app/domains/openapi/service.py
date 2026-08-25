@@ -1953,11 +1953,19 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         )
 
     filler_id, filler_name = await _resolve_contract_created_by(db, ctx.tenant_id, data, reg)
+    from app.domains.contract.serial_no import allocate_contract_serial_no
+
+    preset_serial = getattr(data, "serial_no", None) or (reg or {}).get("serial_no")
+    card_d = _to_date(getattr(data, "card_date", None))
+    serial_no = await allocate_contract_serial_no(
+        db, ctx.tenant_id, ref_date=card_d, preset=preset_serial,
+    )
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         project_id=data.project_id,
         customer_id=data.customer_id,
         contract_no=contract_no,
+        serial_no=serial_no,
         current_version_no=1,
         status=data.status or "draft",
         signed_date=_to_date(data.signed_date),

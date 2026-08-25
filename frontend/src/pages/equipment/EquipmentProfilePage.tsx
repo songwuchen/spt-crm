@@ -25,8 +25,6 @@ function EquipmentTab() {
   const [editing, setEditing] = useState<CustomerEquipment | null>(null)
   const [form] = Form.useForm()
   const customerSelect = useCustomerSelect()
-  const [renewTarget, setRenewTarget] = useState<CustomerEquipment | null>(null)
-  const [renewForm] = Form.useForm()
 
   const fetchData = async (p = page) => {
     setLoading(true)
@@ -64,15 +62,6 @@ function EquipmentTab() {
     title: '删除设备', content: `确认删除「${r.name}」？`, okType: 'danger',
     onOk: async () => { await equipmentApi.deleteEquipment(r.id); message.success('已删除'); fetchData() },
   })
-  const doRenew = async () => {
-    if (!renewTarget) return
-    const v = await renewForm.validateFields().catch(() => null)
-    if (!v) return
-    try {
-      await equipmentApi.toRenewal(renewTarget.id, { ...v, close_date_expect: v.close_date_expect ? v.close_date_expect.format('YYYY-MM-DD') : undefined })
-      message.success('已生成替换商机'); setRenewTarget(null)
-    } catch { message.error('生成失败') }
-  }
 
   const columns: ColumnsType<CustomerEquipment> = [
     { title: '客户', dataIndex: 'customer_name', width: 170, ellipsis: true, render: (v) => v || '-' },
@@ -83,10 +72,9 @@ function EquipmentTab() {
     { title: '使用年限', dataIndex: 'usage_years', width: 90, align: 'right', render: (v) => v != null ? `${v} 年` : '-' },
     { title: '计划更换', dataIndex: 'replace_plan_date', width: 120, render: (v) => v || '-' },
     {
-      title: '', key: 'actions', width: 190, fixed: 'right',
+      title: '', key: 'actions', width: 120, fixed: 'right',
       render: (_, r) => (
         <Space size={0}>
-          {r.is_competitor && <a className="text-emerald-600 text-sm font-bold px-2" onClick={() => { setRenewTarget(r); renewForm.resetFields(); renewForm.setFieldsValue({ name: `${r.customer_name || ''} ${r.name} 替换商机`.trim() }) }}>生成替换商机</a>}
           <a className="text-primary text-sm px-2" onClick={() => openEdit(r)}>编辑</a>
           <a className="text-rose-500 text-sm px-2" onClick={() => doDelete(r)}>删除</a>
         </Space>
@@ -134,16 +122,6 @@ function EquipmentTab() {
           <Form.Item name="is_competitor" label="是否竞品设备" valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="condition" label="现状描述"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="spare_usage" label="备件使用情况"><Input.TextArea rows={2} /></Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal title={`生成替换商机 — ${renewTarget?.name || ''}`} open={!!renewTarget} onOk={doRenew} onCancel={() => setRenewTarget(null)} okText="生成" destroyOnClose width={480}>
-        <Form form={renewForm} layout="vertical">
-          <Form.Item name="name" label="商机名称"><Input /></Form.Item>
-          <div className="grid grid-cols-2 gap-3">
-            <Form.Item name="amount_expect" label="预期金额"><InputNumber min={0} style={{ width: '100%' }} prefix="¥" /></Form.Item>
-            <Form.Item name="close_date_expect" label="预计成交"><DatePicker style={{ width: '100%' }} /></Form.Item>
-          </div>
         </Form>
       </Modal>
     </div>

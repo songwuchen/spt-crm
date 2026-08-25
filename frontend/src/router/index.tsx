@@ -75,10 +75,10 @@ const SolutionDetail = lazy(() => import('@/pages/opportunity/SolutionDetail'))
 const KanbanBoard = lazy(() => import('@/pages/opportunity/KanbanBoard'))
 const ServiceTicketList = lazy(() => import('@/pages/service/ServiceTicketList'))
 const ServiceTicketDetail = lazy(() => import('@/pages/service/ServiceTicketDetail'))
-const RenewalList = lazy(() => import('@/pages/service/RenewalList'))
 const FollowUpPage = lazy(() => import('@/pages/activity/FollowUpPage'))
 const PaymentPage = lazy(() => import('@/pages/payment/PaymentPage'))
 const PaymentRegistrationDashboard = lazy(() => import('@/pages/payment/PaymentRegistrationDashboard'))
+const ContractManagementDashboard = lazy(() => import('@/pages/contract/ContractManagementDashboard'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
@@ -256,7 +256,6 @@ export const router = createBrowserRouter([
       { path: 'cs-service-delays', element: <Guard permission="form_data:view"><FormModulePage templateCode="cs_service_delay" title="客户服务延期申请" basePath="/cs-service-delays" /></Guard> },
       { path: 'cs-correspondences/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="cs_correspondence" listPath="/cs-correspondences" title="客服往来函件" /></Guard> },
       { path: 'cs-correspondences', element: <Guard permission="form_data:view"><FormModulePage templateCode="cs_correspondence" title="客服往来函件" basePath="/cs-correspondences" /></Guard> },
-      { path: 'renewals', element: <Guard permission="service:view"><RenewalList /></Guard> },
       { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
       { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
       { path: 'commissions', element: <Guard permission="commission:view"><CommissionPage /></Guard> },
@@ -313,6 +312,7 @@ export const router = createBrowserRouter([
       { path: 'biz-bonus-payment-dash-v1', element: <Guard permission="form_data:view"><FormModulePage templateCode="commission_database" title="业务奖金流转单支付情况（可修改）" basePath="/commission-database" /></Guard> },
       { path: 'biz-bonus-payment-dash-v2', element: <Guard permission="form_data:view"><FormModulePage templateCode="commission_database" title="业务奖金流转单支付情况" basePath="/commission-database" /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
+      { path: 'contracts/dashboard', element: <Guard permission="contract:view"><Lazy><ContractManagementDashboard /></Lazy></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
       { path: 'contract-reviews/:id/edit', element: <Guard permission="contract_review:edit"><ContractReviewForm /></Guard> },

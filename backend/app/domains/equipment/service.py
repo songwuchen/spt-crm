@@ -11,7 +11,7 @@ from app.common.error_codes import NOT_FOUND
 from app.domains.audit.service import log_action
 from app.domains.equipment.models import CustomerEquipment, CustomerProcessSurvey
 from app.domains.equipment.schemas import (
-    EquipmentCreate, EquipmentUpdate, EquipmentToRenewal, SurveyCreate, SurveyUpdate,
+    EquipmentCreate, EquipmentUpdate, SurveyCreate, SurveyUpdate,
 )
 
 logger = logging.getLogger("spt_crm.equipment")
@@ -92,28 +92,6 @@ async def replacement_candidates(db, tenant_id, months=12):
         ).order_by(CustomerEquipment.replace_plan_date.asc())
     )).scalars().all()
     return rows
-
-
-async def convert_to_renewal(db, tenant_id, eid, data: EquipmentToRenewal, user: dict):
-    """从竞品设备生成"替换/复购商机"（RenewalOpportunity）。"""
-    from app.domains.service_ticket.models import RenewalOpportunity
-    e = await get_equipment(db, tenant_id, eid)
-    name = data.name or f"{e.customer_name or ''} {e.name} 替换商机".strip()
-    r = RenewalOpportunity(
-        id=generate_uuid(), tenant_id=tenant_id,
-        customer_id=e.customer_id, name=name[:200],
-        amount_expect=data.amount_expect, close_date_expect=data.close_date_expect,
-        related_asset_json={"equipment_id": e.id, "equipment_name": e.name, "supplier": e.supplier},
-        status="open", owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
-        remark=data.remark or f"由竞品设备「{e.name}（{e.supplier or '未知厂家'}）」转化",
-    )
-    db.add(r)
-    await db.commit()
-    await db.refresh(r)
-    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
-                     action="create", resource_type="renewal", resource_id=r.id,
-                     summary=f"竞品替换商机: {name}")
-    return r
 
 
 # ==================== Process Survey ====================

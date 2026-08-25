@@ -129,34 +129,3 @@ async def test_category_crud(client: AsyncClient, auth_headers: dict):
     assert resp.json()["code"] == 0
     resp = await client.delete(f"/api/v1/products/categories/{cid}", headers=auth_headers)
     assert resp.json()["code"] == 0
-
-
-async def test_renewal_with_customer_name(client: AsyncClient, auth_headers: dict):
-    """Renewal list should include customer_name."""
-    resp = await client.post("/api/v1/customers", headers=auth_headers, json={"name": "续约客户名测试"})
-    cust_id = resp.json()["data"]["id"]
-
-    resp = await client.post("/api/v1/renewal_opportunities", headers=auth_headers, json={
-        "customer_id": cust_id, "name": "测试续约名称", "amount_expect": 50000,
-    })
-    assert resp.json()["code"] == 0
-
-    # List and check customer_name
-    resp = await client.get("/api/v1/renewal_opportunities", headers=auth_headers)
-    data = resp.json()
-    assert data["code"] == 0
-    found = [r for r in data["data"] if r["name"] == "测试续约名称"]
-    assert len(found) > 0
-    assert found[0]["customer_name"] == "续约客户名测试"
-
-    # Cleanup
-    await client.delete(f"/api/v1/customers/{cust_id}", headers=auth_headers)
-
-
-async def test_renewal_status_filter(client: AsyncClient, auth_headers: dict):
-    """Renewal list supports status filter."""
-    resp = await client.get("/api/v1/renewal_opportunities", headers=auth_headers, params={"status": "won"})
-    data = resp.json()
-    assert data["code"] == 0
-    for r in data["data"]:
-        assert r["status"] == "won"

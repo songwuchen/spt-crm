@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, ServiceTicketItem, RenewalItem } from './types'
+import type { ApiResponse, PageData, ServiceTicketItem } from './types'
 
 export const serviceTicketApi = {
   list: (params?: { customer_id?: string; project_id?: string; keyword?: string; status?: string; priority?: string; type?: string; pageNo?: number; pageSize?: number }) =>
@@ -18,16 +18,6 @@ export const serviceTicketApi = {
     client.delete<unknown, ApiResponse<null>>(`/api/v1/service_tickets/${id}`),
   submit: (id: string) =>
     client.post<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}/submit`),
-
-  // Renewal
-  listRenewals: (params?: { customer_id?: string }) =>
-    client.get<unknown, ApiResponse<RenewalItem[]>>('/api/v1/renewal_opportunities', { params }),
-  createRenewal: (data: Record<string, unknown>) =>
-    client.post<unknown, ApiResponse<RenewalItem>>('/api/v1/renewal_opportunities', data),
-  getRenewal: (id: string) =>
-    client.get<unknown, ApiResponse<RenewalItem>>(`/api/v1/renewal_opportunities/${id}`),
-  updateRenewal: (id: string, data: Record<string, unknown>) =>
-    client.put<unknown, ApiResponse<RenewalItem>>(`/api/v1/renewal_opportunities/${id}`, data),
 
   // Satisfaction
   rate: (id: string, data: { score: number; comment?: string }) =>

@@ -14,6 +14,7 @@ class Contract(TenantScopedBase):
     # Direct customer link for externally-sourced contracts (no project chain).
     customer_id: Mapped[str | None] = mapped_column(String(36), index=True)
     contract_no: Mapped[str] = mapped_column(String(64), nullable=False)
+    serial_no: Mapped[str | None] = mapped_column(String(64), index=True)
     from_quote_id: Mapped[str | None] = mapped_column(String(36), index=True)
     current_version_no: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft/signed/terminated

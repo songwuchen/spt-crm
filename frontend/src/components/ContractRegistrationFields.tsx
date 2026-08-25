@@ -440,6 +440,17 @@ function FieldControl({
     )
   }
 
+  if (field.key === 'serial_no' && field.readOnly) {
+    return (
+      <Input
+        {...control}
+        disabled
+        className="font-mono"
+        placeholder={field.placeholder || '保存后自动生成'}
+      />
+    )
+  }
+
   if (field.lookupFormCode) {
     return (
       <BaseFormLookupSelect

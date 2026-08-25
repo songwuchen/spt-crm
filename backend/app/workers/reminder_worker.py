@@ -255,7 +255,7 @@ async def check_expiring_contracts(db: AsyncSession) -> int:
                 recipient_id=project.owner_id,
                 type="contract_signed",
                 title=f"合同即将到期: {c.contract_no}",
-                content=f"合同「{c.contract_no}」将在 {days_until} 天后到期（{c.end_date}），请及时处理续约。",
+                content=f"合同「{c.contract_no}」将在 {days_until} 天后到期（{c.end_date}），请及时跟进。",
                 biz_type="project",
                 biz_id=c.project_id,
             )

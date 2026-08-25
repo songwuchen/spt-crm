@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Button, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
+import { Button, Tag, Space, Modal, Form, Input, Select, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
-import dayjs from 'dayjs'
 import ImportModal from '@/components/ImportModal'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
-import type { ServiceTicketItem, RenewalItem } from '@/api/types'
+import type { ServiceTicketItem } from '@/api/types'
 
-import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
+import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useListView } from '@/hooks/useListView'
 import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
@@ -90,12 +89,6 @@ export default function ServiceTicketList() {
     fetchTickets()
   }
 
-  // Renewals
-  const [renewals, setRenewals] = useState<RenewalItem[]>([])
-  const [renewalModal, setRenewalModal] = useState(false)
-  const [renewalForm, setRenewalForm] = useState<Record<string, any>>({ status: 'open' })
-  const [editingRenewal, setEditingRenewal] = useState<RenewalItem | null>(null)
-
   const fetchTickets = async (page = pageNo, kw = searchText, st = filterStatus, pri = filterPriority, tp = filterType) => {
     setLoading(true)
     try {
@@ -109,11 +102,6 @@ export default function ServiceTicketList() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fetchRenewals = async () => {
-    const r = await serviceTicketApi.listRenewals()
-    setRenewals(r.data || [])
   }
 
   const fetchSlaStats = async () => {
@@ -177,7 +165,7 @@ export default function ServiceTicketList() {
 
   const view = useListView<ServiceTicketItem>('service_ticket', ticketColumns, { pageKey: 'service_tickets', entityType: 'service_ticket' })
 
-  useEffect(() => { fetchTickets(); fetchRenewals(); fetchSlaStats() }, [])
+  useEffect(() => { fetchTickets(); fetchSlaStats() }, [])
 
   // 高级筛选/排序/视图变化后回到第 1 页重新拉取
   useEffect(() => {
@@ -213,44 +201,6 @@ export default function ServiceTicketList() {
     ticketForm.setFieldsValue({ type: 'fault', priority: 'medium' })
     setTicketCustomFields({})
     setCreateModal(true)
-  }
-
-  const openRenewalCreate = () => {
-    setEditingRenewal(null)
-    setRenewalForm({ status: 'open' })
-    setRenewalModal(true)
-  }
-
-  const openRenewalEdit = (r: RenewalItem) => {
-    setEditingRenewal(r)
-    setRenewalForm({
-      customer_id: r.customer_id,
-      name: r.name,
-      amount_expect: r.amount_expect,
-      close_date_expect: r.close_date_expect,
-      probability: r.probability,
-      status: r.status,
-      remark: r.remark,
-    })
-    setRenewalModal(true)
-  }
-
-  const handleRenewalSave = async () => {
-    const data = { ...renewalForm }
-    if (data.close_date_expect && dayjs.isDayjs(data.close_date_expect)) {
-      data.close_date_expect = data.close_date_expect.format('YYYY-MM-DD')
-    }
-    if (editingRenewal) {
-      await serviceTicketApi.updateRenewal(editingRenewal.id, data)
-      message.success(t('service.renewalUpdated'))
-    } else {
-      await serviceTicketApi.createRenewal(data)
-      message.success(t('service.renewalCreated'))
-    }
-    setRenewalModal(false)
-    setEditingRenewal(null)
-    setRenewalForm({ status: 'open' })
-    fetchRenewals()
   }
 
   return (
@@ -338,16 +288,7 @@ export default function ServiceTicketList() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Tabs
-          defaultActiveKey="tickets"
-          className="px-4 pt-2"
-          items={[
-          {
-            key: 'tickets',
-            label: t('service.ticketsTab'),
-            children: (
-              <div>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4">
                 <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex items-center gap-3 flex-wrap">
                     <Input prefix={<SearchOutlined />} placeholder={t('service.searchNoDesc')} allowClear
@@ -404,49 +345,6 @@ export default function ServiceTicketList() {
                     }}
                     columns={view.columns}
                   />
-              </div>
-            ),
-          },
-          {
-            key: 'renewals',
-            label: t('service.renewalsTab', { count: renewals.length }),
-            children: (
-              <div>
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                  <div className="flex items-center gap-2">
-                    {['open', 'won', 'lost'].map((s) => {
-                      const cnt = renewals.filter((r) => r.status === s).length
-                      return (
-                        <Tag key={s} color={renewalStatusColors[s]}>
-                          {renewalStatusLabels[s]} {cnt}
-                        </Tag>
-                      )
-                    })}
-                    <span className="text-sm text-slate-400 ml-2">
-                      {t('service.estimatedAmount')} ¥{renewals.filter((r) => r.status === 'open').reduce((sum, r) => sum + (r.amount_expect || 0), 0).toLocaleString()}
-                    </span>
-                  </div>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={openRenewalCreate}>{t('service.createRenewal')}</Button>
-                </div>
-                <FillHeightTable rowKey="id" dataSource={renewals} pagination={{ pageSize: 20 }} size="small"
-                    columns={[
-                      { title: t('service.renewalName'), dataIndex: 'name', render: (v: string) => <span className="font-semibold">{v}</span> },
-                      { title: t('common.status'), dataIndex: 'status', width: 100, render: (v: string) => <Tag color={renewalStatusColors[v]}>{renewalStatusLabels[v] || v}</Tag> },
-                      { title: t('service.expectedAmount'), dataIndex: 'amount_expect', width: 130, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
-                      { title: t('service.expectedCloseDate'), dataIndex: 'close_date_expect', width: 120, render: (v: string) => v || '-' },
-                      { title: t('service.probability'), dataIndex: 'probability', width: 80, render: (v: number | null) => v != null ? `${v}%` : '-' },
-                      { title: t('common.owner'), dataIndex: 'owner_name', width: 100, render: (v: string) => v || '-' },
-                      { title: t('common.remark'), dataIndex: 'remark', ellipsis: true, width: 180 },
-                      { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-                      { title: '', key: 'actions', width: 60, render: (_: unknown, r: RenewalItem) => (
-                        <a className="text-primary text-sm font-bold" onClick={() => openRenewalEdit(r)}>{t('common.edit')}</a>
-                      )},
-                    ]}
-                  />
-              </div>
-            ),
-          },
-        ]} />
       </div>
 
       {/* Import Modal */}
@@ -495,54 +393,6 @@ export default function ServiceTicketList() {
             value={ticketCustomFields} onChange={setTicketCustomFields} />
         </Form>
        </FieldPolicyProvider>
-      </Modal>
-
-      {/* Renewal Modal */}
-      <Modal title={editingRenewal ? t('service.editRenewal') : t('service.createRenewal')} open={renewalModal}
-        onOk={handleRenewalSave} onCancel={() => { setRenewalModal(false); setEditingRenewal(null) }} width={500}>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.relatedCustomer')} <span className="text-red-500">*</span></label>
-            <Select className="w-full" showSearch filterOption={false} placeholder={t('service.customer')}
-              value={renewalForm.customer_id} onChange={(v) => setRenewalForm({ ...renewalForm, customer_id: v })}
-              loading={customerSelect.loading}
-              options={customerSelect.options}
-              onSearch={customerSelect.onSearch}
-              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.renewalName')} <span className="text-red-500">*</span></label>
-            <Input value={renewalForm.name} onChange={(e) => setRenewalForm({ ...renewalForm, name: e.target.value })} placeholder={t('service.renewalNamePlaceholder')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.expectedAmount')}</label>
-              <InputNumber className="w-full" min={0} prefix="¥" value={renewalForm.amount_expect}
-                onChange={(v) => setRenewalForm({ ...renewalForm, amount_expect: v })} placeholder="0" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.expectedCloseDate')}</label>
-              <DatePicker className="w-full" value={renewalForm.close_date_expect ? dayjs(renewalForm.close_date_expect) : null}
-                onChange={(v) => setRenewalForm({ ...renewalForm, close_date_expect: v })} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.probabilityPercent')}</label>
-              <InputNumber className="w-full" min={0} max={100} value={renewalForm.probability}
-                onChange={(v) => setRenewalForm({ ...renewalForm, probability: v })} placeholder="50" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('common.status')}</label>
-              <Select className="w-full" value={renewalForm.status} onChange={(v) => setRenewalForm({ ...renewalForm, status: v })}
-                options={Object.entries(renewalStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('common.remark')}</label>
-            <TextArea rows={2} value={renewalForm.remark} onChange={(e) => setRenewalForm({ ...renewalForm, remark: e.target.value })} placeholder={t('service.remarkPlaceholder')} />
-          </div>
-        </div>
       </Modal>
 
       {/* Batch Assign Modal */}

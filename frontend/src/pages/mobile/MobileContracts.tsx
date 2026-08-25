@@ -3,6 +3,7 @@ import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { contractDisplayStatusLabels, resolveContractDisplayStatus } from '@/constants/labels'
 
 interface ContractBrief {
   id: string; contract_no: string; status: string
@@ -12,22 +13,16 @@ interface ContractBrief {
   start_date?: string; title?: string
 }
 
-const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: '草稿', color: 'text-slate-600', bg: 'bg-slate-100' },
-  approving: { label: '审批中', color: 'text-amber-700', bg: 'bg-amber-50' },
-  pending_sign: { label: '待签署', color: 'text-orange-700', bg: 'bg-orange-50' },
-  rejected: { label: '已驳回', color: 'text-red-600', bg: 'bg-red-50' },
-  signed: { label: '已签署', color: 'text-emerald-700', bg: 'bg-emerald-50' },
-  terminated: { label: '已终止', color: 'text-red-600', bg: 'bg-red-50' },
+const statusStyle: Record<string, { color: string; bg: string }> = {
+  draft: { color: 'text-slate-600', bg: 'bg-slate-100' },
+  approving: { color: 'text-amber-700', bg: 'bg-amber-50' },
+  approved: { color: 'text-emerald-700', bg: 'bg-emerald-50' },
+  rejected: { color: 'text-red-600', bg: 'bg-red-50' },
+  terminated: { color: 'text-red-600', bg: 'bg-red-50' },
 }
 
 function displayOf(c: ContractBrief) {
-  if (c.status === 'signed' || c.status === 'terminated') return c.status
-  const vs = c.current_version_status
-  if (vs === 'approved' || vs === 'signed') return 'pending_sign'
-  if (vs === 'submitted') return 'approving'
-  if (vs === 'rejected') return 'rejected'
-  return 'draft'
+  return resolveContractDisplayStatus(c.status, c.current_version_status)
 }
 
 export default function MobileContracts() {
@@ -51,6 +46,8 @@ export default function MobileContracts() {
     acc[ds] = (acc[ds] || 0) + 1; return acc
   }, {})
 
+  const filterKeys = ['draft', 'approving', 'approved', 'rejected', 'terminated'] as const
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
@@ -61,18 +58,20 @@ export default function MobileContracts() {
         <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-sm font-bold">{contracts.length}</span>
       </div>
 
-      {/* Status filter bar */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
         <button onClick={() => setFilterStatus(null)}
           className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
             !filterStatus ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
           }`}>全部 {contracts.length}</button>
-        {Object.entries(statusConfig).map(([key, sc]) => (
-          <button key={key} onClick={() => setFilterStatus(filterStatus === key ? null : key)}
-            className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
-              filterStatus === key ? 'bg-primary text-white' : `${sc.bg} ${sc.color}`
-            }`}>{sc.label} {statusCounts[key] || 0}</button>
-        ))}
+        {filterKeys.map((key) => {
+          const sc = statusStyle[key]
+          return (
+            <button key={key} onClick={() => setFilterStatus(filterStatus === key ? null : key)}
+              className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+                filterStatus === key ? 'bg-primary text-white' : `${sc.bg} ${sc.color}`
+              }`}>{contractDisplayStatusLabels[key]} {statusCounts[key] || 0}</button>
+          )
+        })}
       </div>
 
       {loading ? (
@@ -82,14 +81,16 @@ export default function MobileContracts() {
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
-            const sc = statusConfig[displayOf(c)] || statusConfig.draft
+            const ds = displayOf(c)
+            const sc = statusStyle[ds] || statusStyle.draft
+            const label = contractDisplayStatusLabels[ds] || ds
             const daysLeft = c.end_date ? Math.ceil((new Date(c.end_date).getTime() - Date.now()) / 86400000) : null
             return (
               <div key={c.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50"
                 onClick={() => setDetail(c)}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-slate-900">{c.contract_no}</span>
-                  <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
+                  <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.bg} ${sc.color}`}>{label}</span>
                 </div>
                 {c.title && <div className="text-sm text-slate-600 mb-1">{c.title}</div>}
                 <div className="flex items-center justify-between">
@@ -98,7 +99,7 @@ export default function MobileContracts() {
                       <div className="text-lg font-black text-slate-900">¥{(c.amount_total / 10000).toFixed(1)}万</div>
                     )}
                     <div className="text-[12px] text-slate-400 mt-0.5">
-                      {c.signed_date && <span>签署: {c.signed_date}</span>}
+                      {c.signed_date && <span>生效: {c.signed_date}</span>}
                       {c.created_by_name && <span className="ml-2">{c.created_by_name}</span>}
                     </div>
                   </div>
@@ -117,7 +118,6 @@ export default function MobileContracts() {
         </div>
       )}
 
-      {/* Detail Drawer */}
       {detail && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" onClick={() => setDetail(null)}>
           <div className="bg-white w-full max-w-lg rounded-t-2xl p-6 pb-8 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -128,28 +128,26 @@ export default function MobileContracts() {
               </button>
             </div>
 
-            {/* Status timeline */}
             <div className="flex items-center gap-1 mb-5">
-              {(['draft', 'approving', 'signed'] as const).map((step, i) => {
+              {(['draft', 'approving', 'approved'] as const).map((step, i) => {
                 const ds = displayOf(detail)
-                const order = ['draft', 'approving', 'pending_sign', 'signed']
-                const currentIdx = Math.max(0, order.indexOf(ds === 'rejected' ? 'draft' : ds === 'terminated' ? 'signed' : ds))
-                const stepIdx = step === 'approving' ? 1 : step === 'signed' ? 3 : 0
+                const order = ['draft', 'approving', 'approved', 'terminated']
+                const currentIdx = Math.max(0, order.indexOf(ds === 'rejected' ? 'draft' : ds))
+                const stepIdx = step === 'approving' ? 1 : step === 'approved' ? 2 : 0
                 const isActive = stepIdx <= currentIdx
-                const sc = statusConfig[step]
+                const label = contractDisplayStatusLabels[step]
                 return (
                   <div key={step} className="flex items-center gap-1 flex-1">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${
                       isActive ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'
                     }`}>{i + 1}</div>
-                    <span className={`text-[12px] font-medium ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>{sc.label}</span>
+                    <span className={`text-[12px] font-medium ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
                     {i < 2 && <div className={`flex-1 h-0.5 ${isActive && stepIdx < currentIdx ? 'bg-primary' : 'bg-slate-100'}`} />}
                   </div>
                 )
               })}
             </div>
 
-            {/* Details */}
             <div className="space-y-3">
               {detail.title && (
                 <div className="flex justify-between text-sm">
@@ -171,7 +169,7 @@ export default function MobileContracts() {
               )}
               {detail.signed_date && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">签署日期</span>
+                  <span className="text-slate-500">生效日期</span>
                   <span className="text-slate-800">{detail.signed_date}</span>
                 </div>
               )}
@@ -187,24 +185,6 @@ export default function MobileContracts() {
                   <span className="text-slate-800">{detail.end_date}</span>
                 </div>
               )}
-              {detail.created_by_name && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">创建人</span>
-                  <span className="text-slate-800">{detail.created_by_name}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="mt-6 flex gap-3">
-              <button onClick={() => { setDetail(null); navigate(`/opportunities`) }}
-                className="flex-1 bg-primary/10 text-primary font-bold text-sm py-2.5 rounded-lg active:opacity-80">
-                查看商机
-              </button>
-              <button onClick={() => setDetail(null)}
-                className="flex-1 bg-slate-100 text-slate-600 font-bold text-sm py-2.5 rounded-lg active:opacity-80">
-                关闭
-              </button>
             </div>
           </div>
         </div>

@@ -30,6 +30,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/opportunities/new': '新建商机',
   '/opportunities/kanban': '看板视图',
   '/contracts': '合同管理',
+  '/contracts/dashboard': '合同管理仪表盘',
   '/application-fields': '应用领域',
   '/application-fields/fill': '新增',
   '/application-materials': '应用物料',

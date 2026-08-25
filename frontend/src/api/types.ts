@@ -439,6 +439,7 @@ export interface ContractItem {
   project_id?: string | null
   customer_id?: string | null
   contract_no: string
+  serial_no?: string | null
   current_version_no: number
   status: string
   /** 当前版本审批态；列表展示态由此与 status 合成 */
