@@ -75,9 +75,14 @@ async def test_attachment_upload_and_list(client: AsyncClient, auth_headers: dic
     assert lst.json()["code"] == 0
     assert len(lst.json()["data"]) >= 1
 
-    # Download
-    dl = await client.get(f"/api/v1/attachments/{att_id}/download", headers=h)
+    # Download（对象存储走 302/307 预签名；测试用 proxy=1 经本服务转发拿正文）
+    dl = await client.get(
+        f"/api/v1/attachments/{att_id}/download",
+        headers=h,
+        params={"proxy": 1},
+    )
     assert dl.status_code == 200
+    assert dl.content == file_content
 
     # Delete attachment
     rm = await client.delete(f"/api/v1/attachments/{att_id}", headers=h)
