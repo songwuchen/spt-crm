@@ -8567,6 +8567,27 @@ async def get_instance_detail(
                         form_rules = apply_prod_card_supplement_rules(form_rules)
                     except Exception:
                         pass
+                if form_tpl_code == "quote_management":
+                    try:
+                        from app.domains.auth.service import get_user_roles
+                        from app.domains.lowcode.field_permission import filter_read
+                        from app.domains.lowcode.quote_management_fields import prepare_quote_field_defs
+                        form_fields = prepare_quote_field_defs(form_fields)
+                        viewer_roles: list[str] = []
+                        if viewer_id:
+                            viewer_roles = await get_user_roles(db, viewer_id, tenant_id)
+                        is_creator = bool(
+                            viewer_id and (
+                                viewer_id == getattr(fi, "created_by", None)
+                                or viewer_id == getattr(fi, "initiator_id", None)
+                                or viewer_id == inst.initiator_id
+                            )
+                        )
+                        form_fields, form_data = filter_read(
+                            form_fields, form_data, viewer_roles, is_creator=is_creator,
+                        )
+                    except Exception:
+                        pass
         except Exception:
             form_fields, form_data, form_rules = [], {}, []
 

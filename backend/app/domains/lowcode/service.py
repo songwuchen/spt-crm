@@ -1699,6 +1699,9 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
             db, tenant_id, out.get("form_data"), user,
         )
         rule_defs = apply_prod_card_supplement_rules(rule_defs)
+    if tpl_code == "quote_management":
+        from app.domains.lowcode.quote_management_fields import prepare_quote_field_defs
+        field_defs = prepare_quote_field_defs(field_defs)
     retroactive_perms: list[dict] = []
     if inst.process_instance_id:
         from app.domains.lowcode.wf_field_writeback import (
@@ -2533,7 +2536,38 @@ async def list_instances(
         .order_by(FormInstance.created_at.desc())
         .offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
+    await mask_quote_list_form_data(db, tenant_id, template_id, list(rows), user)
     return list(rows), total
+
+
+async def mask_quote_list_form_data(
+    db: AsyncSession,
+    tenant_id: str,
+    template_id: str,
+    items: list[FormInstance],
+    user: dict | None,
+) -> None:
+    """列表 API：报价管理成本价按角色剔除 form_data（防前端/network 泄露）。"""
+    if not user or not items:
+        return
+    template_code = await _template_code_for(db, tenant_id, template_id)
+    if template_code != "quote_management":
+        return
+    ver = await _get_published_version(db, tenant_id, template_id)
+    from app.domains.lowcode.quote_management_fields import prepare_quote_field_defs
+    field_defs = prepare_quote_field_defs((ver.field_definitions if ver else None) or [])
+    uid = user.get("sub")
+    roles = (user or {}).get("roles")
+    for inst in items:
+        is_creator = bool(
+            uid and (
+                uid == getattr(inst, "created_by", None)
+                or uid == getattr(inst, "initiator_id", None)
+            )
+        )
+        _, inst.form_data = filter_read(
+            field_defs, inst.form_data or {}, roles, is_creator=is_creator,
+        )
 
 
 async def form_instance_summary(
@@ -2609,11 +2643,14 @@ async def export_instances(
     ver = await _get_published_version(db, tenant_id, template_id)
     if not ver:
         ver = await _get_latest_version(db, tenant_id, template_id)
-    field_defs = (ver.field_definitions if ver else []) or []
-
     template_code = (tpl.code if tpl else None) or await _template_code_for(
         db, tenant_id, template_id,
     )
+    field_defs = (ver.field_definitions if ver else []) or []
+    if template_code == "quote_management":
+        from app.domains.lowcode.quote_management_fields import prepare_quote_field_defs
+        field_defs = prepare_quote_field_defs(field_defs)
+
     owner_ids = await _resolve_form_list_owner_ids(
         db, tenant_id, user, template_code, owner_ids,
     )
