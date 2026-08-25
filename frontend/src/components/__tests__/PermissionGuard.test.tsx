@@ -1,8 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import PermissionGuard from '../PermissionGuard'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { UserInfo } from '@/api/types'
+
+vi.mock('@/hooks/useWorkflowFormTemplateCodes', () => ({
+  useWorkflowFormTemplateCodes: () => ({
+    codes: new Set<string>(),
+    loaded: true,
+    hasFormView: false,
+  }),
+  clearWorkflowFormTemplateCodesCache: vi.fn(),
+}))
 
 const adminUser: UserInfo = {
   id: 'u-1',
@@ -11,6 +21,10 @@ const adminUser: UserInfo = {
   roles: ['admin'],
   permissions: ['customer:view', 'customer:edit'],
   tenant_id: 't-1',
+}
+
+function renderGuard(ui: React.ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>)
 }
 
 describe('PermissionGuard', () => {
@@ -24,7 +38,7 @@ describe('PermissionGuard', () => {
     act(() => {
       useAuthStore.getState().setUser(adminUser)
     })
-    render(
+    renderGuard(
       <PermissionGuard permission="customer:view">
         <div>Protected Content</div>
       </PermissionGuard>
@@ -36,7 +50,7 @@ describe('PermissionGuard', () => {
     act(() => {
       useAuthStore.getState().setUser(adminUser)
     })
-    render(
+    renderGuard(
       <PermissionGuard permission="admin:manage">
         <div>Protected Content</div>
       </PermissionGuard>
@@ -46,7 +60,7 @@ describe('PermissionGuard', () => {
   })
 
   it('shows no-permission page when no user logged in', () => {
-    render(
+    renderGuard(
       <PermissionGuard permission="customer:view">
         <div>Protected Content</div>
       </PermissionGuard>

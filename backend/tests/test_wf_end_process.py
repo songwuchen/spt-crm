@@ -29,7 +29,7 @@ async def test_end_process_rejects_running():
     db.execute.return_value = result
     with pytest.raises(BusinessException) as ei:
         await eng.end_process("p1", {"sub": "u1"})
-    assert "已驳回或已撤回" in str(ei.value.message)
+    assert "仅已驳回、已退回或已撤回" in str(ei.value.message)
 
 
 @pytest.mark.asyncio
