@@ -169,28 +169,34 @@ async def _published_version(db, tenant_id, def_id) -> WfProcessDefinitionVersio
 
 
 async def save_design(db, tenant_id, def_id, data: ws.WfSaveDesign, user_id) -> WfProcessDefinitionVersion:
-    await get_definition(db, tenant_id, def_id)
+    d = await get_definition(db, tenant_id, def_id)
     from app.domains.lowcode.jdy_id_remap import sanitize_route_ids_for_tenant
-    routes, _ = await sanitize_route_ids_for_tenant(db, tenant_id, data.route_definitions or [])
+    routes, _ = await sanitize_route_ids_for_tenant(
+        db, tenant_id, data.route_definitions or [],
+        preserve_routes_without_exclusive=True,
+    )
     draft = await _draft_version(db, tenant_id, def_id)
     if draft:
         draft.node_definitions = data.node_definitions
         draft.route_definitions = routes
         draft.approver_rules = data.approver_rules
-        await db.commit()
-        await db.refresh(draft)
-        return draft
-    latest = await _latest_version(db, tenant_id, def_id)
-    v = WfProcessDefinitionVersion(
-        id=generate_uuid(), tenant_id=tenant_id, process_definition_id=def_id,
-        version_number=(latest.version_number + 1) if latest else 1,
-        node_definitions=data.node_definitions, route_definitions=routes,
-        approver_rules=data.approver_rules, status="draft",
-    )
-    db.add(v)
+    else:
+        latest = await _latest_version(db, tenant_id, def_id)
+        draft = WfProcessDefinitionVersion(
+            id=generate_uuid(), tenant_id=tenant_id, process_definition_id=def_id,
+            version_number=(latest.version_number + 1) if latest else 1,
+            node_definitions=data.node_definitions, route_definitions=routes,
+            approver_rules=data.approver_rules, status="draft",
+        )
+        db.add(draft)
+    # 设计器手动保存即视为租户编排，避免 ensure 时系统对齐整图覆盖
+    if d.category == SYSTEM_DEFAULT_CATEGORY or d.code in {
+        s["code"] for s in FORM_DEFAULT_SPECS
+    }:
+        d.category = USER_DESIGNED_CATEGORY
     await db.commit()
-    await db.refresh(v)
-    return v
+    await db.refresh(draft)
+    return draft
 
 
 async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
@@ -559,6 +565,36 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "biz_bonus_transfer",
+        "code": "SYS_BIZ_BONUS_TRANSFER",
+        "name": "业务奖金流转单",
+        "approver_rule": {
+            "type": "dept_head", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "biz_bonus_biz_initiate",
+        "code": "SYS_BIZ_BONUS_BIZ_INITIATE",
+        "name": "业务奖金流转—业务发起",
+        "approver_rule": {
+            "type": "dept_head", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "commission_database",
+        "code": "SYS_COMMISSION_DATABASE",
+        "name": "提成数据库",
+        "approver_rule": {
+            "type": "specified_role", "value": "finance_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "cs_service_request",
         "code": "SYS_CS_SERVICE_REQUEST",
         "name": "客户服务申请及反馈",
@@ -703,6 +739,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._tech_feedback_outsource_generated import TECH_FEEDBACK_OUTSOURCE_JDY
         packs.update(TECH_FEEDBACK_OUTSOURCE_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._bonus_jdy_generated import BONUS_JDY
+        packs.update(BONUS_JDY)
     except Exception:
         pass
     pack = packs.get(form_code)
@@ -4685,6 +4726,9 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_XUNHAN_CONTRACT_REVIEW",
         "SYS_TECH_AGREEMENT_FEEDBACK",
         "SYS_CONTRACT_OUTSOURCE_EARLY",
+        "SYS_BIZ_BONUS_TRANSFER",
+        "SYS_BIZ_BONUS_BIZ_INITIATE",
+        "SYS_COMMISSION_DATABASE",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -5331,6 +5375,12 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "技术协议反馈单"
     elif form_code == "contract_outsource_early":
         d.name = "合同外购件提前安排流程"
+    elif form_code == "biz_bonus_transfer":
+        d.name = "业务奖金流转单"
+    elif form_code == "biz_bonus_biz_initiate":
+        d.name = "业务奖金流转—业务发起"
+    elif form_code == "commission_database":
+        d.name = "提成数据库"
     elif form_code == "cs_service_request":
         d.name = "客户服务申请及反馈"
     elif form_code == "cs_product_replace":

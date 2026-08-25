@@ -278,6 +278,45 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "field_definitions": [],
         "sync_fields": True,
     },
+    {
+        "key": "biz_bonus_transfer",
+        "name": "业务奖金流转单",
+        "category": "财务",
+        "icon": "PaidOutlined",
+        "description": (
+            "对齐简道云数据中心「业务奖金 / 业务奖金流转单」"
+            "(app=56ca77ce… entry=5e902da9…)。"
+            "详见 docs/product/_jdy_biz_bonus_transfer_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "biz_bonus_biz_initiate",
+        "name": "业务奖金流转—业务发起",
+        "category": "财务",
+        "icon": "SendOutlined",
+        "description": (
+            "对齐简道云数据中心「业务奖金 / 业务奖金流转—业务发起」"
+            "(entry=68fb12c1…)。"
+            "详见 docs/product/_jdy_biz_bonus_biz_initiate_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "commission_database",
+        "name": "提成数据库",
+        "category": "财务",
+        "icon": "DatabaseOutlined",
+        "description": (
+            "对齐简道云数据中心「业务奖金 / 提成数据库」"
+            "(entry=5e95282e…)。支付情况看板数据源。"
+            "详见 docs/product/_jdy_commission_database_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
     # —— 客户服务部（售后低代码，与原生售后工单并存）——
     {
         "key": "cs_service_request",

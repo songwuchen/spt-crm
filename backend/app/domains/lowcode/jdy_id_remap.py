@@ -54,7 +54,7 @@ JDY_DEPT_NAMES: dict[str, str] = {
 # 仅对这些字段做部门 id 替换（人员字段另见 PERSON_COND_FIELDS）
 # field：客户服务申请等「所属部门」生成 slug（非 department）
 DEPT_COND_FIELDS = frozenset({
-    "department", "offices", "offices_multi", "department_multi", "field",
+    "department", "offices", "offices_multi", "department_multi", "field", "office",
 })
 
 # 流程条件里的人员字段（简道云 member MongoId → CRM users.id）
@@ -301,11 +301,14 @@ def clean_unknown_dept_ids_in_routes(
     routes: list | None,
     valid_dept_ids: set[str],
     fields: frozenset[str] = DEPT_COND_FIELDS,
+    *,
+    preserve_routes_without_exclusive: bool = False,
 ) -> tuple[list, dict[str, Any]]:
     """从连线条件中移除不在 CRM 部门表里的部门 id（设计器显示为「未知部门」）。
 
-    某条条件值被清空后删除该条；整段 condition 无剩余叶子则**删除该连线**
-   （勿置 condition=null，否则互斥组会多出假 else，串行节点被并行激活）。
+    某条条件值被清空后删除该条；整段 condition 无剩余叶子时：
+    - 互斥组内连线：删除该连线（避免假 else 并行激活）
+    - 非互斥 / 用户手增连线：保留连线并去掉 condition（设计器保存时不丢拓扑）
     """
     if not routes:
         return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": [], "routes_dropped": 0}
@@ -330,6 +333,11 @@ def clean_unknown_dept_ids_in_routes(
             continue
         routes_touched += 1
         if cleaned is None:
+            if preserve_routes_without_exclusive and not r.get("exclusive_group"):
+                r = dict(r)
+                r.pop("condition", None)
+                kept.append(r)
+                continue
             routes_dropped += 1
             continue
         r["condition"] = cleaned
@@ -351,6 +359,8 @@ def clean_unknown_dept_ids_in_routes(
 
 async def clean_unknown_dept_routes_for_tenant(
     db: AsyncSession, tenant_id: str, routes: list | None,
+    *,
+    preserve_routes_without_exclusive: bool = False,
 ) -> tuple[list, dict[str, Any]]:
     rows = (
         await db.execute(
@@ -358,7 +368,9 @@ async def clean_unknown_dept_routes_for_tenant(
         )
     ).scalars().all()
     valid = {str(i) for i in rows}
-    return clean_unknown_dept_ids_in_routes(routes, valid)
+    return clean_unknown_dept_ids_in_routes(
+        routes, valid, preserve_routes_without_exclusive=preserve_routes_without_exclusive,
+    )
 
 
 async def build_jdy_to_crm_user_map(db: AsyncSession, tenant_id: str) -> dict[str, str]:
@@ -439,10 +451,12 @@ async def remap_person_routes_for_tenant(
 def clean_unknown_person_ids_in_routes(
     routes: list | None,
     fields: frozenset[str] = PERSON_COND_FIELDS,
+    *,
+    preserve_routes_without_exclusive: bool = False,
 ) -> tuple[list, dict[str, Any]]:
     """去掉人员条件里仍残留的简道云 MongoId（映射不上的已离职/未知成员）。
 
-    整段 condition 清空后删除连线（同部门清理，避免假 else）。
+    互斥组内条件全失效时删连线；非互斥连线保留拓扑并去掉 condition。
     """
     if not routes:
         return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": [], "routes_dropped": 0}
@@ -507,6 +521,11 @@ def clean_unknown_person_ids_in_routes(
             continue
         routes_touched += 1
         if cleaned is None:
+            if preserve_routes_without_exclusive and not r.get("exclusive_group"):
+                r = dict(r)
+                r.pop("condition", None)
+                kept.append(r)
+                continue
             routes_dropped += 1
             continue
         r["condition"] = cleaned
@@ -522,12 +541,19 @@ def clean_unknown_person_ids_in_routes(
 
 async def sanitize_route_ids_for_tenant(
     db: AsyncSession, tenant_id: str, routes: list | None,
+    *,
+    preserve_routes_without_exclusive: bool = False,
 ) -> tuple[list, dict[str, Any]]:
     """部门/人员：JDY id→CRM，并清掉无法映射的残留 MongoId。"""
     routes, dept_remap = await remap_routes_for_tenant(db, tenant_id, routes)
     routes, person_remap = await remap_person_routes_for_tenant(db, tenant_id, routes)
-    routes, dept_clean = await clean_unknown_dept_routes_for_tenant(db, tenant_id, routes)
-    routes, person_clean = clean_unknown_person_ids_in_routes(routes)
+    routes, dept_clean = await clean_unknown_dept_routes_for_tenant(
+        db, tenant_id, routes,
+        preserve_routes_without_exclusive=preserve_routes_without_exclusive,
+    )
+    routes, person_clean = clean_unknown_person_ids_in_routes(
+        routes, preserve_routes_without_exclusive=preserve_routes_without_exclusive,
+    )
     return routes, {
         "dept_remap": dept_remap,
         "person_remap": person_remap,
