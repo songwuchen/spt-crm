@@ -2371,12 +2371,15 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
 
     existing = await _find_form_instance_by_external_key(db, ctx.tenant_id, tpl.id, external_key)
     if existing:
+        merged = dict(existing.form_data or {})
+        merged.update(form_data)
         upd = lc_schemas.FormInstanceUpdate(
             title=data.title,
             remark=data.remark,
-            form_data=form_data,
+            form_data=merged,
         )
-        inst = await lc_service.update_instance(db, ctx.tenant_id, existing.id, upd, user)
+        patch_user = {**user, "openapi_form_patch": True}
+        inst = await lc_service.update_instance(db, ctx.tenant_id, existing.id, upd, patch_user)
         return {**_form_instance_to_openapi_dto(inst), "upsert": "updated"}
 
     create = lc_schemas.FormInstanceCreate(
