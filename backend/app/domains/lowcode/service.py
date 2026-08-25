@@ -2625,6 +2625,70 @@ async def form_instance_summary(
     return {"count": total_count, "sum": total_sum}
 
 
+async def commission_database_dashboard_summary(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    *, keyword: str | None = None, status: str | None = None,
+    owner_ids: list[str] | None = None,
+    filters: list | dict | str | None = None,
+    user: dict | None = None,
+) -> dict[str, float | int]:
+    """提成数据库仪表盘：条数 + 本次奖金 / 已支付金额合计（筛选口径与列表一致）。"""
+    from sqlalchemy import Numeric, case, cast
+
+    template_code = await _template_code_for(db, tenant_id, template_id)
+    owner_ids = await _resolve_form_list_owner_ids(
+        db, tenant_id, user, template_code, owner_ids,
+    )
+    owner_person_fields: list[str] = []
+    form_dept_scope_ids: list[str] | None = None
+    form_dept_name_literals: list[str] | None = None
+    if owner_ids is not None:
+        owner_person_fields, form_dept_scope_ids, form_dept_name_literals = (
+            await _form_list_scope_extras(db, tenant_id, user, template_code, owner_ids)
+        )
+        if not owner_person_fields:
+            owner_person_fields = await _owner_person_fields_for_template(
+                db, tenant_id, template_id,
+            )
+    filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
+    viewer_id = (user or {}).get("sub") if user else None
+    conds = _instance_list_conds(
+        tenant_id, template_id, keyword=keyword, status=status,
+        owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
+        owner_person_fields=owner_person_fields,
+        filter_clauses=filter_bundle,
+        template_code=template_code,
+        form_dept_scope_ids=form_dept_scope_ids,
+        form_dept_name_literals=form_dept_name_literals,
+        scope_viewer_id=viewer_id,
+        workflow_participant_user_id=viewer_id if owner_ids is not None else None,
+    )
+
+    def _safe_num(field_id: str):
+        txt = FormInstance.form_data.op("->>")(field_id)
+        return case(
+            (txt.op("~")(r"^-?[0-9]+(\.[0-9]+)?$"), cast(txt, Numeric)),
+            else_=None,
+        )
+
+    row = (await db.execute(
+        select(
+            func.count(FormInstance.id),
+            func.coalesce(func.sum(_safe_num("current_bonus")), 0),
+            func.coalesce(func.sum(_safe_num("field_9")), 0),
+        ).where(*conds)
+    )).one()
+    count = int(row[0] or 0)
+    sum_bonus = float(row[1] or 0)
+    sum_paid = float(row[2] or 0)
+    return {
+        "count": count,
+        "sum_current_bonus": sum_bonus,
+        "sum_paid_amount": sum_paid,
+        "sum_unpaid_amount": sum_bonus - sum_paid,
+    }
+
+
 async def export_instances(
     db: AsyncSession, tenant_id: str, template_id: str,
     keyword: str | None = None, status: str | None = None,

@@ -657,7 +657,10 @@ async def pickable_contract_prod_card_fill(
     contract_id: str,
     mode: str = Query(
         "drawing_no_query",
-        description="drawing_no_query / contract_no_select / invoice_application / shipment_notice",
+        description=(
+            "drawing_no_query / contract_no_select / invoice_application / shipment_notice / "
+            "biz_bonus_transfer / biz_bonus_biz_initiate / commission_database"
+        ),
     ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
@@ -668,8 +671,13 @@ async def pickable_contract_prod_card_fill(
     from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_contract
     from app.domains.lowcode.invoice_application_fields import build_invoice_fill_from_contract
     from app.domains.lowcode.shipment_notice_fields import build_shipment_fill_from_contract
+    from app.domains.lowcode.bonus_contract_fill import build_bonus_fill_from_contract
 
-    if mode not in ("drawing_no_query", "contract_no_select", "invoice_application", "shipment_notice"):
+    _MODES = (
+        "drawing_no_query", "contract_no_select", "invoice_application", "shipment_notice",
+        "biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database",
+    )
+    if mode not in _MODES:
         mode = "drawing_no_query"
     c = (
         await db.execute(
@@ -798,6 +806,18 @@ async def pickable_contract_prod_card_fill(
             registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
             key_clauses_json=ver.key_clauses_json if ver else None,
             prior_shipped_amount=prior_shipped,
+        )
+    elif mode in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
+        fill = build_bonus_fill_from_contract(
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+            assignee_id=c.assignee_id,
+            department_id=c.department_id,
+            customer_name=customer_name,
+            amount_total=c.amount_total,
+            registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
+            key_clauses_json=ver.key_clauses_json if ver else None,
+            form_key=mode,
         )
     else:
         fill = build_prod_card_fill_from_contract(
@@ -1366,6 +1386,25 @@ async def payment_registration_dashboard_summary(
     """收款登记仪表盘：来款合计等指标（筛选口径与列表一致）。"""
     data = await service.form_instance_summary(
         db, tenant_id, template_id, sum_field="payment_total",
+        keyword=keyword, status=status, owner_ids=scope, filters=filters, user=user,
+    )
+    return ok(data)
+
+
+@router.get("/commission-database/dashboard/summary")
+async def commission_database_dashboard_summary(
+    template_id: str = Query(...),
+    keyword: str = Query(None),
+    status: str = Query(None),
+    filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]}'),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_form_list_access),
+    scope: "list[str] | None" = Depends(get_data_scope),
+):
+    """提成数据库仪表盘：应付/已付奖金等指标（筛选口径与列表一致）。"""
+    data = await service.commission_database_dashboard_summary(
+        db, tenant_id, template_id,
         keyword=keyword, status=status, owner_ids=scope, filters=filters, user=user,
     )
     return ok(data)

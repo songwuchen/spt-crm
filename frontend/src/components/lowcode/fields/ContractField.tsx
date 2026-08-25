@@ -149,6 +149,9 @@ export type ContractFillMode =
   | 'contract_no_select'
   | 'invoice_application'
   | 'shipment_notice'
+  | 'biz_bonus_transfer'
+  | 'biz_bonus_biz_initiate'
+  | 'commission_database'
 
 export type PriorInvoiceRow = {
   id: string
@@ -242,6 +245,17 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
     'consignee_unit', 'contract_no_text', 'department', 'sales_person', 'dept_contract_no',
     'need_install', 'counterparty_contract_no', 'accept_method', 'accept_docs', 'contract_amount',
     'ship_lines', 'ship_amount', 'prior_shipped_amount', 'shipped_amount_incl', 'unshipped_amount',
+  ],
+  biz_bonus_transfer: [
+    'salesperson', 'sign_date', 'company_name', 'contract_lines',
+    'contract_amount', 'payment_method',
+  ],
+  biz_bonus_biz_initiate: [
+    'salesperson', 'sign_date', 'company_name', 'contract_lines',
+    'contract_amount', 'payment_method',
+  ],
+  commission_database: [
+    'company_name', 'salesperson', 'department', 'contract_amount',
   ],
 }
 

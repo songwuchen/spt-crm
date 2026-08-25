@@ -683,6 +683,154 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       attachments: 12, images: 12, receipt_images: 12, receipt_files: 12,
     },
   },
+  // 业务奖金流转单（简道云 lineWidth=12 通栏）
+  biz_bonus_transfer: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'bonus_no', 'bonus_date', 'drawing_no', 'salesperson', 'department',
+      'company_name', 'current_bonus', 'payment_total',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'bonus_no', 'bonus_date', 'drawing_no', 'salesperson', 'department',
+          'sign_date', 'company_name',
+        ],
+      },
+      {
+        title: '合同信息',
+        fieldIds: [
+          'contract_lines', 'contract_amount', 'payment_method',
+          'attachments', 'images',
+        ],
+      },
+      {
+        title: '来款情况',
+        fieldIds: [
+          'payment_lines', 'payment_total', 'settle_pct', 'settle_status',
+        ],
+      },
+      {
+        title: '费用与奖金',
+        fieldIds: [
+          'freight', 'service_fee', 'entertainment_fee', 'rebate',
+          'drawn_ratio', 'field_11', 'drawn_bonus', 'field_12',
+          'current_bonus', 'amount_cn', 'remark',
+        ],
+      },
+      {
+        title: '审批与支付',
+        fieldIds: ['field_13', 'payment_status', 'submitter_aux'],
+      },
+    ],
+    spans: {
+      bonus_no: 24, bonus_date: 24, drawing_no: 24, salesperson: 24, department: 24,
+      sign_date: 24, company_name: 24,
+      contract_lines: 24, contract_amount: 24, payment_method: 24,
+      attachments: 24, images: 24,
+      payment_lines: 24, payment_total: 24, settle_pct: 24, settle_status: 24,
+      freight: 24, service_fee: 24, entertainment_fee: 24, rebate: 24,
+      drawn_ratio: 24, field_11: 24, drawn_bonus: 24, field_12: 24,
+      current_bonus: 24, amount_cn: 24, remark: 24,
+      field_13: 24, payment_status: 24, submitter_aux: 24,
+    },
+  },
+  // 业务奖金流转—业务发起（部门在业务员前；简道云通栏）
+  biz_bonus_biz_initiate: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'bonus_no', 'bonus_date', 'drawing_no', 'department', 'salesperson',
+      'company_name', 'current_bonus', 'field_19',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'bonus_no', 'bonus_date', 'drawing_no', 'department', 'salesperson',
+          'field', 'sign_date', 'company_name',
+        ],
+      },
+      {
+        title: '合同信息',
+        fieldIds: [
+          'contract_lines', 'contract_amount', 'payment_method',
+          'attachments', 'images',
+        ],
+      },
+      {
+        title: '来款情况',
+        fieldIds: [
+          'payment_lines', 'payment_total', 'settle_pct', 'settle_status',
+        ],
+      },
+      {
+        title: '费用与奖金',
+        fieldIds: [
+          'freight', 'service_fee', 'entertainment_fee', 'rebate',
+          'drawn_ratio', 'field_12', 'drawn_bonus', 'field_13',
+          'current_bonus', 'amount_cn', 'remark',
+        ],
+      },
+      {
+        title: '审批与支付',
+        fieldIds: ['field_14', 'payment_status', 'submitter_aux', 'field_19'],
+      },
+    ],
+    spans: {
+      bonus_no: 24, bonus_date: 24, drawing_no: 24, department: 24, salesperson: 24,
+      field: 24, sign_date: 24, company_name: 24,
+      contract_lines: 24, contract_amount: 24, payment_method: 24,
+      attachments: 24, images: 24,
+      payment_lines: 24, payment_total: 24, settle_pct: 24, settle_status: 24,
+      freight: 24, service_fee: 24, entertainment_fee: 24, rebate: 24,
+      drawn_ratio: 24, field_12: 24, drawn_bonus: 24, field_13: 24,
+      current_bonus: 24, amount_cn: 24, remark: 24,
+      field_14: 24, payment_status: 24, submitter_aux: 24, field_19: 24,
+    },
+  },
+  // 提成数据库（简道云 grid-2，lineWidth 6 → span 12）
+  commission_database: {
+    contentMaxWidth: 1080,
+    listColumns: [
+      'commission_date', 'bonus_no', 'company_name', 'salesperson',
+      'department', 'contract_no', 'contract_amount', 'current_bonus',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'commission_date', 'bonus_no', 'company_name', 'salesperson',
+          'department', 'contract_no', 'contract_amount',
+        ],
+      },
+      {
+        title: '来款与费用',
+        fieldIds: [
+          'payment_lines', 'payment_total', 'field_4',
+          'service_fee', 'entertainment_fee', 'freight',
+        ],
+      },
+      {
+        title: '结算与奖金',
+        fieldIds: [
+          'settle_status', 'drawn_ratio', 'drawn_bonus', 'current_bonus',
+        ],
+      },
+      {
+        title: '支付状态',
+        fieldIds: ['payment_status', 'field_9'],
+      },
+    ],
+    spans: {
+      commission_date: 12, bonus_no: 12, company_name: 12, salesperson: 12,
+      department: 12, contract_no: 12, contract_amount: 12,
+      payment_lines: 24, payment_total: 12, field_4: 12,
+      service_fee: 12, entertainment_fee: 12, freight: 12,
+      settle_status: 12, drawn_ratio: 12, drawn_bonus: 12, current_bonus: 12,
+      payment_status: 24, field_9: 12,
+    },
+  },
   // 核价清单传递（中央研究院 HJQD）
   pricing_checklist_hjqd: {
     contentMaxWidth: 1080,

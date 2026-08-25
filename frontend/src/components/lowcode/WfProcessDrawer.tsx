@@ -32,6 +32,15 @@ import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { resolveNodeActions } from '@/utils/wfNodeActions'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { isQuoteManagementForm, printQuoteInstance } from '@/pages/quote/quotePrint'
+import {
+  BIZ_BONUS_PRINT_MODE_LABELS,
+  defaultBizBonusPrintMode,
+  isBizBonusApproveAndPrintNode,
+  isBizBonusForm,
+  printBizBonusInstance,
+  type BizBonusPrintMode,
+} from '@/pages/bonus/bizBonusPrint'
 import {
   defaultProdCardPrintMode,
   isProdCardApproveAndPrintNode,
@@ -254,15 +263,36 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
   const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail?.process_name)
+  const canPrintQuote = isQuoteManagementForm(undefined, detail?.form_code)
+  const canPrintBonus = isBizBonusForm(detail?.form_code, undefined, detail?.process_name)
   const approveAndPrint = canAct && nodeActs.submit_print && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
+    || (canPrintBonus && (isBizBonusApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
   )
 
-  const handlePrintScheme = async (prodMode?: ProdCardPrintMode) => {
+  const handlePrintScheme = async (prodMode?: ProdCardPrintMode, bonusMode?: BizBonusPrintMode) => {
     try {
       const ct = detail?.current_task
       const mergedForm = { ...formData, ...fieldUpdates }
+      if (canPrintQuote) {
+        await printQuoteInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail?.business_no,
+        })
+        return
+      }
+      if (canPrintBonus) {
+        await printBizBonusInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail?.business_no,
+          flowSteps: detail?.flow_steps,
+          mode: bonusMode || defaultBizBonusPrintMode(),
+        })
+        return
+      }
       if (canPrintProdCard) {
         const inject = ct && isProdCardApproveAndPrintNode(ct.node_name) && opinion.trim()
           ? {
@@ -387,6 +417,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         && (
           (canPrintScheme && isDrawingApproveAndPrintNode(ct?.node_name))
           || (canPrintProdCard && isProdCardApproveAndPrintNode(ct?.node_name))
+          || (canPrintBonus && isBizBonusApproveAndPrintNode(ct?.node_name))
         )
       await workflowApi.act(effectiveTaskId, {
         action, opinion: opinion.trim() || undefined,
@@ -414,6 +445,14 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               flowSteps: detail?.flow_steps,
               mode: defaultProdCardPrintMode(mergedForm),
               injectApproval: inject,
+            })
+          } else if (canPrintBonus) {
+            await printBizBonusInstance({
+              formData: mergedForm,
+              fieldDefinitions: fields,
+              businessNo: detail?.business_no,
+              flowSteps: detail?.flow_steps,
+              mode: defaultBizBonusPrintMode(),
             })
           } else {
             await printSchemeInstance({
@@ -711,6 +750,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   </div>
                 </div>
                 <Space size="small" wrap className="shrink-0">
+                  {canPrintQuote && (
+                    <Button
+                      size="small"
+                      icon={<PrinterOutlined />}
+                      onClick={() => { void handlePrintScheme() }}
+                    >
+                      打印报价单
+                    </Button>
+                  )}
                   {canPrintScheme && (
                     <Button
                       size="small"
@@ -735,6 +783,24 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                             onClick: () => { void handlePrintScheme('supplement') },
                           },
                         ],
+                      }}
+                      trigger={['click']}
+                    >
+                      <Button size="small" icon={<PrinterOutlined />}>
+                        打印
+                      </Button>
+                    </Dropdown>
+                  )}
+                  {canPrintBonus && (
+                    <Dropdown
+                      menu={{
+                        items: (Object.entries(BIZ_BONUS_PRINT_MODE_LABELS) as [BizBonusPrintMode, string][]).map(
+                          ([key, label]) => ({
+                            key,
+                            label,
+                            onClick: () => { void handlePrintScheme(undefined, key) },
+                          }),
+                        ),
                       }}
                       trigger={['click']}
                     >

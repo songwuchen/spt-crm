@@ -58,11 +58,19 @@ import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 import { getContractLabelMap } from '@/components/lowcode/fields/ContractField'
 import { getCustomerLabelMap } from '@/components/lowcode/fields/CustomerField'
 import { printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { printQuoteInstance, isQuoteManagementForm } from '@/pages/quote/quotePrint'
 import {
   defaultProdCardPrintMode,
   printProdCardInstance,
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
+import {
+  BIZ_BONUS_PRINT_MODE_LABELS,
+  defaultBizBonusPrintMode,
+  isBizBonusForm,
+  printBizBonusInstance,
+  type BizBonusPrintMode,
+} from '@/pages/bonus/bizBonusPrint'
 import { recordListNo } from '@/utils/formInstanceListNo'
 import { FORM_INSTANCE_STATUS } from '@/utils/lowcodeWorkflowLabels'
 import {
@@ -1203,6 +1211,8 @@ export default function FormDataListPage({
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
   const canPrintProdCard = templateCode === 'prod_card_supplement'
+  const canPrintQuote = isQuoteManagementForm(templateCode)
+  const canPrintBonus = isBizBonusForm(templateCode)
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
@@ -1221,7 +1231,7 @@ export default function FormDataListPage({
     && postCompleteEditable,
   )
 
-  const handlePrint = async (recId: string, prodMode?: ProdCardPrintMode) => {
+  const handlePrint = async (recId: string, prodMode?: ProdCardPrintMode, bonusMode?: BizBonusPrintMode) => {
     try {
       const res = await lowcodeApi.getInstance(recId)
       let flowSteps: WfInstanceDetail['flow_steps'] | undefined
@@ -1235,6 +1245,24 @@ export default function FormDataListPage({
         }
       } catch { /* 无流程也可打印 */ }
       const formData = res.data.form_data || {}
+      if (canPrintQuote) {
+        await printQuoteInstance({
+          formData,
+          fieldDefinitions: res.data.field_definitions || [],
+          businessNo: res.data.business_no,
+        })
+        return
+      }
+      if (canPrintBonus) {
+        await printBizBonusInstance({
+          formData,
+          fieldDefinitions: res.data.field_definitions || [],
+          businessNo: res.data.business_no,
+          flowSteps,
+          mode: bonusMode || defaultBizBonusPrintMode(),
+        })
+        return
+      }
       if (canPrintProdCard) {
         await printProdCardInstance({
           formData,
@@ -1640,6 +1668,15 @@ export default function FormDataListPage({
               className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100 shrink-0"
               style={{ marginTop: -4 }}
             >
+              {canPrintQuote && (
+                <Button
+                  type="text"
+                  icon={<PrinterOutlined />}
+                  onClick={() => handlePrint(viewRec.id)}
+                >
+                  打印
+                </Button>
+              )}
               {canPrintScheme && (
                 <Button
                   type="text"
@@ -1664,6 +1701,24 @@ export default function FormDataListPage({
                         onClick: () => { void handlePrint(viewRec.id, 'supplement') },
                       },
                     ],
+                  }}
+                  trigger={['click']}
+                >
+                  <Button type="text" icon={<PrinterOutlined />}>
+                    打印 <DownOutlined />
+                  </Button>
+                </Dropdown>
+              )}
+              {canPrintBonus && (
+                <Dropdown
+                  menu={{
+                    items: (Object.entries(BIZ_BONUS_PRINT_MODE_LABELS) as [BizBonusPrintMode, string][]).map(
+                      ([key, label]) => ({
+                        key,
+                        label,
+                        onClick: () => { void handlePrint(viewRec.id, undefined, key) },
+                      }),
+                    ),
                   }}
                   trigger={['click']}
                 >

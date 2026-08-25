@@ -590,11 +590,16 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._tech_feedback_outsource_generated import TECH_FEEDBACK_OUTSOURCE_JDY
     except Exception:
         TECH_FEEDBACK_OUTSOURCE_JDY = {}
+    try:
+        from app.domains.lowcode._bonus_jdy_generated import BONUS_JDY
+    except Exception:
+        BONUS_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
         **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
         **SHIPMENT_NOTICE_JDY, **XUNHAN_CONTRACT_REVIEW_JDY, **TECH_FEEDBACK_OUTSOURCE_JDY,
+        **BONUS_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -667,6 +672,9 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "shipment_notice":
             from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
             apply_shipment_notice_fields(defs)
+        if t["key"] in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
+            from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
+            apply_bonus_contract_fields(defs, t["key"])
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":

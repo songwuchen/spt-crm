@@ -78,6 +78,8 @@ const ServiceTicketDetail = lazy(() => import('@/pages/service/ServiceTicketDeta
 const FollowUpPage = lazy(() => import('@/pages/activity/FollowUpPage'))
 const PaymentPage = lazy(() => import('@/pages/payment/PaymentPage'))
 const PaymentRegistrationDashboard = lazy(() => import('@/pages/payment/PaymentRegistrationDashboard'))
+const BizBonusPaymentDashboardV1 = lazy(() => import('@/pages/bonus/BizBonusPaymentDashboard').then((m) => ({ default: m.BizBonusPaymentDashboardV1 })))
+const BizBonusPaymentDashboardV2 = lazy(() => import('@/pages/bonus/BizBonusPaymentDashboard').then((m) => ({ default: m.BizBonusPaymentDashboardV2 })))
 const ContractManagementDashboard = lazy(() => import('@/pages/contract/ContractManagementDashboard'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
@@ -309,8 +311,8 @@ export const router = createBrowserRouter([
       { path: 'biz-bonus-biz-initiate', element: <Guard permission="form_data:view"><FormModulePage templateCode="biz_bonus_biz_initiate" title="业务奖金流转—业务发起" basePath="/biz-bonus-biz-initiate" /></Guard> },
       { path: 'commission-database/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="commission_database" listPath="/commission-database" title="提成数据库" /></Guard> },
       { path: 'commission-database', element: <Guard permission="form_data:view"><FormModulePage templateCode="commission_database" title="提成数据库" basePath="/commission-database" dashboardPath="/biz-bonus-payment-dash-v1" /></Guard> },
-      { path: 'biz-bonus-payment-dash-v1', element: <Guard permission="form_data:view"><FormModulePage templateCode="commission_database" title="业务奖金流转单支付情况（可修改）" basePath="/commission-database" /></Guard> },
-      { path: 'biz-bonus-payment-dash-v2', element: <Guard permission="form_data:view"><FormModulePage templateCode="commission_database" title="业务奖金流转单支付情况" basePath="/commission-database" /></Guard> },
+      { path: 'biz-bonus-payment-dash-v1', element: <Guard permission="form_data:view"><Lazy><BizBonusPaymentDashboardV1 /></Lazy></Guard> },
+      { path: 'biz-bonus-payment-dash-v2', element: <Guard permission="form_data:view"><Lazy><BizBonusPaymentDashboardV2 /></Lazy></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'contracts/dashboard', element: <Guard permission="contract:view"><Lazy><ContractManagementDashboard /></Lazy></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },

@@ -108,6 +108,17 @@ export const lowcodeApi = {
       '/api/v1/lc/payment-registration/dashboard/summary',
       { params },
     ),
+  /** 提成数据库仪表盘汇总（应付/已付奖金，筛选口径与列表一致） */
+  commissionDatabaseDashboardSummary: (params: { template_id: string; filters?: string; keyword?: string; status?: string }) =>
+    client.get<unknown, ApiResponse<{
+      count: number
+      sum_current_bonus: number
+      sum_paid_amount: number
+      sum_unpaid_amount: number
+    }>>(
+      '/api/v1/lc/commission-database/dashboard/summary',
+      { params },
+    ),
   getInstance: (id: string) =>
     client.get<unknown, ApiResponse<FormInstanceDetail>>(`/api/v1/lc/form-instances/${id}`),
   createInstance: (data: { template_id: string; form_data: Record<string, unknown>; title?: string; as_draft?: boolean }) =>

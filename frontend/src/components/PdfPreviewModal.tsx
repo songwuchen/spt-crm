@@ -98,7 +98,7 @@ function downloadBlobUrl(url: string, fileName: string) {
 
 function pdfViewerHash(url: string): string {
   const bare = url.split('#')[0]
-  return `${bare}#toolbar=1&navpanes=1&pagemode=thumbs&view=FitH`
+  return `${bare}#toolbar=1&navpanes=1&pagemode=thumbs&zoom=100`
 }
 
 async function namedPreviewUrl(blob: Blob, fileName: string): Promise<string | null> {
