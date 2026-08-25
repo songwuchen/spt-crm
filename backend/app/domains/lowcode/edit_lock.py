@@ -1,7 +1,6 @@
-"""提交后锁编辑：审批中单据不可改内容；驳回（或撤回回草稿）后可再编辑。
+"""提交后锁编辑：部分业务单据在审批中锁定；**表单实例（流程单据）任意状态可改**。
 
-部分表单（合同图纸领用 / 安装图设计通知 / 客服领图）任意流程状态均可改内容。
-权威边界在各业务 update_*；审批人字段写回走 wf act / field_updates，不经本闸门。
+审批人字段写回仍走 wf act / field_updates；整单编辑走 form-instances PUT。
 """
 from __future__ import annotations
 
@@ -24,7 +23,7 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     "service_ticket": frozenset({
         "draft", "rejected", "open", "assigned", "in_progress", "resolved", "closed", "processing",
     }),
-    "form_instance": frozenset({"draft", "rejected"}),
+    "form_instance": frozenset({"draft", "rejected", "submitted", "running", "completed"}),
     "order": frozenset({"draft"}),
     # 线索：仅审批中锁定；草稿、驳回、收录、袭击、撤回待再提均可改
     "lead": frozenset({"draft", "pending", "approved", "attacked", "rejected"}),
@@ -205,11 +204,7 @@ async def assert_form_instance_editable(
     *,
     template_code: str | None = None,
 ) -> None:
-    """表单实例：status 闸门 + biz/form_instance_id 任一 running 流程。
-
-    ``drawing_requisition`` / ``install_drawing_notice`` / ``cs_drawing_request``：
-    任意流程状态均可改内容（含审批中、已通过）。
-    """
+    """表单实例：不再因 running 流程锁定；任意流程状态均可改内容（含审批中、已通过）。"""
     code = (template_code or "").strip() or None
     if code is None:
         from app.domains.lowcode.models import FormInstance, FormTemplate
@@ -223,31 +218,10 @@ async def assert_form_instance_editable(
             ).limit(1)
         )).scalar_one_or_none()
         code = row
-    if (code or "") in ALWAYS_EDITABLE_FORM_CODES:
-        if not is_status_editable("form_instance", status, template_code=code):
-            raise BusinessException(
-                code=VALIDATION_ERROR,
-                message="当前状态不可编辑",
-            )
-        return
-    await assert_biz_editable(
-        db, tenant_id, "form_instance", inst_id, status,
-        message="审批中或已提交的表单不可编辑，驳回后可由发起人修改再提交",
-        template_code=code,
-    )
-    from app.domains.lowcode.workflow_models import WfProcessInstance
-
-    running = (await db.execute(
-        select(WfProcessInstance.id).where(
-            WfProcessInstance.tenant_id == tenant_id,
-            WfProcessInstance.form_instance_id == inst_id,
-            WfProcessInstance.status == "running",
-        ).limit(1)
-    )).scalar_one_or_none()
-    if running:
+    if not is_status_editable("form_instance", status, template_code=code):
         raise BusinessException(
             code=VALIDATION_ERROR,
-            message="审批中或已提交的表单不可编辑，驳回后可由发起人修改再提交",
+            message="当前状态不可编辑",
         )
 
 

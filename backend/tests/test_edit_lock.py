@@ -22,7 +22,9 @@ def test_is_status_editable_matrix():
     assert not is_status_editable("contract_version", "submitted")
     assert not is_status_editable("contract_version", "approved")
     assert is_status_editable("form_instance", "draft")
-    assert not is_status_editable("form_instance", "completed")
+    assert is_status_editable("form_instance", "completed")
+    assert is_status_editable("form_instance", "running")
+    assert is_status_editable("form_instance", "submitted")
     assert is_status_editable(
         "form_instance", "completed", template_code="drawing_requisition",
     )
@@ -41,7 +43,7 @@ def test_is_status_editable_matrix():
     assert is_status_editable(
         "form_instance", "running", template_code="cs_drawing_request",
     )
-    assert not is_status_editable(
+    assert is_status_editable(
         "form_instance", "completed", template_code="invoice_application",
     )
     assert is_status_editable(
@@ -201,8 +203,9 @@ async def test_assert_form_instance_editable_status():
         exec_result.scalar_one_or_none.return_value = None
         db.execute = AsyncMock(return_value=exec_result)
         await assert_form_instance_editable(db, "t1", "fi1", "draft")
-        with pytest.raises(BusinessException):
-            await assert_form_instance_editable(db, "t1", "fi1", "submitted")
+        await assert_form_instance_editable(db, "t1", "fi1", "submitted")
+        await assert_form_instance_editable(db, "t1", "fi1", "running")
+        await assert_form_instance_editable(db, "t1", "fi1", "completed")
 
 
 @pytest.mark.asyncio
@@ -235,10 +238,9 @@ async def test_assert_form_instance_completed_drawing_ok():
         await assert_form_instance_editable(
             db, "t1", "fi1", "running", template_code="cs_drawing_request",
         )
-        with pytest.raises(BusinessException):
-            await assert_form_instance_editable(
-                db, "t1", "fi1", "completed", template_code="invoice_application",
-            )
+        await assert_form_instance_editable(
+            db, "t1", "fi1", "completed", template_code="invoice_application",
+        )
 
 
 @pytest.mark.asyncio

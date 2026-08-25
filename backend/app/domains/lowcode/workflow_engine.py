@@ -1297,6 +1297,14 @@ class WorkflowEngine:
             await self.db.commit()
             return
 
+        if action == "save":
+            # 暂存：写回本节点可填字段，不推进流程、不完结待办
+            await self._apply_node_field_updates(
+                inst, version, task, field_updates, opinion=opinion, action=action, actor=actor,
+            )
+            await self.db.commit()
+            return
+
         if action == "transfer":
             targets = self._normalize_transfer_targets(transfer_to)
             if not targets:
@@ -1451,9 +1459,10 @@ class WorkflowEngine:
             opinion_required=opinion_required, action=action,
             form_fields=form_fields, form_rules=form_rules, form_data=form_data,
         )
-        if action == "approve" and filtered:
+        if action in ("approve", "save") and filtered:
             await self._assert_person_field_values(inst.biz_type, filtered)
-            await self._assert_pickable_scope(inst, filtered)
+            if action == "approve":
+                await self._assert_pickable_scope(inst, filtered)
         if filtered:
             changes = await preview_field_update_changes(
                 self.db, self.tenant_id,
@@ -1471,6 +1480,7 @@ class WorkflowEngine:
                 try:
                     from app.domains.lowcode.form_audit import log_form_instance_changes
                     node_name = node.get("name") or "审批节点"
+                    audit_summary = f"{node_name} 暂存" if action == "save" else f"{node_name} 修改字段"
                     resource_type, resource_id = audit_resource_for_process(
                         form_instance_id=inst.form_instance_id,
                         biz_type=inst.biz_type,
@@ -1487,7 +1497,7 @@ class WorkflowEngine:
                             field_defs=form_fields,
                             changes=changes,
                             action="update",
-                            summary=f"{node_name} 修改字段",
+                            summary=audit_summary,
                         )
                     else:
                         from app.domains.audit.service import log_action
@@ -1502,7 +1512,7 @@ class WorkflowEngine:
                             action="update",
                             resource_type=resource_type,
                             resource_id=resource_id,
-                            summary=f"{node_name} 修改字段",
+                            summary=audit_summary,
                             detail={"changes": labeled},
                         )
                 except Exception:

@@ -2580,7 +2580,8 @@ async def update_instance(
         form_data = compute_formula_fields(dict(raw), field_defs, user_name)
         from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
         form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
-        if inst.status != "draft":
+        # 仅草稿整单保存时校验必填；审批中/已通过允许部分编辑后暂存
+        if inst.status == "draft":
             err = validate_required(field_defs, form_data,
                                     (version.rule_definitions if version else []) or [],
                                     role_field_permissions(field_defs, user.get("roles")))

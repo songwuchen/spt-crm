@@ -45,6 +45,19 @@ def test_validate_rejects_unknown_and_missing_required():
     assert ok["legal_risk"] == "高"
 
 
+def test_validate_save_skips_required():
+    """暂存不校验必填项与审批意见。"""
+    perms = [
+        {"field": "legal_risk", "access": "required"},
+        {"field": "legal_risk_desc", "access": "editable"},
+    ]
+    ok = validate_field_updates(
+        perms, {"legal_risk_desc": "draft only"}, action="save",
+        opinion_required=True, opinion="",
+    )
+    assert ok == {"legal_risk_desc": "draft only"}
+
+
 def test_validate_opinion_required():
     with pytest.raises(BusinessException):
         validate_field_updates([], {}, opinion="", opinion_required=True, action="approve")

@@ -99,6 +99,9 @@ export default function MobileLowcodeApprovalDetail() {
   )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!detail?.biz_id && !!effectiveTaskId
     && !isReviseTask && !isLeadOwnerConfirm
+  const canEditForm = Boolean(
+    canAct && detail?.form_instance_id && !isLeadIntel && !isLeadOwnerConfirm,
+  )
 
   // 线索修订：跳到申报编辑页（与第一次报项目同体验）
   useEffect(() => {
@@ -174,6 +177,21 @@ export default function MobileLowcodeApprovalDetail() {
     }
     setBusy(true)
     try {
+      if (action === 'save') {
+        if (detail?.form_instance_id) {
+          const nextData = { ...formData, ...fieldUpdates }
+          await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
+        } else {
+          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+          const updates = actPerms.length
+            ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
+            : undefined
+          await workflowApi.act(effectiveTaskId, { action: 'save', field_updates: updates })
+        }
+        message.success('已暂存')
+        await load(taskFromQuery)
+        return
+      }
       if (isReviseTask && (action === 'approve' || action === 'resubmit')) {
         if (detail?.form_instance_id) {
           const nextData = { ...formData, ...fieldUpdates }
@@ -372,13 +390,13 @@ export default function MobileLowcodeApprovalDetail() {
       {fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <div className="text-sm font-bold text-slate-500 mb-2">
-            {isReviseTask ? '请修改表单后重新提交' : '表单内容'}
+            {canEditForm || isReviseTask ? '可编辑表单内容' : '表单内容'}
           </div>
           <FormRenderer
             fields={fields}
-            mode={isReviseTask ? 'edit' : 'readonly'}
-            value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
-            onChange={isReviseTask ? ((v) => {
+            mode={canEditForm || isReviseTask ? 'edit' : 'readonly'}
+            value={canEditForm || isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+            onChange={canEditForm || isReviseTask ? ((v) => {
               setFormData(v)
               setFieldUpdates(v)
             }) : undefined}
@@ -568,6 +586,13 @@ export default function MobileLowcodeApprovalDetail() {
             <>
               <div className="text-sm text-slate-500 mb-2">修改内容后重新提交，或手动结束以关闭待办</div>
               <button
+                onClick={() => act('save')}
+                disabled={busy}
+                className="w-full h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60 mb-2"
+              >
+                暂存
+              </button>
+              <button
                 onClick={() => act('resubmit')}
                 disabled={busy}
                 className="w-full h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60 mb-2"
@@ -617,6 +642,15 @@ export default function MobileLowcodeApprovalDetail() {
             style={{ marginBottom: 8 }}
           />
           <div className="grid grid-cols-2 gap-2">
+            {(detail.current_task?.field_perms?.length ?? 0) > 0 || canEditForm ? (
+              <button
+                onClick={() => act('save')}
+                disabled={busy}
+                className="col-span-2 h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60"
+              >
+                暂存
+              </button>
+            ) : null}
             <button onClick={() => act('approve')} disabled={busy} className="h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">
               {approveAndPrint ? '通过并打印' : '通过'}
             </button>

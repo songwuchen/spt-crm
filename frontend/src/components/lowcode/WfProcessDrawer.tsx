@@ -6,7 +6,7 @@ import {
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
-  RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined, StopOutlined,
+  RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined, StopOutlined, SaveOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -344,6 +344,22 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     }
     setBusy(true)
     try {
+      if (action === 'save') {
+        if (detail?.form_instance_id) {
+          const nextData = { ...formData, ...fieldUpdates }
+          await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
+        } else {
+          const ct = detail?.current_task
+          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+          const updates = actPerms.length
+            ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
+            : undefined
+          await workflowApi.act(effectiveTaskId, { action: 'save', field_updates: updates })
+        }
+        message.success('已暂存')
+        await reloadDetail()
+        return
+      }
       // 修订待办：先保存表单再重新提交
       if (isReviseTask && (action === 'approve' || action === 'resubmit')) {
         if (detail?.form_instance_id) {
@@ -466,6 +482,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     ? LEAD_INTEL_FIELD_PERMS
     : taskFieldPerms
   const hasNodeFields = canAct && effectiveFieldPerms.length > 0 && !!detail?.current_task
+  const canEditForm = Boolean(
+    canAct && detail?.form_instance_id && !isLeadIntel && !isLeadOwnerConfirm,
+  )
+  const canSaveDraft = canAct && !isLeadIntel && !isLeadOwnerConfirm
+    && (isReviseTask || effectiveFieldPerms.length > 0 || canEditForm)
 
   const isLeadReactivationFollow = detail?.biz_type === 'lead_reactivation' && canAct && !!effectiveTaskId
     && isLeadReactivationFollowTodo({
@@ -580,9 +601,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       {fields.length ? (
         <FormRenderer
           fields={fields}
-          mode={isReviseTask ? 'edit' : 'readonly'}
-          value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
-          onChange={isReviseTask ? ((v) => {
+          mode={canEditForm || isReviseTask ? 'edit' : 'readonly'}
+          value={canEditForm || isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+          onChange={canEditForm || isReviseTask ? ((v) => {
             setFormData(v)
             setFieldUpdates(v)
           }) : undefined}
@@ -851,6 +872,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 ) : isReviseTask ? (
                   <div className="px-5 py-3 flex flex-wrap items-center gap-2">
                     <Button
+                      icon={<SaveOutlined />}
+                      loading={busy}
+                      onClick={() => act('save')}
+                    >
+                      暂存
+                    </Button>
+                    <Button
                       type="primary"
                       icon={<CheckCircleOutlined />}
                       loading={busy}
@@ -872,6 +900,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   </div>
                 ) : (
                   <div className="px-5 py-3 flex flex-wrap items-center gap-2">
+                    {canSaveDraft && (
+                      <Button
+                        icon={<SaveOutlined />}
+                        loading={busy}
+                        onClick={() => act('save')}
+                      >
+                        暂存
+                      </Button>
+                    )}
                     <Button
                       type="primary"
                       icon={<CheckCircleOutlined />}

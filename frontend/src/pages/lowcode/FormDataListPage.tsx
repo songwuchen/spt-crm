@@ -1118,13 +1118,11 @@ export default function FormDataListPage({
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
   const canPrintProdCard = templateCode === 'prod_card_supplement'
-  /** 草稿/驳回可改；合同图纸领用、安装图设计通知、客服领图流程通过后也可改（审批中仍锁） */
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
-  const canEditRecord = (status?: string | null) =>
-    status === 'draft' || status === 'rejected'
-    || (postCompleteEditable && status === 'completed')
+  /** 流程单据任意状态可编辑（不再锁定审批中/已通过） */
+  const canEditRecord = (_status?: string | null) => true
   const canResubmitRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
   /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
@@ -1135,8 +1133,7 @@ export default function FormDataListPage({
   const includeApproverFieldsOnEdit = Boolean(
     viewRec
     && !viewRec.readonly
-    && postCompleteEditable
-    && viewRec.status === 'completed',
+    && postCompleteEditable,
   )
 
   const handlePrint = async (recId: string, prodMode?: ProdCardPrintMode) => {

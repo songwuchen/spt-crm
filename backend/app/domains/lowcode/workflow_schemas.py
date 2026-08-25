@@ -61,7 +61,7 @@ class WfVersionOut(BaseModel):
 
 
 class WfActRequest(BaseModel):
-    action: str                     # approve / reject / transfer / comment / return
+    action: str                     # approve / reject / transfer / comment / return / save
     opinion: str | None = None
     # transfer：单人或多人（兼容历史 string；多人时为 user_id 列表）
     transfer_to: str | list[str] | None = None
