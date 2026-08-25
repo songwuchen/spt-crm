@@ -410,6 +410,22 @@ def _mock_response(prompt: str) -> str:
             "stage_suggestion": "当前阶段建议推进至方案报价(S3)，重点完成技术验证和正式报价。",
         }, ensure_ascii=False)
 
+    # 更具体的任务关键词须排在「报价/quote」「合同/contract」等宽匹配之前：相似商机
+    # 候选列表里常带有这些字样的历史项目名，否则会误返回报价审核或合同分析 JSON。
+    if (
+        "相似" in prompt
+        or "similar_projects" in prompt
+        or "similar" in prompt.lower()
+    ):
+        return json.dumps({
+            "similar_projects": [
+                {"name": "XX公司数字化转型", "similarity_score": 85, "reason": "同行业、相近金额、已赢单"},
+                {"name": "YY集团MES项目", "similarity_score": 72, "reason": "相似技术栈、同阶段推进"},
+                {"name": "ZZ工厂智能制造", "similarity_score": 68, "reason": "同金额区间、类似决策流程"},
+            ],
+            "insights": "相似赢单项目的共同特征是在S3阶段快速推进技术验证，平均签约周期45天。建议参考XX公司项目的推进策略。",
+        }, ensure_ascii=False)
+
     if "报价" in prompt or "quote" in prompt.lower():
         return json.dumps({
             "risk_level": "L",
@@ -419,18 +435,6 @@ def _mock_response(prompt: str) -> str:
                 {"item": "付款条款", "status": "pass", "detail": "付款条款标准，风险可控"},
             ],
             "overall_comment": "报价整体合理，建议关注利润率优化空间。",
-        }, ensure_ascii=False)
-
-    # 更具体的任务关键词须排在「合同/contract」等宽匹配之前：相似商机候选列表里
-    # 常带有「合同」字样的历史项目名，否则会误返回合同风险分析 JSON。
-    if "相似" in prompt or "similar" in prompt.lower():
-        return json.dumps({
-            "similar_projects": [
-                {"name": "XX公司数字化转型", "similarity_score": 85, "reason": "同行业、相近金额、已赢单"},
-                {"name": "YY集团MES项目", "similarity_score": 72, "reason": "相似技术栈、同阶段推进"},
-                {"name": "ZZ工厂智能制造", "similarity_score": 68, "reason": "同金额区间、类似决策流程"},
-            ],
-            "insights": "相似赢单项目的共同特征是在S3阶段快速推进技术验证，平均签约周期45天。建议参考XX公司项目的推进策略。",
         }, ensure_ascii=False)
 
     if "汇总" in prompt or "跟进记录" in prompt or "summarize" in prompt.lower():
