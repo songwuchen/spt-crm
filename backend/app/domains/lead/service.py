@@ -801,8 +801,9 @@ async def intel_review_lead(
             allow_lead_intel=True,
         )
         await db.refresh(lead)
-        # 引擎回写为 rejected；回退须可改再提 → 置草稿，保留回退原因
+        # 引擎回写 returned；回退须可改再提 → 置草稿，保留回退原因
         lead.review_status = "draft"
+        lead.reject_reason = reason or lead.reject_reason
         await db.commit()
         await db.refresh(lead)
         await log_action(

@@ -2131,7 +2131,9 @@ class WorkflowEngine:
                 fi.status = "returned"
         if inst.biz_type and inst.biz_id:
             from app.domains.lowcode.wf_biz_writeback import writeback
-            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "returned")
+            await writeback(
+                self.db, self.tenant_id, inst.biz_type, inst.biz_id, "returned", reason=reason,
+            )
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(
             self.db, self.tenant_id, "workflow.returned", inst, {"reason": reason} if reason else None,

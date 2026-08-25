@@ -155,7 +155,7 @@ async def writeback(
     if reason_col:
         # 驳回写入意见；通过时清空上一次的驳回原因，避免详情页残留旧原因
         sets.append(f"{reason_col} = :reason")
-        params["reason"] = reason if flow_status == "rejected" else None
+        params["reason"] = reason if flow_status in ("rejected", "returned") else None
     await db.execute(
         text(f"UPDATE {reg['table']} SET {', '.join(sets)} WHERE id = :bid AND tenant_id = :tenant"),
         params,
