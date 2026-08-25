@@ -40,12 +40,16 @@ describe('ServiceTicketList', { timeout: 15000 }, () => {
   beforeEach(() => {
     useAuthStore.getState().setUser(adminUser)
     vi.mocked(serviceTicketApi.list).mockResolvedValue({
+      code: 0,
+      message: 'ok',
       data: {
         items: [
-          { id: 't-1', ticket_no: 'TK-001', type: 'fault', priority: 'high', status: 'open', description: '设备故障' },
-          { id: 't-2', ticket_no: 'TK-002', type: 'maintenance', priority: 'medium', status: 'resolved', description: '定期维护' },
+          { id: 't-1', ticket_no: 'TK-001', type: 'fault', priority: 'high', status: 'open', description: '设备故障', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+          { id: 't-2', ticket_no: 'TK-002', type: 'maintenance', priority: 'medium', status: 'resolved', description: '定期维护', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
         ],
         total: 2,
+        pageNo: 1,
+        pageSize: 20,
       },
     })
     vi.mocked(serviceTicketApi.slaStats).mockResolvedValue({
@@ -55,7 +59,7 @@ describe('ServiceTicketList', { timeout: 15000 }, () => {
         sla_config: { critical: 4, high: 8, medium: 24, low: 72 },
         by_priority: { high: 2, medium: 1 },
       },
-    })
+    } as Awaited<ReturnType<typeof serviceTicketApi.slaStats>>)
   })
 
   it('renders page title', () => {
