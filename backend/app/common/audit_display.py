@@ -284,6 +284,13 @@ async def hydrate_audit_log_detail(
                     return True
                 if not diff.get("display_old") and not _is_empty(raw_old):
                     return True
+                disp_new = str(diff.get("display_new") or "")
+                disp_old = str(diff.get("display_old") or "")
+                if "[object Object]" in disp_new or "[object Object]" in disp_old:
+                    return True
+                # 旧日志把子表 display 存成 JSON 字符串，需重新格式化为可读文案/表格 diff
+                if disp_new.startswith("[{") or disp_old.startswith("[{"):
+                    return True
             for side in ("old", "new"):
                 raw = diff.get(side)
                 if _is_empty(raw):

@@ -189,9 +189,16 @@ function displayText(
   const preferred = change[displayKey]
   let text: string | null = null
   if (preferred != null && preferred !== '') {
-    text = typeof preferred === 'object'
-      ? formatValue(preferred, labels)
-      : String(preferred)
+    const prefStr = typeof preferred === 'string' ? preferred : ''
+    const prefBad = prefStr.includes('[object Object]')
+      || (prefStr.startsWith('[{') && raw != null && raw !== '')
+    if (prefBad) {
+      text = formatValue(raw, labels)
+    } else {
+      text = typeof preferred === 'object'
+        ? formatValue(preferred, labels)
+        : String(preferred)
+    }
     if (looksLikeUnresolvedPerson(text)) text = resolvePersonText(text, labels)
   } else if (raw != null && raw !== '') {
     text = formatValue(raw, labels)

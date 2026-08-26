@@ -5,6 +5,7 @@ from app.common.audit_display import (
     _format_detail_table_rows,
     _format_display_value,
     filter_create_log_changes,
+    hydrate_audit_log_detail,
 )
 
 
@@ -78,3 +79,36 @@ def test_compute_detail_table_diff_cell_change():
     assert by_col["material_code"]["old"] == "02.01.04.076"
     assert by_col["material_code"]["new"] == "02.01.04.079"
     assert by_col["product_name"]["changed"] is False
+
+
+def test_enrich_detail_table_json_legacy_display():
+    import asyncio
+    from unittest.mock import AsyncMock
+    from app.common.audit_display import enrich_form_changes_for_display
+
+    field_def = {
+        "id": "std_room_fill",
+        "type": "detail_table",
+        "label": "标准化室填写",
+        "detail_table_columns": [
+            {"id": "contract_line_ref", "type": "text", "label": "对应的合同明细"},
+            {"id": "material_code_time", "type": "datetime", "label": "填写物料代码时间"},
+        ],
+    }
+    changes = {
+        "std_room_fill": {
+            "label": "标准化室填写",
+            "old": [{"contract_line_ref": "1", "material_code_time": "2026-08-26 08:32:43"}],
+            "new": [
+                {"contract_line_ref": "1", "material_code_time": "2026-08-26 08:32:43"},
+                {"contract_line_ref": "2"},
+            ],
+            "display_old": '[{"contract_line_ref": "1"}]',
+            "display_new": '[{"contract_line_ref": "1"}, {"contract_line_ref": "2"}]',
+        }
+    }
+    out = asyncio.run(enrich_form_changes_for_display(AsyncMock(), "tid", changes, [field_def]))
+    ch = out["std_room_fill"]
+    assert ch.get("detail_table_diff")
+    assert "对应的合同明细" in (ch.get("display_new") or "")
+    assert "[object Object]" not in (ch.get("display_new") or "")
