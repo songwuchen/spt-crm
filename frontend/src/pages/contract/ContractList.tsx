@@ -80,7 +80,7 @@ export default function ContractList() {
     } catch { /* ignore */ }
   }
   /** 对齐简道云选关联后带出：商机 → 客户/客户编号/业务人员/部门/项目名称 */
-  const fillFromProject = async (projectId: string) => {
+  const fillFromProject = async (projectId?: string) => {
     if (!projectId) return
     try {
       const r = await projectApi.get(projectId)
