@@ -1,6 +1,6 @@
 from typing import Optional, List, Union, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # Full catalogue of scopes an app can be granted.
@@ -246,15 +246,15 @@ class OpenOrderCreate(BaseModel):
 class OpenContractCreate(BaseModel):
     """External contract intake for POST /openapi/v1/contracts.
 
-    供中间服务（如 crm-integration）从简道云等源系统拉取后推送。Customer-centric:
-    ``customer_id`` is required (resolve via POST/GET /customers first). ``project_id``
-    is optional.
+    供中间服务（如 crm-integration）从简道云等源系统拉取后推送。
+    ``customer_id`` 与 ``registration_json.customer_name`` 至少其一（简道云合同可不挂客户档案）。
+    ``project_id`` is optional.
 
     Upsert key:
     - 有 ``external_key``（简道云 data_id）时按 tenant + external_key（一条登记单 ↔ 一行）
     - 否则回落 tenant + ``contract_no``（旧行为）
     """
-    customer_id: str = Field(..., min_length=1, max_length=36)
+    customer_id: Optional[str] = Field(None, max_length=36)
     project_id: Optional[str] = Field(None, max_length=36)
     external_key: Optional[str] = Field(
         None, max_length=128,
@@ -309,6 +309,15 @@ class OpenContractCreate(BaseModel):
         if v is not None and v not in _CONTRACT_VERSION_STATUSES:
             raise ValueError(f"version_status must be one of {sorted(_CONTRACT_VERSION_STATUSES)}")
         return v
+
+    @model_validator(mode="after")
+    def _check_customer_ref(self):
+        cid = (self.customer_id or "").strip()
+        reg = self.registration_json if isinstance(self.registration_json, dict) else {}
+        cname = (reg.get("customer_name") or "").strip() if reg else ""
+        if not cid and not cname:
+            raise ValueError("customer_id or registration_json.customer_name is required")
+        return self
 
 
 class OpenFormInstanceUpsert(BaseModel):

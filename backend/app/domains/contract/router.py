@@ -45,6 +45,15 @@ async def _require_contract_view_or_wf(
     raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:view")
 
 
+def _reg_customer_name(c) -> str | None:
+    reg = getattr(c, "registration_json", None)
+    if isinstance(reg, dict):
+        v = reg.get("customer_name")
+        if v is not None and str(v).strip():
+            return str(v).strip()
+    return None
+
+
 def _contract_dict(c) -> dict:
     return {
         "id": c.id, "project_id": c.project_id, "customer_id": c.customer_id,
@@ -269,8 +278,11 @@ async def _fetch_contract_list_rows(
     rows = []
     for c in items:
         base = {**_contract_dict(c), **(name_map.get(c.project_id) or {})}
-        if not base.get("customer_name") and c.customer_id:
-            base["customer_name"] = direct_cust.get(c.customer_id)
+        if not base.get("customer_name"):
+            if c.customer_id:
+                base["customer_name"] = direct_cust.get(c.customer_id)
+            else:
+                base["customer_name"] = _reg_customer_name(c)
         rows.append(base)
     rows = await _attach_current_version_status(db, tenant_id, items, rows)
     rows = apply_field_mask(rows, "contract", perms, policies)
@@ -642,11 +654,14 @@ async def get_contract(
         )).scalar_one_or_none()
         if prow:
             contract_dict["project_code"] = prow
-    # 详情也补客户名（无商机链或仅挂 customer_id 的合同）
-    if contract.customer_id and not contract_dict.get("customer_name"):
-        from app.common.list_enrich import customer_names_map
-        names = await customer_names_map(db, tenant_id, [contract.customer_id])
-        contract_dict["customer_name"] = names.get(contract.customer_id)
+    # 详情也补客户名（无商机链、仅挂 customer_id、或登记 JSON 兜底）
+    if not contract_dict.get("customer_name"):
+        if contract.customer_id:
+            from app.common.list_enrich import customer_names_map
+            names = await customer_names_map(db, tenant_id, [contract.customer_id])
+            contract_dict["customer_name"] = names.get(contract.customer_id)
+        else:
+            contract_dict["customer_name"] = _reg_customer_name(contract)
     from app.domains.lowcode.field_permission import strip_entity_dicts
     await strip_entity_dicts(db, tenant_id, "contract", [contract_dict], current_user.get("roles"))
     return ok({

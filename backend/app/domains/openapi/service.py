@@ -1791,7 +1791,8 @@ async def _apply_contract_created_by(
 
 async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contract: Contract, data) -> None:
     """Copy OpenAPI intake fields onto an existing Contract (in-memory only)."""
-    contract.customer_id = data.customer_id
+    if "customer_id" in data.model_fields_set:
+        contract.customer_id = (data.customer_id or "").strip() or None
     if data.project_id is not None:
         contract.project_id = data.project_id
     if data.status is not None:
@@ -2022,10 +2023,11 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     serial_no = await allocate_contract_serial_no(
         db, ctx.tenant_id, ref_date=card_d, preset=preset_serial,
     )
+    customer_id = (getattr(data, "customer_id", None) or "").strip() or None
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         project_id=data.project_id,
-        customer_id=data.customer_id,
+        customer_id=customer_id,
         contract_no=contract_no,
         external_key=external_key,
         serial_no=serial_no,
