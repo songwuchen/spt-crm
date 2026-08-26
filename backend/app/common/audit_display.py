@@ -202,8 +202,6 @@ def _compute_detail_table_diff(
         for col in cols:
             cid = str(col["id"])
             ov, nv = orow.get(cid), nrow.get(cid)
-            if _is_empty(ov) and _is_empty(nv):
-                continue
             changed = not _cell_values_equal(ov, nv)
             if changed:
                 row_changed = True
@@ -216,17 +214,34 @@ def _compute_detail_table_diff(
                 "new": disp_new,
                 "changed": changed,
             })
-        if cells and (row_changed or idx >= len(old_rows) or idx >= len(new_rows)):
-            rows_out.append({"index": idx + 1, "cells": cells})
+        if not (row_changed or idx >= len(old_rows) or idx >= len(new_rows)):
+            continue
+        rows_out.append({"index": idx + 1, "cells": cells})
 
     if not rows_out:
         return None
+    used_col_ids: list[str] = []
+    for c in cols:
+        cid = str(c["id"])
+        for row in rows_out:
+            cell = next((x for x in row["cells"] if x["col_id"] == cid), None)
+            if cell and (cell.get("old") or cell.get("new")):
+                used_col_ids.append(cid)
+                break
+    if not used_col_ids:
+        return None
     return {
         "columns": [
-            {"id": str(c["id"]), "label": str(c.get("label") or c["id"])}
-            for c in cols
+            {"id": cid, "label": str(next(c for c in cols if str(c["id"]) == cid).get("label") or cid)}
+            for cid in used_col_ids
         ],
-        "rows": rows_out,
+        "rows": [
+            {
+                "index": row["index"],
+                "cells": [c for c in row["cells"] if c["col_id"] in used_col_ids],
+            }
+            for row in rows_out
+        ],
     }
 
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Avatar, Spin, Typography, Tag } from 'antd'
+import { Avatar, Spin, Typography, Tag, Modal, Button } from 'antd'
 import { FileTextOutlined } from '@ant-design/icons'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
@@ -206,18 +206,44 @@ function displayText(
   return text
 }
 
-function DetailTableDiffView({ diff }: { diff: DetailTableDiff }) {
+function DetailTableCellContent({ cell }: { cell?: DetailTableCellDiff }) {
+  if (!cell) {
+    return <span className="text-slate-400">—</span>
+  }
+  const { old, new: nv, changed } = cell
+  if (changed && old && nv && old !== nv) {
+    return (
+      <div className="space-y-0.5">
+        <div className="bg-red-50 text-red-600 line-through px-1.5 py-0.5 rounded break-all">{old}</div>
+        <div className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded break-all">{nv}</div>
+      </div>
+    )
+  }
+  if (changed && nv && !old) {
+    return (
+      <div className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded break-all">{nv}</div>
+    )
+  }
+  if (changed && old && !nv) {
+    return (
+      <div className="bg-red-50 text-red-600 line-through px-1.5 py-0.5 rounded break-all">{old}</div>
+    )
+  }
+  return <span className="break-all text-slate-700">{nv || old || '—'}</span>
+}
+
+function DetailTableDiffView({ diff, compact }: { diff: DetailTableDiff; compact?: boolean }) {
   const cols = diff.columns || []
   if (!cols.length || !diff.rows?.length) return null
   return (
-    <div className="overflow-x-auto mt-1">
+    <div className={`overflow-x-auto ${compact ? '' : 'mt-1'}`}>
       <table className="w-full border-collapse text-[12px] text-slate-700">
         <thead>
           <tr>
             {cols.map((c) => (
               <th
                 key={c.id}
-                className="border border-slate-200 bg-slate-50 px-2 py-1 text-left font-medium whitespace-nowrap"
+                className="border border-slate-200 bg-slate-50 px-2 py-1.5 text-left font-medium whitespace-nowrap"
               >
                 {c.label}
               </th>
@@ -229,21 +255,9 @@ function DetailTableDiffView({ diff }: { diff: DetailTableDiff }) {
             <tr key={row.index}>
               {cols.map((c) => {
                 const cell = row.cells.find((x) => x.col_id === c.id)
-                if (!cell) {
-                  return <td key={c.id} className="border border-slate-200 px-2 py-1">—</td>
-                }
-                if (cell.changed && cell.old && cell.new && cell.old !== cell.new) {
-                  return (
-                    <td key={c.id} className="border border-slate-200 px-2 py-1 align-top">
-                      <div className="text-red-500 line-through break-all mb-0.5">{cell.old}</div>
-                      <div className="text-emerald-700 break-all">{cell.new}</div>
-                    </td>
-                  )
-                }
-                const text = cell.new || cell.old || '—'
                 return (
-                  <td key={c.id} className="border border-slate-200 px-2 py-1 break-all align-top">
-                    {text}
+                  <td key={c.id} className="border border-slate-200 px-2 py-1.5 align-top min-w-[72px]">
+                    <DetailTableCellContent cell={cell} />
                   </td>
                 )
               })}
@@ -255,6 +269,42 @@ function DetailTableDiffView({ diff }: { diff: DetailTableDiff }) {
   )
 }
 
+function DetailTableFieldDiff({ change }: { change: FieldChange }) {
+  const [open, setOpen] = useState(false)
+  const diff = change.detail_table_diff
+  if (!diff) return null
+  const label = change.label || '子表'
+  return (
+    <>
+      <div className="py-2 border-b border-slate-100 last:border-b-0">
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-[13px] text-slate-600">
+          <FileTextOutlined className="text-slate-400 text-xs" />
+          <span>{label}</span>
+          <Button
+            type="link"
+            size="small"
+            className="px-0 h-auto text-[13px] text-orange-500 hover:text-orange-600"
+            onClick={() => setOpen(true)}
+          >
+            查看修改详情
+          </Button>
+        </div>
+      </div>
+      <Modal
+        title="数据日志"
+        open={open}
+        onCancel={() => setOpen(false)}
+        footer={null}
+        width="min(960px, 92vw)"
+        destroyOnClose
+      >
+        <div className="text-sm font-medium text-slate-700 mb-3">{label}</div>
+        <DetailTableDiffView diff={diff} />
+      </Modal>
+    </>
+  )
+}
+
 function FieldDiff({
   change,
   personLabels,
@@ -263,18 +313,7 @@ function FieldDiff({
   personLabels: Record<string, string>
 }) {
   if (change.detail_table_diff) {
-    const label = change.label ? `${change.label}:` : ''
-    return (
-      <div className="py-2 border-b border-slate-100 last:border-b-0">
-        {label && (
-          <div className="flex items-center gap-1.5 text-[13px] text-slate-600 mb-1.5">
-            <FileTextOutlined className="text-slate-400 text-xs" />
-            <span>{label}</span>
-          </div>
-        )}
-        <DetailTableDiffView diff={change.detail_table_diff} />
-      </div>
-    )
+    return <DetailTableFieldDiff change={change} />
   }
   const oldText = displayText(change, 'old', personLabels)
   const newText = displayText(change, 'new', personLabels)

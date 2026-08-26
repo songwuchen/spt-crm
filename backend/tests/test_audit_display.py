@@ -79,6 +79,8 @@ def test_compute_detail_table_diff_cell_change():
     assert by_col["material_code"]["old"] == "02.01.04.076"
     assert by_col["material_code"]["new"] == "02.01.04.079"
     assert by_col["product_name"]["changed"] is False
+    assert by_col["product_name"]["old"] == "复合陶瓷衬板"
+    assert by_col["product_name"]["new"] == "复合陶瓷衬板"
 
 
 def test_enrich_detail_table_json_legacy_display():
