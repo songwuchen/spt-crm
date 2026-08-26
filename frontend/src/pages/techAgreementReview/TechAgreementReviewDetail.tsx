@@ -1,7 +1,7 @@
 /** 详情页（通知/直链）：布局与列表「查看记录」弹窗一致。 */
 import { useEffect, useState } from 'react'
 import { Button, Space, Spin, Tag, message, Modal, Popconfirm } from 'antd'
-import { EditOutlined, DeleteOutlined, SendOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, SendOutlined, ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { techAgreementReviewApi, type TechAgreementReview } from '@/api/techAgreementReview'
 import { workflowApi } from '@/api/lowcodeWorkflow'
@@ -17,6 +17,7 @@ import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
   TECH_AGREEMENT_STATUS.map((s) => [s.value, s.label]),
@@ -140,6 +141,14 @@ export default function TechAgreementReviewDetail() {
           <Tag color={STATUS_COLOR[row.status] || 'default'}>{STATUS_LABEL[row.status] || row.status}</Tag>
         </Space>
         <Space wrap>
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={() => {
+              void printTechAgreementReview({ row, flowSteps: wfInstance?.flow_steps })
+            }}
+          >
+            打印
+          </Button>
           {canEdit && (
             <Button icon={<EditOutlined />} onClick={() => navigate(`/tech-agreement-reviews/${id}/edit`)}>
               编辑

@@ -947,7 +947,11 @@ def _ver_dict(v) -> dict:
     return schemas.FormTemplateVersionOut.model_validate(v).model_dump(mode="json")
 
 
-def _inst_list_dict(i, name_map: dict[str, str] | None = None) -> dict:
+def _inst_list_dict(
+    i,
+    name_map: dict[str, str] | None = None,
+    current_node_name: str | None = None,
+) -> dict:
     d = schemas.FormInstanceListItem.model_validate(i).model_dump(mode="json")
     if name_map is not None and getattr(i, "initiator_id", None):
         d["initiator_name"] = name_map.get(i.initiator_id)
@@ -957,6 +961,8 @@ def _inst_list_dict(i, name_map: dict[str, str] | None = None) -> dict:
             fallback = (fd.get("_jdy_creator_name") or "").strip()
             if fallback:
                 d["initiator_name"] = fallback
+    if current_node_name:
+        d["current_node_name"] = current_node_name
     return d
 
 
@@ -1366,8 +1372,19 @@ async def list_form_instances(
     name_map = await service.user_display_names(
         db, tenant_id, [i.initiator_id for i in items if i.initiator_id],
     )
+    active_fi_ids = [
+        i.id for i in items
+        if i.status in ("running", "returned", "rejected", "withdrawn")
+    ]
+    from app.domains.lowcode import workflow_service as wf_service
+    node_map = await wf_service.current_node_names_for_form_instances(
+        db, tenant_id, active_fi_ids,
+    )
     return ok({
-        "items": [_inst_list_dict(i, name_map) for i in items],
+        "items": [
+            _inst_list_dict(i, name_map, node_map.get(i.id))
+            for i in items
+        ],
         "total": total, "pageNo": pageNo, "pageSize": pageSize,
     })
 

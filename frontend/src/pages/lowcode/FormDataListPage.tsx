@@ -95,6 +95,16 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'cancelled', label: '已作废' },
 ]
 
+function renderCurrentNodeCell(rec: FormInstance): ReactNode {
+  const name = (rec.current_node_name || '').trim()
+  if (!name) return '—'
+  return (
+    <Text ellipsis={{ tooltip: name }} style={{ maxWidth: '100%' }}>
+      {name}
+    </Text>
+  )
+}
+
 /** v3：客服申请完整列 + 多明细展开；旧 key 丢弃以免脏默认列 */
 const COL_STORAGE_PREFIX = 'spt_formlist_cols_v3_'
 
@@ -1423,6 +1433,12 @@ export default function FormDataListPage({
           },
         },
         {
+          title: '当前节点', key: 'current_node_name', width: 120,
+          ellipsis: { showTitle: true } as const,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) => renderCurrentNodeCell((row as DetailFlatRow).record),
+        },
+        {
           title: '操作', key: 'op', width: 72,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => renderOps((row as DetailFlatRow).record),
@@ -1477,6 +1493,13 @@ export default function FormDataListPage({
           },
         },
         {
+          title: '当前节点', dataIndex: 'current_node_name', key: 'current_node_name',
+          width: 120, fixed: 'right' as const,
+          ellipsis: { showTitle: true } as const,
+          render: (_: unknown, r: FormInstance | DetailFlatRow) =>
+            renderCurrentNodeCell(('record' in r ? r.record : r) as FormInstance),
+        },
+        {
           title: '操作', key: 'op', width: 72, fixed: 'right' as const,
           render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),
         },
@@ -1485,10 +1508,10 @@ export default function FormDataListPage({
   const tableScrollX = useMemo(() => {
     const biz = colFields.reduce((n, f) => n + colWidth(f), 0)
     const detail = detailColsCount ? 120 * detailColsCount + 80 : 0
-    // 序号/标题余量 + 提交人 + 流程状态 + 提交时间(+更新时间) + 操作
+    // 序号/标题余量 + 提交人 + 流程状态 + 当前节点 + 提交时间(+更新时间) + 操作
     const fixed = listFullText
-      ? 120 + 100 + 100 + 178 + 178 + 72
-      : 140 + 100 + 100 + 160 + 72
+      ? 120 + 100 + 100 + 120 + 178 + 178 + 72
+      : 140 + 100 + 100 + 120 + 160 + 72
     return Math.max(1200, biz + detail + fixed + 40)
   }, [colFields, detailColsCount, listFullText, listColWidths])
 

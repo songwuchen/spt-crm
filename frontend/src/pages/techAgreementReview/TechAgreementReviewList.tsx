@@ -6,7 +6,7 @@ import {
   Button, Input, Space, Tag, message, Modal, Select, Popconfirm, Spin, Form, Typography,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SendOutlined,
+  PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SendOutlined, PrinterOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import type { ColumnsType } from 'antd/es/table'
@@ -35,6 +35,7 @@ import {
   tarBuildPayload, tarRowToFormValues, canEditTarStatus,
 } from '@/pages/techAgreementReview/tarFormUtils'
 import { loadTechAgreementWf } from '@/pages/techAgreementReview/TechAgreementReviewViewBody'
+import { printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
@@ -512,6 +513,15 @@ export default function TechAgreementReviewList() {
                 {STATUS_LABEL[viewRec.row.status] || viewRec.row.status}
               </Tag>
               <span className="font-mono text-sm text-slate-600 mr-2">{viewRec.row.review_code}</span>
+              <Button
+                type="text"
+                icon={<PrinterOutlined />}
+                onClick={() => {
+                  void printTechAgreementReview({ row: viewRec.row, flowSteps: wfDetail?.flow_steps })
+                }}
+              >
+                打印
+              </Button>
               {editable && viewRec.readonly && (
                 <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>编辑</Button>
               )}

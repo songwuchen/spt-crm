@@ -185,6 +185,7 @@ export interface FormInstance {
   amount?: number | null
   form_data: Record<string, unknown>
   process_instance_id?: string | null
+  current_node_name?: string | null
   created_at: string
   updated_at?: string | null
 }

@@ -199,6 +199,7 @@ class FormInstanceListItem(BaseModel):
     amount: Decimal | None = None
     form_data: dict[str, Any]
     process_instance_id: str | None = None
+    current_node_name: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

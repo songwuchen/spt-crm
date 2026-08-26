@@ -7707,6 +7707,76 @@ async def _heal_weak_form_titles(
             await db.rollback()
 
 
+_FORM_WF_ACTIVE_STATUSES = frozenset({"running", "returned", "rejected", "withdrawn"})
+
+
+async def current_node_names_for_form_instances(
+    db, tenant_id: str, form_instance_ids: list[str],
+) -> dict[str, str]:
+    """表单列表：form_instance_id → 当前流程节点名（进行中的审批/修订节点）。"""
+    if not form_instance_ids:
+        return {}
+    insts = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.form_instance_id.in_(form_instance_ids),
+            WfProcessInstance.status.in_(_FORM_WF_ACTIVE_STATUSES),
+        ).order_by(
+            WfProcessInstance.started_at.desc().nulls_last(),
+            WfProcessInstance.created_at.desc(),
+        )
+    )).scalars().all()
+    pi_by_fi: dict[str, str] = {}
+    for inst in insts:
+        fid = inst.form_instance_id
+        if fid and fid not in pi_by_fi:
+            pi_by_fi[fid] = inst.id
+    if not pi_by_fi:
+        return {}
+    pid_names = await _running_node_names_by_process_ids(db, list(pi_by_fi.values()))
+    return {
+        fid: pid_names[pid]
+        for fid, pid in pi_by_fi.items()
+        if pid in pid_names
+    }
+
+
+async def _running_node_names_by_process_ids(
+    db, process_ids: list[str],
+) -> dict[str, str]:
+    """process_instance_id → 当前 running 节点名（并行审批用顿号连接）。"""
+    if not process_ids:
+        return {}
+    ni_rows = (await db.execute(
+        select(
+            WfNodeInstance.process_instance_id,
+            WfNodeInstance.node_name,
+            WfNodeInstance.node_type,
+        ).where(
+            WfNodeInstance.process_instance_id.in_(process_ids),
+            WfNodeInstance.status == "running",
+            WfNodeInstance.node_type.in_(("approval", "revise")),
+        ).order_by(WfNodeInstance.started_at.asc().nulls_last())
+    )).all()
+    from collections import defaultdict
+    names_by_pid: dict[str, list[str]] = defaultdict(list)
+    revise_by_pid: dict[str, str] = {}
+    for pid, name, ntype in ni_rows:
+        if ntype == "revise":
+            revise_by_pid[pid] = (name or "").strip() or "修改并重新提交"
+            continue
+        label = (name or "").strip()
+        if label and label not in names_by_pid[pid]:
+            names_by_pid[pid].append(label)
+    out: dict[str, str] = {}
+    for pid in process_ids:
+        if names_by_pid.get(pid):
+            out[pid] = "、".join(names_by_pid[pid])
+        elif pid in revise_by_pid:
+            out[pid] = revise_by_pid[pid]
+    return out
+
+
 async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
     """列表补充：合同 biz_ref_id、进行中当前节点名、流程定义名（表单流无 biz_type 时作类型兜底）。"""
     if not rows:
@@ -7723,16 +7793,7 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
     running_ids = [i.id for i in rows if i.status == "running"]
     current_node: dict[str, str] = {}
     if running_ids:
-        ni_rows = (await db.execute(
-            select(WfNodeInstance.process_instance_id, WfNodeInstance.node_name).where(
-                WfNodeInstance.process_instance_id.in_(running_ids),
-                WfNodeInstance.status == "running",
-                WfNodeInstance.node_type == "approval",
-            )
-        )).all()
-        for pid, name in ni_rows:
-            if pid not in current_node and name:
-                current_node[pid] = name
+        current_node = await _running_node_names_by_process_ids(db, running_ids)
     def_ids = {i.process_definition_id for i in rows if i.process_definition_id}
     def_name_map: dict[str, str] = {}
     if def_ids:
