@@ -463,7 +463,7 @@ const ENDPOINTS = [
   { method: 'GET', path: '/openapi/v1/events', desc: '事件拉取（游标 after_event_id + 时间范围）' },
   { method: 'GET', path: '/openapi/v1/events/{event_id}', desc: '单事件详情' },
   { method: 'POST', path: '/openapi/v1/leads', desc: '创建线索（需 Idempotency-Key；支持 department_*/owner_*）' },
-  { method: 'POST', path: '/openapi/v1/leads/{id}/qualify', desc: '转化线索为客户（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/leads/{id}/qualify', desc: '转化线索为商机（需 Idempotency-Key，不自动建档客户）' },
   { method: 'POST', path: '/openapi/v1/leads/{id}/discard', desc: '废弃线索（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/activities', desc: '创建跟进/活动（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/customers', desc: '创建客户（需 Idempotency-Key）' },

@@ -158,23 +158,48 @@ async def test_lead_export_maps_codes_to_chinese(client: AsyncClient, auth_heade
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
 
 
-async def test_qualify_creates_customer_only_by_default(
+async def test_qualify_marks_lead_without_opportunity_when_disabled(
     client: AsyncClient, auth_headers: dict, db, lead_intel_user,
 ):
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "仅转客户线索", "company_name": "仅客户公司", "source": "website",
+        "title": "仅标记转化线索", "company_name": "测试公司", "source": "website",
+    })).json()["data"]["id"]
+    await approve_lead_intel_include(db, lid, lead_intel_user)
+    res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h,
+                             json={"create_opportunity": False})).json()
+    assert res["code"] == 0
+    assert res["data"].get("customer_id") is None
+    assert res["data"].get("project_id") is None
+
+    lead = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
+    assert lead["status"] == "qualified"
+
+    upd = (await client.put(f"/api/v1/leads/{lid}", headers=h, json={"title": "改名"})).json()
+    assert upd["code"] == 0
+    assert upd["data"]["title"] == "改名"
+
+
+async def test_qualify_creates_opportunity_by_default(
+    client: AsyncClient, auth_headers: dict, db, lead_intel_user,
+):
+    h = auth_headers
+    lid = (await client.post("/api/v1/leads", headers=h, json={
+        "title": "默认转商机线索", "company_name": "默认商机公司", "source": "website",
     })).json()["data"]["id"]
     await approve_lead_intel_include(db, lid, lead_intel_user)
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
     assert res["code"] == 0
-    assert res["data"]["customer_id"]
-    assert res["data"].get("project_id") is None  # 默认不建商机
+    assert res["data"].get("customer_id") is None
+    pid = res["data"].get("project_id")
+    assert pid, "默认应创建商机"
+    assert res["data"].get("project_code")
 
-    # 已转化仍可改申报内容
-    upd = (await client.put(f"/api/v1/leads/{lid}", headers=h, json={"title": "改名"})).json()
-    assert upd["code"] == 0
-    assert upd["data"]["title"] == "改名"
+    proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
+    assert proj["customer_id"] is None
+    assert proj.get("lead_id") == lid
+
+    await client.delete(f"/api/v1/projects/{pid}", headers=h)
 
 
 async def test_qualify_with_create_opportunity_carries_context(
@@ -191,7 +216,7 @@ async def test_qualify_with_create_opportunity_carries_context(
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h,
                              json={"create_opportunity": True})).json()
     assert res["code"] == 0
-    cid = res["data"]["customer_id"]
+    assert res["data"].get("customer_id") is None
     pid = res["data"].get("project_id")
     assert pid, "勾选后应创建商机"
     assert res["data"].get("project_code")
@@ -199,9 +224,9 @@ async def test_qualify_with_create_opportunity_carries_context(
     lead = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
     lead_code = lead["lead_code"]
 
-    # 商机应关联到新客户，并带入需求摘要；编号走商机规则，同时保留来源线索号
+    # 商机不自动建档客户，并带入需求摘要；编号走商机规则，同时保留来源线索号
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
-    assert proj["customer_id"] == cid
+    assert proj["customer_id"] is None
     assert proj["stage_code"] == "S1"
     assert (proj.get("key_requirements_json") or {}).get("summary") == "需要 3 台大型直线振动筛，含保函"
     assert proj["project_code"] != f"PRJ{lead_code}"
@@ -211,4 +236,3 @@ async def test_qualify_with_create_opportunity_carries_context(
     assert proj.get("lead_code") == lead_code
 
     await client.delete(f"/api/v1/projects/{pid}", headers=h)
-    await client.delete(f"/api/v1/customers/{cid}", headers=h)

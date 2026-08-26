@@ -215,6 +215,8 @@ export interface Lead {
   review_opinion?: string | null
   score: number
   converted_customer_id?: string
+  converted_project_id?: string
+  converted_project_code?: string
   remark?: string
   custom_fields_json?: Record<string, unknown>
   products?: LeadProduct[]

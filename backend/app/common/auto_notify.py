@@ -89,7 +89,7 @@ async def notify_lead_review_approved(
         title=f"信息情报部已收录，请确认是否转商机: {lead_title}",
         content=(
             f"线索{code}「{lead_title}」已通过信息情报部内勤审核。"
-            f"请打开线索详情，自行选择是否转化为客户/商机。"
+            f"请打开线索详情，自行选择是否转商机（客户请在商机管理中关联）。"
         ),
         biz_type="lead", biz_id=lead_id,
     )

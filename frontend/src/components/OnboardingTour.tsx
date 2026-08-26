@@ -24,7 +24,7 @@ const TOUR_STEPS: TourStep[] = [
 // Contextual tips shown on specific pages
 export const CONTEXTUAL_TIPS: Record<string, { title: string; content: string }> = {
   '/customers': { title: '客户管理', content: '支持导入客户、批量转移、地图视图。新建客户时系统会自动查重' },
-  '/leads': { title: '线索管理', content: '线索可以一键转化为客户和商机。支持批量导入和分配' },
+  '/leads': { title: '线索管理', content: '线索可转为商机（需在商机中关联客户）。支持批量导入和分配' },
   '/opportunities': { title: '商机管理', content: '支持看板视图拖拽推进阶段、报价管理、合同审批、回款计划追踪' },
   '/service-tickets': { title: '售后工单', content: '工单自动设置SLA时限。可搜索知识库查找类似问题的解决方案' },
   '/analytics': { title: '报表中心', content: '支持按时间段筛选、导出Excel/PDF/图片。阶段耗时分析帮助识别瓶颈' },

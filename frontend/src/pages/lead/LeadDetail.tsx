@@ -258,9 +258,10 @@ export default function LeadDetail() {
       title: '确认是否转商机',
       content: (
         <div>
-          <p className="mb-2">将此线索转化为客户？转化后线索状态将变为"已转化"。</p>
+          <p className="mb-2">将此线索转为商机？转化后线索状态将变为「已转化」。</p>
           <p className="mb-2 text-slate-500 text-sm">
-            需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+            需要出方案报价请确认创建商机；如为拟建项目、暂不出方案报价，可取消勾选「创建商机」仅标记转化。
+            客户请在商机管理中关联已有客户，不会自动建档。
           </p>
           <Checkbox defaultChecked onChange={(e) => { createOpp = e.target.checked }}>
             同时创建商机（带入需求摘要 / 预算）
@@ -271,8 +272,8 @@ export default function LeadDetail() {
         try {
           const res = await leadApi.qualify(id!, createOpp)
           message.success(res.data.project_code
-            ? `已转化为客户「${res.data.customer_name}」并创建商机 ${res.data.project_code}`
-            : `已转化为客户: ${res.data.customer_name}`)
+            ? `已转商机 ${res.data.project_code}，请在商机管理中关联客户`
+            : '线索已标记为已转化')
           fetchLead()
         } catch {
           message.error('转化失败')
@@ -493,7 +494,7 @@ export default function LeadDetail() {
                     onClick={handleQualify}
                   >
                     <Icon name="check_circle" className="text-sm mr-1" />
-                    转化为客户
+                    转商机
                   </Button>
                 )}
                 <Button danger onClick={handleDiscard}>
@@ -635,14 +636,14 @@ export default function LeadDetail() {
                     : '完善申报信息后提交审批，可在右侧查看流程动态。'}
                 </>
               )}
-              {reviewStatus === 'pending' && '审核收录后方可转化为客户。'}
+              {reviewStatus === 'pending' && '审核收录后方可转商机。'}
               {reviewStatus === 'rejected' && (
                 <>
                   项目不可再报备，请勿继续跟进。
                   {lead.reject_reason ? ` 驳回原因：${lead.reject_reason}` : ''}
                 </>
               )}
-              {reviewStatus === 'attacked' && '袭击状态不可转化为客户。'}
+              {reviewStatus === 'attacked' && '袭击状态不可转商机。'}
             </div>
           </div>
           {canSubmitApproval && (
@@ -809,15 +810,24 @@ export default function LeadDetail() {
                               {lead.demand_summary || lead.title || '-'}
                             </div>
                           </div>
-                          {lead.converted_customer_id && (
+                          {(lead.converted_project_id || lead.converted_customer_id) && (
                             <div className="sm:col-span-2 xl:col-span-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">转化客户</div>
-                              <a
-                                onClick={() => navigate(`/customers/${lead.converted_customer_id}`)}
-                                className="text-primary font-bold text-sm hover:underline cursor-pointer"
-                              >
-                                查看客户详情
-                              </a>
+                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">转化结果</div>
+                              {lead.converted_project_id ? (
+                                <a
+                                  onClick={() => navigate(`/projects/${lead.converted_project_id}`)}
+                                  className="text-primary font-bold text-sm hover:underline cursor-pointer"
+                                >
+                                  查看商机 {lead.converted_project_code || ''}
+                                </a>
+                              ) : lead.converted_customer_id ? (
+                                <a
+                                  onClick={() => navigate(`/customers/${lead.converted_customer_id}`)}
+                                  className="text-primary font-bold text-sm hover:underline cursor-pointer"
+                                >
+                                  查看历史转化客户
+                                </a>
+                              ) : null}
                             </div>
                           )}
                         </div>
@@ -1191,21 +1201,25 @@ export default function LeadDetail() {
               )}
 
               {/* Conversion Card */}
-              {lead.converted_customer_id && (
+              {(lead.converted_project_id || lead.status === 'qualified') && (
                 <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon name="check_circle" className="text-emerald-500 text-sm" />
                     <span className="text-sm font-bold text-slate-800">已转化</span>
                   </div>
                   <p className="text-sm text-slate-500 leading-relaxed mb-3">
-                    该线索已成功转化为客户，可前往客户详情页查看完整信息。
+                    {lead.converted_project_id
+                      ? '该线索已转为商机，请在商机管理中关联对应客户。'
+                      : '该线索已标记为已转化。'}
                   </p>
-                  <button
-                    onClick={() => navigate(`/customers/${lead.converted_customer_id}`)}
-                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
-                  >
-                    查看客户详情
-                  </button>
+                  {lead.converted_project_id && (
+                    <button
+                      onClick={() => navigate(`/projects/${lead.converted_project_id}`)}
+                      className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
+                    >
+                      查看商机详情
+                    </button>
+                  )}
                 </div>
               )}
 

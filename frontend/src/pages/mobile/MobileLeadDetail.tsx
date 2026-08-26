@@ -123,12 +123,12 @@ export default function MobileLeadDetail() {
     if (!id) return
     let createOpp = true
     Modal.confirm({
-      title: '确认转化',
+      title: '确认转商机',
       content: (
         <div>
-          <p className="mb-2">将此线索转化为客户？转化后线索状态将变为「已转化」。</p>
+          <p className="mb-2">将此线索转为商机？转化后线索状态将变为「已转化」。</p>
           <p className="mb-2 text-slate-500 text-sm">
-            需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+            客户请在商机管理中关联已有客户，不会自动建档。
           </p>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" defaultChecked onChange={(e) => { createOpp = e.target.checked }} />
@@ -140,8 +140,8 @@ export default function MobileLeadDetail() {
         try {
           const res = await leadApi.qualify(id, createOpp)
           message.success(res.data.project_code
-            ? `已转化客户并创建商机 ${res.data.project_code}`
-            : `已转化为客户: ${res.data.customer_name}`)
+            ? `已转商机 ${res.data.project_code}`
+            : '线索已标记为已转化')
           loadLead()
         } catch {
           message.error('转化失败')
@@ -289,7 +289,7 @@ export default function MobileLeadDetail() {
             </div>
           )}
           {reviewStatus === 'attacked' && (
-            <div className="text-sm text-slate-600 mt-1">袭击状态不可转化为客户。</div>
+            <div className="text-sm text-slate-600 mt-1">袭击状态不可转商机。</div>
           )}
           {reviewStatus === 'draft' && (
             <button onClick={handleResubmit}
@@ -424,7 +424,7 @@ export default function MobileLeadDetail() {
         {canOperate && lead.status === 'following' && reviewApproved && (
           <button onClick={handleQualify}
             className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold">
-            转化为客户
+            转商机
           </button>
         )}
         {canOperate && (

@@ -1661,7 +1661,7 @@ async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, 
 
 async def qualify_lead_from_openapi(db: AsyncSession, ctx, lead_id: str) -> dict:
     from app.domains.lead.service import qualify_lead
-    return await qualify_lead(db, ctx.tenant_id, lead_id, _pseudo_user(ctx))
+    return await qualify_lead(db, ctx.tenant_id, lead_id, _pseudo_user(ctx), create_opportunity=True)
 
 
 async def discard_lead_from_openapi(db: AsyncSession, ctx, lead_id: str) -> dict:

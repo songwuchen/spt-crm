@@ -10,8 +10,8 @@ export const leadApi = {
     client.post<unknown, ApiResponse<Lead>>('/api/v1/leads', data),
   update: (id: string, data: Partial<Lead>) =>
     client.put<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}`, data),
-  qualify: (id: string, createOpportunity = false) =>
-    client.post<unknown, ApiResponse<{ lead_id: string; customer_id: string; customer_name: string; project_id?: string; project_code?: string }>>(
+  qualify: (id: string, createOpportunity = true) =>
+    client.post<unknown, ApiResponse<{ lead_id: string; project_id?: string; project_code?: string }>>(
       `/api/v1/leads/${id}/qualify`, { create_opportunity: createOpportunity }),
   discard: (id: string) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/discard`),

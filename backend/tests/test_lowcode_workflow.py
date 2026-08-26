@@ -469,8 +469,10 @@ async def test_intel_include_allows_qualify(client, db, lead_intel_user):
     result = await lead_svc.qualify_lead(
         db, DEMO_TENANT, lead_id,
         {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        create_opportunity=True,
     )
-    assert result["customer_id"]
+    assert result.get("project_id")
+    assert result.get("customer_id") is None
 
 
 @pytest.mark.asyncio

@@ -31,12 +31,14 @@ def _product_dict(p) -> dict:
     }
 
 
-def _lead_dict(l, products=None, dept_names=None) -> dict:
+def _lead_dict(l, products=None, dept_names=None, converted_projects=None) -> dict:
     """线索出参的唯一序列化入口（没有 Out schema，改字段请只改这里）。
 
     dept_names: department_id -> name 的批量映射，由调用方预取以避免逐条查询；
     未传时 department_name 为 None，前端退化为不显示部门名。
+    converted_projects: lead_id -> (project_id, project_code) 映射，用于展示转商机结果。
     """
+    conv = (converted_projects or {}).get(l.id)
     return {
         "id": l.id, "lead_code": l.lead_code, "title": l.title, "company_name": l.company_name,
         "contact_name": l.contact_name, "contact_phone": l.contact_phone,
@@ -93,6 +95,8 @@ def _lead_dict(l, products=None, dept_names=None) -> dict:
         ),
         "reactivation_round": getattr(l, "reactivation_round", None) or 0,
         "converted_customer_id": l.converted_customer_id,
+        "converted_project_id": conv[0] if conv else None,
+        "converted_project_code": conv[1] if conv else None,
         "remark": l.remark,
         # 扩展字段值必须回传：strip_entity_dicts 依赖它做字段级权限裁剪，前端编辑表单也据此
         # 回填，缺失会导致保存时以空对象覆盖掉已存值。
@@ -148,7 +152,9 @@ async def list_leads(
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
     dept_names = await _lead_department_names(db, tenant_id, items)  # 一次查询，避免逐条取部门名
-    dicts = [_lead_dict(l, dept_names=dept_names) for l in items]
+    qualified_ids = [l.id for l in items if l.status == "qualified"]
+    converted_projects = await service.converted_projects_by_lead_ids(db, tenant_id, qualified_ids)
+    dicts = [_lead_dict(l, dept_names=dept_names, converted_projects=converted_projects) for l in items]
     await strip_entity_dicts(db, tenant_id, "lead", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -542,7 +548,8 @@ async def get_lead(
 ):
     l = await service.get_lead(db, tenant_id, lead_id, _user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    d = _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l]))
+    converted_projects = await service.converted_projects_by_lead_ids(db, tenant_id, [l.id])
+    d = _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l]), converted_projects)
     await strip_entity_dicts(db, tenant_id, "lead", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(d)
 
@@ -561,7 +568,7 @@ async def update_lead(
 
 
 class QualifyBody(BaseModel):
-    create_opportunity: bool = False
+    create_opportunity: bool = True
 
 
 @router.post("/{lead_id}/qualify")
@@ -572,7 +579,7 @@ async def qualify_lead(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:qualify")),
 ):
-    create_opp = body.create_opportunity if body else False
+    create_opp = body.create_opportunity if body else True
     await service.get_lead(db, tenant_id, lead_id, current_user)  # 数据范围校验
     result = await service.qualify_lead(db, tenant_id, lead_id, current_user, create_opportunity=create_opp)
     return ok(result)

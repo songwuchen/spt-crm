@@ -521,13 +521,13 @@ async def notify_cc_users(
                 if attacked:
                     station_title = f"线索已标记袭击: {lead_title}"
                     station_content = (
-                        f"线索「{lead_title}」经情报审批已标记为袭击，不可转化为客户/商机，请知悉。"
+                        f"线索「{lead_title}」经情报审批已标记为袭击，不可转商机，请知悉。"
                     )
                 else:
                     station_title = ding_title
                     station_content = (
                         f"线索「{lead_title}」相关流程已抄送您。"
-                        f"请打开审批中心「抄送我的」查看；可自行选择是否转化为客户/商机。"
+                        f"请打开审批中心「抄送我的」查看；可自行选择是否转商机。"
                     )
             elif node_name == "已提交开票申请":
                 station_title = f"开票申请已提交: {process_name}"

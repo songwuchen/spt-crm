@@ -10,7 +10,6 @@ from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREA
 from app.common.code_generator import generate_code
 from app.domains.lead.models import Lead, LeadProduct
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
-from app.domains.customer.models import Customer, Contact
 from app.domains.audit.service import log_action
 
 logger = logging.getLogger("spt_crm.lead")
@@ -370,7 +369,7 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
                 await dispatch_todo(
                     db, tenant_id, recipient_id,
                     f"信息情报部已收录，请确认是否转商机: {lead.title or ''}",
-                    "信息情报部审批已收录，请打开线索详情确认是否转化为客户/商机。",
+                    "信息情报部审批已收录，请打开线索详情确认是否转商机（客户请在商机中关联）。",
                     link=f"/leads/{lead.id}",
                     mobile_link=f"/m/leads/{lead.id}",
                 )
@@ -448,10 +447,28 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     return lead
 
 
+async def converted_projects_by_lead_ids(
+    db: AsyncSession, tenant_id: str, lead_ids: list[str],
+) -> dict[str, tuple[str, str]]:
+    """Return lead_id -> (project_id, project_code) for opportunities created from leads."""
+    if not lead_ids:
+        return {}
+    from app.domains.project.models import OpportunityProject
+    rows = (await db.execute(
+        select(OpportunityProject.id, OpportunityProject.project_code, OpportunityProject.lead_id).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.lead_id.in_(lead_ids),
+            OpportunityProject.is_deleted == False,  # noqa: E712
+        )
+    )).all()
+    return {lead_id: (pid, pcode) for pid, pcode, lead_id in rows if lead_id}
+
+
 async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
-                       create_opportunity: bool = False) -> dict:
-    """Convert a lead into a customer. Optionally also spin up an opportunity (商机)
-    carrying the lead's demand/budget context, so sales doesn't re-key it.
+                       create_opportunity: bool = True) -> dict:
+    """Mark a lead as qualified. Optionally spin up an opportunity (商机) carrying
+    the lead's demand/budget context — **does not** create a customer record; sales
+    associates an existing customer later in opportunity management.
 
     这里刻意不把 user 传进 get_lead 做范围校验：开放平台(app_key 鉴权)也调本函数，传的是
     伪用户，按它的 owner 范围判定会把租户内非本 app 创建的线索一律 403，等于静默改坏集成。
@@ -465,54 +482,23 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         from app.common.error_codes import VALIDATION_ERROR
         status = getattr(lead, "review_status", None)
         if status == "attacked":
-            raise BusinessException(code=VALIDATION_ERROR, message="线索已标记为袭击，无法转化为客户")
+            raise BusinessException(code=VALIDATION_ERROR, message="线索已标记为袭击，无法转商机")
         if status == "rejected":
-            raise BusinessException(code=VALIDATION_ERROR, message="线索已被驳回，项目不可再报备，无法转化为客户")
+            raise BusinessException(code=VALIDATION_ERROR, message="线索已被驳回，项目不可再报备，无法转商机")
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
 
-    # Create customer from lead — carry over geographic fields so sales keeps context on conversion
-    customer = Customer(
-        id=generate_uuid(), tenant_id=tenant_id,
-        name=lead.company_name or lead.title,
-        industry=lead.industry,
-        region=_derived_region(lead) or lead.region,
-        source=lead.source,
-        owner_id=lead.reporter_id or lead.owner_id or lead.created_by_id,
-        owner_name=lead.reporter_name or lead.owner_name or lead.created_by_name,
-    )
-    db.add(customer)
-
-    # Carry the lead's contact person over to the new customer so sales keeps
-    # the person (and their phone/email) after conversion — otherwise the
-    # converted customer has no contacts. (issue #90)
-    contact_name = (lead.contact_name or "").strip()
-    contact_phone = (lead.contact_phone or "").strip()
-    contact_email = (lead.contact_email or "").strip()
-    if contact_name or contact_phone or contact_email:
-        db.add(Contact(
-            id=generate_uuid(), tenant_id=tenant_id,
-            customer_id=customer.id,
-            name=contact_name or contact_phone or contact_email,
-            mobile=contact_phone or None,
-            email=contact_email or None,
-            is_primary=True,
-        ))
-
     lead.status = "qualified"
-    lead.converted_customer_id = customer.id
+    lead.converted_customer_id = None
 
-    # Optionally create an opportunity from the lead, carrying demand/budget context.
     project = None
     if create_opportunity:
         from app.domains.project.models import OpportunityProject
-        from app.common.code_generator import generate_code
         remark_parts = []
         if lead.budget_range:
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
-        # 转化商机：商机号按商机规则生成（PRJYYYYMM###）；线索号写入 lead_code 保留溯源。
-        # 注意：uq_project_tenant_code 含软删行，占用检查不可过滤 is_deleted。
+
         async def _project_code_taken(code: str) -> bool:
             return (
                 await db.execute(
@@ -535,10 +521,10 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             id=generate_uuid(), tenant_id=tenant_id,
             project_code=project_code,
             name=lead.title or lead.company_name or "新商机",
-            customer_id=customer.id, stage_code="S1",
+            customer_id=None,
+            stage_code="S1",
             lead_id=lead.id,
             lead_code=lead.lead_code,
-            # 直接同步线索与商机重复的字段，避免转化后重复录入 (issue #94)
             biz_date=lead.biz_date,
             owner_id=lead.reporter_id or lead.owner_id or lead.created_by_id,
             owner_name=lead.reporter_name or lead.owner_name or lead.created_by_name,
@@ -549,7 +535,6 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         )
         db.add(project)
 
-        # 同步线索的产品信息子表到商机需求，避免转化后重复录入 (issue #94 / #84)
         lead_products = await list_lead_products(db, tenant_id, lead.id)
         if lead_products:
             product_lines = [{
@@ -564,28 +549,28 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 
     await db.commit()
     await db.refresh(lead)
-    await db.refresh(customer)
     if project is not None:
         await db.refresh(project)
 
-    summary = f"转化线索: {lead.title} -> 客户: {customer.name}"
+    summary = f"转化线索: {lead.title}"
     if project is not None:
-        summary += f" + 商机: {project.project_code}"
+        summary += f" -> 商机: {project.project_code}"
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="qualify", resource_type="lead", resource_id=lead.id,
                      summary=summary)
 
-    # Auto-activity: record lead qualification on lead timeline
     try:
         from app.common.auto_activity import record_activity
-        act_msg = f"线索转化为客户: {customer.name}" + (f"，并创建商机 {project.project_code}" if project is not None else "")
+        act_msg = "线索已转化"
+        if project is not None:
+            act_msg += f"，并创建商机 {project.project_code}（请在商机管理中关联客户）"
         await record_activity(db, tenant_id, "lead", lead.id, "system",
                               act_msg, None,
                               user["sub"], user.get("real_name") or user.get("username"))
     except Exception as e:
         logger.warning("Auto-activity record for lead qualification failed: %s", e)
 
-    result = {"lead_id": lead.id, "customer_id": customer.id, "customer_name": customer.name}
+    result = {"lead_id": lead.id}
     if project is not None:
         result["project_id"] = project.id
         result["project_code"] = project.project_code
