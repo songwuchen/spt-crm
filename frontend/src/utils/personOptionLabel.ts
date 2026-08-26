@@ -9,3 +9,10 @@ export function formatPersonOptionLabel(
   if (!depts.length) return base
   return `${base} · ${depts.join('/')}`
 }
+
+/** 打印/导出：只要姓名，去掉「 · 部门」后缀 */
+export function plainPersonDisplayName(label: unknown): string {
+  const s = String(label ?? '').trim()
+  const dot = s.indexOf(' · ')
+  return dot >= 0 ? s.slice(0, dot).trim() : s
+}
