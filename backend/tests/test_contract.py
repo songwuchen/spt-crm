@@ -325,6 +325,56 @@ async def test_contract_customer_id_required(client: AsyncClient, auth_headers: 
     await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
 
 
+async def test_contract_update_project_id(client: AsyncClient, auth_headers: dict):
+    """合同详情可修改关联商机，且详情接口返回商机名称。"""
+    h = auth_headers
+    cust_id = (await client.post("/api/v1/customers", json={
+        "name": "合同商机客户", "industry": "IT", "level": "B",
+    }, headers=h)).json()["data"]["id"]
+    proj_a = (await client.post("/api/v1/projects", json={
+        "name": "合同商机A", "customer_id": cust_id, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+    proj_b = (await client.post("/api/v1/projects", json={
+        "name": "合同商机B", "customer_id": cust_id, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    draft = await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "title": "挂商机测试",
+        "project_id": proj_a,
+        "customer_id": cust_id,
+        "drawing_no": peek,
+    }, headers=h)
+    assert draft.json()["code"] == 0, draft.text
+    cid = draft.json()["data"]["contract"]["id"]
+
+    detail = (await client.get(f"/api/v1/contracts/{cid}", headers=h)).json()["data"]
+    assert detail.get("project_id") == proj_a
+    assert detail.get("project_name") == "合同商机A"
+
+    ok = await client.put(f"/api/v1/contracts/{cid}", json={
+        "as_draft": True,
+        "project_id": proj_b,
+    }, headers=h)
+    assert ok.json()["code"] == 0, ok.text
+
+    after = (await client.get(f"/api/v1/contracts/{cid}", headers=h)).json()["data"]
+    assert after.get("project_id") == proj_b
+    assert after.get("project_name") == "合同商机B"
+
+    cleared = await client.put(f"/api/v1/contracts/{cid}", json={
+        "as_draft": True,
+        "project_id": None,
+    }, headers=h)
+    assert cleared.json()["code"] == 0, cleared.text
+    assert (await client.get(f"/api/v1/contracts/{cid}", headers=h)).json()["data"].get("project_id") in (None, "")
+
+    await client.delete(f"/api/v1/contracts/{cid}", headers=h)
+    await client.delete(f"/api/v1/projects/{proj_a}", headers=h)
+    await client.delete(f"/api/v1/projects/{proj_b}", headers=h)
+    await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
+
+
 async def test_contract_list_filter_by_customer_name(client: AsyncClient, auth_headers: dict):
     """合同列表支持按客户名称模糊筛选（商机客户 / 直连客户 / 登记 JSON）。"""
     import uuid
@@ -402,3 +452,8 @@ async def test_contract_dashboard_summary(client: AsyncClient, auth_headers: dic
     ):
         assert key in data, key
 
+
+async def test_contract_export_excel(client: AsyncClient, auth_headers: dict):
+    resp = await client.get("/api/v1/contracts/export/excel", headers=auth_headers)
+    assert resp.status_code == 200
+    assert "spreadsheet" in resp.headers.get("content-type", "")

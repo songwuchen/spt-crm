@@ -87,23 +87,41 @@ function evalIfEqText(
   return elseVal == null || elseVal === '' ? '' : String(elseVal)
 }
 
+/** 公式是否引用某字段（如 $ship_amount#） */
+function formulaDependsOn(formula: string, fieldId: string): boolean {
+  return formula.includes(`$${fieldId}#`)
+}
+
 /** 按字段定义重算可识别的公式字段；无变化时返回原对象。 */
 export function applySimpleFormulas(
   fields: FieldDefinition[],
   values: Record<string, unknown>,
+  opts?: { changedField?: string },
 ): Record<string, unknown> {
   let next = values
+  const changedField = opts?.changedField
   // 多轮：SUM → 加减依赖（如累计=历史+本次、未发货=合同−累计）→ IF 文本
     for (let pass = 0; pass < 4; pass += 1) {
     let changed = false
     const base = next
     for (const f of fields) {
-      const props = (f.props as { formula?: string; suggest_formula?: string } | undefined)
+      const props = (f.props as {
+        formula?: string
+        suggest_formula?: string
+        formula_editable?: boolean
+      } | undefined)
       const formula = String(
         f.type === 'formula' ? props?.formula : props?.suggest_formula || '',
       ).trim()
       if (!formula) continue
       if (f.type !== 'formula' && f.type !== 'text') continue
+      if (props?.formula_editable) {
+        if (changedField === f.id) continue
+        if (changedField && !formulaDependsOn(formula, changedField)) {
+          const cur = base[f.id]
+          if (cur != null && cur !== '') continue
+        }
+      }
       let computed: number | string | null = null
       const sum = formula.match(SUM_DETAIL_RE)
       if (sum) {
@@ -128,13 +146,26 @@ export function applySimpleFormulas(
   return next
 }
 
+/** 生产卡专用：简道云售后等表单也用 id=field 存部门，须与「合并含补充」公式字段区分。 */
+export function formHasProdCardOrderTypeMerged(fields: FieldDefinition[]): boolean {
+  const merged = fields.find((f) => f.id === 'field')
+  if (!merged || merged.type === 'department' || merged.type === 'department_multi') {
+    return false
+  }
+  const ids = new Set(fields.map((f) => f.id))
+  return ids.has('is_supplement') && ids.has('order_type')
+}
+
 /** 生产卡：按「是否补充 / 下单类型」建议回填「下单类型（合并含补充）」；手改 field 时不覆盖。 */
 export function applyProdCardOrderTypeMerged(
   values: Record<string, unknown>,
-  opts?: { skipField?: boolean },
+  opts?: { skipField?: boolean; fields?: FieldDefinition[] },
 ): Record<string, unknown> {
   if (opts?.skipField) return values
-  if (!('order_type' in values) && !('is_supplement' in values) && !('field' in values)) {
+  if (opts?.fields?.length && !formHasProdCardOrderTypeMerged(opts.fields)) {
+    return values
+  }
+  if (!('order_type' in values) && !('is_supplement' in values)) {
     return values
   }
   const supp = String(values.is_supplement ?? '').trim()

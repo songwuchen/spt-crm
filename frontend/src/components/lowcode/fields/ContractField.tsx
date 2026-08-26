@@ -5,6 +5,7 @@ import { Button, Input, Modal, Space, Table, Tag, Typography } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import { prodCardInstallAutoFillClearKeys } from '@/constants/prodCardInstallLinks'
 
 interface COpt { label: string; value: string }
 type ContractRow = { id: string; contract_no?: string | null; drawing_no?: string | null }
@@ -225,6 +226,8 @@ export function warnPriorInvoicesAfterFill(
   })
 }
 
+const _PROD_CARD_INSTALL_AUTO_CLEAR = prodCardInstallAutoFillClearKeys()
+
 export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
   drawing_no_query: [
     'no_drawing_no', 'no_sales_person', 'yes_customer_name', 'prod_card_line_items',
@@ -232,10 +235,12 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
     'special_reminder', 'no_warranty_period', 'project_name',
     'contract_delivery_date', 'has_intelligence', 'is_export_equipment',
     'contract_tech_review_sn', 'region_manager',
+    ..._PROD_CARD_INSTALL_AUTO_CLEAR,
   ],
   contract_no_select: [
     'yes_contract_no', 'yes_sales_person', 'yes_customer_name', 'contract_tech_review_sn',
     'region_manager',
+    ..._PROD_CARD_INSTALL_AUTO_CLEAR,
   ],
   invoice_application: [
     'drawing_no', 'customer_name', 'dept_contract_no', 'customer_no', 'customer_code',
@@ -258,7 +263,7 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
   commission_database: [
     'company_name', 'salesperson', 'department', 'contract_amount',
   ],
-  payment_allocation: ['drawing_no'],
+  payment_allocation: ['contract_no'],
 }
 
 export default function ContractField({

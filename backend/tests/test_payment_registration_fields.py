@@ -49,9 +49,12 @@ def test_apply_payment_registration_fields():
     assert defs[4]["available_on_create"] is False
     assert defs[4]["fill_stage"] == "approver"
     alloc_cols = {c["id"]: c for c in defs[6]["detail_table_columns"]}
-    assert alloc_cols["contract_no"]["type"] == "contract"
+    assert alloc_cols["drawing_no"]["type"] == "contract"
+    assert alloc_cols["drawing_no"]["label"] == "图纸编号"
+    assert alloc_cols["drawing_no"]["props"]["contract_fill"] == "payment_allocation"
+    assert alloc_cols["contract_no"]["type"] == "text"
     assert alloc_cols["contract_no"]["label"] == "合同号"
-    assert alloc_cols["contract_no"]["props"]["contract_fill"] == "payment_allocation"
+    assert alloc_cols["contract_no"].get("form_editable") is False
     assert defs[6]["available_on_create"] is False
     assert defs[6]["fill_stage"] == "approver"
     assert defs[7]["type"] == "formula"

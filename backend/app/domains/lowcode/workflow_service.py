@@ -8829,6 +8829,22 @@ async def get_instance_detail(
                         form_rules = apply_prod_card_supplement_rules(form_rules)
                     except Exception:
                         pass
+                if form_tpl_code == "payment_registration":
+                    try:
+                        from app.domains.lowcode.payment_registration_fields import (
+                            apply_payment_registration_fields,
+                        )
+                        apply_payment_registration_fields(form_fields)
+                    except Exception:
+                        pass
+                if form_tpl_code == "shipment_notice":
+                    try:
+                        from app.domains.lowcode.shipment_notice_fields import (
+                            apply_shipment_notice_fields,
+                        )
+                        apply_shipment_notice_fields(form_fields)
+                    except Exception:
+                        pass
                 if form_tpl_code == "quote_management":
                     try:
                         from app.domains.auth.service import get_user_roles

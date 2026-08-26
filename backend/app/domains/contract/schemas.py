@@ -69,6 +69,7 @@ class ContractUpdate(BaseModel):
     department_name: Optional[str] = None
     custom_fields_json: Optional[dict] = None
     as_draft: bool = False  # True=仅存草稿，跳过必填校验
+    project_id: Optional[str] = Field(None, max_length=36)
     contract_no: Optional[str] = Field(None, max_length=64)
 
 

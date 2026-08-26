@@ -660,6 +660,12 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
         )
         if not effective_customer_id:
             raise BusinessException(code=BUSINESS_ERROR, message="请选择关联客户")
+    if "project_id" in payload:
+        new_pid = payload.get("project_id") or None
+        if new_pid and new_pid != contract.project_id:
+            from app.domains.project.service import get_project
+            await get_project(db, tenant_id, new_pid, user)
+        payload["project_id"] = new_pid
     for field, val in payload.items():
         setattr(contract, field, val)
     await db.commit()

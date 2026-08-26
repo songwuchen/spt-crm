@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Tag, Select, Input, Button, Modal, Form, message, Space } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
+import { SearchOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import type { ColumnsType } from 'antd/es/table'
 import { contractApi } from '@/api/contract'
@@ -25,6 +25,7 @@ import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/co
 import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import dayjs from 'dayjs'
 import { formatFormDate, isValidFormDate } from '@/utils/formDate'
+import { downloadFile } from '@/utils/download'
 
 /** 登记 JSON 字段（列表纯文本展示） */
 function regText(r: ContractItem, key: string): string {
@@ -59,16 +60,7 @@ export default function ContractList() {
   const [createLines, setCreateLines] = useState<Record<string, unknown>[]>([{}])
   const [createPay, setCreatePay] = useState<Record<string, unknown>[]>([{}])
   const [pendingAtts, setPendingAtts] = useState<PendingAttachments>({})
-  const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
-  const [projLoading, setProjLoading] = useState(false)
   const customerSelect = useCustomerSelect()
-  const searchProjects = async (kw?: string) => {
-    setProjLoading(true)
-    try {
-      const r = await projectApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined })
-      setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
-    } catch { /* ignore */ } finally { setProjLoading(false) }
-  }
   /** 选客户后回填客户编号 / 部门 / 业务员（对齐客户管理主数据） */
   const fillFromCustomer = async (customerId?: string) => {
     if (!customerId) return
@@ -132,8 +124,6 @@ export default function ContractList() {
     setCreateLines([{}])
     setCreatePay([{}])
     setPendingAtts({})
-    setProjOpts([])
-    searchProjects()
     setCreateOpen(true)
     contractApi.peekSerialNo().then((r: { data?: { serial_no?: string } }) => {
       if (r.data?.serial_no) createForm.setFieldsValue({ serial_no: r.data.serial_no })
@@ -360,6 +350,22 @@ export default function ContractList() {
       { title: '下卡日期', dataIndex: 'card_date', width: 108, render: (v: string) => v || '-' },
       { title: '客户编号', width: 120, ellipsis: true, render: (_: unknown, r: ContractItem) => regText(r, 'customer_code') },
       { title: '单位名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
+      {
+        title: '关联商机', dataIndex: 'project_name', width: 180, ellipsis: true,
+        render: (v: string, r: ContractItem) => {
+          if (!r.project_id && !v) return '-'
+          const label = v || r.project_id || '-'
+          if (!r.project_id) return label
+          return (
+            <a
+              className="text-primary"
+              onClick={(e) => { e.stopPropagation(); navigate(`/opportunities/${r.project_id}`) }}
+            >
+              {label}
+            </a>
+          )
+        },
+      },
       { title: '部门', dataIndex: 'department_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
       { title: '业务人员', dataIndex: 'assignee_name', width: 90, render: (v: string) => v || '-' },
       { title: '合同状态', dataIndex: 'change_type', width: 80, render: (v: string) => formatChangeType(v) },
@@ -417,7 +423,7 @@ export default function ContractList() {
       })
     }
     return cols
-  }, [canDelete, handleDelete, openDetail])
+  }, [canDelete, handleDelete, openDetail, navigate])
 
   const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 
@@ -444,13 +450,27 @@ export default function ContractList() {
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v, filterCustomerName) }}
             options={Object.entries(contractDisplayStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+          <Button icon={<DownloadOutlined />} onClick={() => {
+            const qs = new URLSearchParams()
+            if (keyword) qs.set('keyword', keyword)
+            if (filterCustomerName) qs.set('customer_name', filterCustomerName)
+            if (filterStatus) qs.set('status', filterStatus)
+            const extra = view.buildParams()
+            if (extra.filter) qs.set('filter', String(extra.filter))
+            if (extra.sort_by) qs.set('sort_by', String(extra.sort_by))
+            if (extra.sort_order) qs.set('sort_order', String(extra.sort_order))
+            const q = qs.toString()
+            void downloadFile(`/api/v1/contracts/export/excel${q ? `?${q}` : ''}`, 'contracts.xlsx').catch((e: Error) => {
+              message.error(e.message || '导出失败')
+            })
+          }}>导出</Button>
           <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
-          scroll={{ x: 3600 }}
+          scroll={{ x: 3780 }}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },
@@ -474,18 +494,13 @@ export default function ContractList() {
       >
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields} formMode="create">
         <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
-          <Form.Item name="project_id" label="关联商机">
-            <Select allowClear showSearch filterOption={false} placeholder="可选：搜索商机名称 / 编号"
-              options={projOpts} loading={projLoading} onSearch={searchProjects}
-              onChange={(id) => { if (id) void fillFromProject(id) }}
-              onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
-          </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
           <ContractRegistrationFields
             form={createForm}
             mode="create"
             customerSelect={customerSelect}
             onCustomerChange={fillFromCustomer}
+            onProjectChange={fillFromProject}
             slots={{
               line_items: (
                 <div>

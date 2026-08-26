@@ -160,6 +160,178 @@ def _apply_contract_display_status_filter(q, cq, tenant_id: str, status: str):
     )
 
 
+_CONTRACT_DISPLAY_STATUS_LABELS = {
+    "draft": "草稿",
+    "approving": "审批中",
+    "approved": "已通过",
+    "rejected": "已驳回",
+    "terminated": "已终止",
+    "pending_sign": "已通过",
+    "signed": "已通过",
+}
+
+
+def _resolve_contract_display_status(contract_status: str | None, version_status: str | None) -> str:
+    if contract_status == "terminated":
+        return "terminated"
+    if contract_status == "signed":
+        return "approved"
+    if version_status in ("approved", "signed"):
+        return "approved"
+    if version_status == "submitted":
+        return "approving"
+    if version_status == "rejected":
+        return "rejected"
+    return "draft"
+
+
+def _format_change_type(v) -> str:
+    if v in ("change", "变动"):
+        return "变动"
+    if v in ("new", "新增"):
+        return "新增"
+    return v or ""
+
+
+def _reg_export_text(row: dict, key: str) -> str:
+    reg = row.get("registration_json") or {}
+    v = reg.get(key)
+    if v is None or v == "":
+        return ""
+    if isinstance(v, list):
+        return "、".join(str(x) for x in v if x is not None and x != "")
+    return str(v)
+
+
+async def _fetch_contract_list_rows(
+    db: AsyncSession,
+    tenant_id: str,
+    current_user: dict,
+    *,
+    page_no: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    keyword: str | None = None,
+    customer_name: str | None = None,
+    filter: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
+    count_total: bool = True,
+) -> tuple[list[dict], int | None]:
+    from app.domains.contract.models import Contract
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    from app.common.data_scope import apply_project_child_scope
+
+    q = select(Contract).where(Contract.tenant_id == tenant_id)
+    cq = select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id)
+    if status:
+        q, cq = _apply_contract_display_status_filter(q, cq, tenant_id, status)
+    if keyword:
+        like = f"%{keyword}%"
+        from sqlalchemy import or_
+        kw_clause = or_(
+            Contract.contract_no.ilike(like),
+            Contract.drawing_no.ilike(like),
+            Contract.peer_contract_no.ilike(like),
+        )
+        q = q.where(kw_clause)
+        cq = cq.where(kw_clause)
+    cust_clause = _contract_customer_name_clause(tenant_id, customer_name)
+    if cust_clause is not None:
+        q = q.where(cust_clause)
+        cq = cq.where(cust_clause)
+    search_schema = await entity_search_context("contract", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": current_user.get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        cq = cq.where(clause)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract, biz_type="contract")
+    total = None
+    if count_total:
+        total = (await db.execute(cq)).scalar() or 0
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Contract.created_at.desc())
+    items = (await db.execute(
+        q.order_by(order)
+        .offset((page_no - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    if not items:
+        return [], total
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    from app.common.list_enrich import project_names_map, customer_names_map
+    name_map = await project_names_map(db, tenant_id, [c.project_id for c in items])
+    direct_cust = await customer_names_map(
+        db, tenant_id,
+        [c.customer_id for c in items if c.customer_id and not (name_map.get(c.project_id) or {}).get("customer_name")],
+    )
+    rows = []
+    for c in items:
+        base = {**_contract_dict(c), **(name_map.get(c.project_id) or {})}
+        if not base.get("customer_name") and c.customer_id:
+            base["customer_name"] = direct_cust.get(c.customer_id)
+        rows.append(base)
+    rows = await _attach_current_version_status(db, tenant_id, items, rows)
+    rows = apply_field_mask(rows, "contract", perms, policies)
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "contract", rows, current_user.get("roles"))
+    return rows, total
+
+
+_CONTRACT_EXPORT_HEADERS = [
+    "流水号", "提交人", "下卡日期", "客户编号", "单位名称", "部门", "业务人员",
+    "合同状态", "变动原因", "合同获取信息方式", "合同号",
+    "合同/项目评审流水号", "小萌合同评审流水号", "出厂编号", "订货日期", "合同类型",
+    "图纸编号", "项目名称", "对方合同号", "是否含税", "设备是否出口", "是否需要安装",
+    "信息是否齐全", "缺少项", "信息不齐全备注", "出口类型", "合同形式", "是否标准交付",
+    "方式", "是否为旋振筛", "状态", "金额",
+]
+
+
+def _contract_export_row(row: dict, export_cell_fn) -> list:
+    c = export_cell_fn
+    ds = _resolve_contract_display_status(row.get("status"), row.get("current_version_status"))
+    status_label = _CONTRACT_DISPLAY_STATUS_LABELS.get(ds, ds or "")
+    amt = row.get("amount_total")
+    if amt is not None:
+        amt = c("amount_total", amt)
+    return [
+        row.get("serial_no") or "",
+        c("created_by_name", row.get("created_by_name") or ""),
+        row.get("card_date") or "",
+        _reg_export_text(row, "customer_code"),
+        c("customer_name", row.get("customer_name") or ""),
+        c("department_name", row.get("department_name") or ""),
+        c("assignee_name", row.get("assignee_name") or ""),
+        _format_change_type(row.get("change_type")),
+        _reg_export_text(row, "change_reason"),
+        c("acquire_method", row.get("acquire_method") or ""),
+        row.get("contract_no") or "",
+        _reg_export_text(row, "review_sn"),
+        _reg_export_text(row, "review_sn_xm"),
+        _reg_export_text(row, "factory_no"),
+        row.get("order_date") or "",
+        _reg_export_text(row, "contract_type"),
+        row.get("drawing_no") or "",
+        _reg_export_text(row, "project_name"),
+        row.get("peer_contract_no") or "",
+        _reg_export_text(row, "tax_included"),
+        _reg_export_text(row, "is_export"),
+        _reg_export_text(row, "need_install"),
+        _reg_export_text(row, "info_complete"),
+        _reg_export_text(row, "missing_items"),
+        _reg_export_text(row, "info_incomplete_note"),
+        _reg_export_text(row, "export_type"),
+        _reg_export_text(row, "contract_form"),
+        _reg_export_text(row, "standard_delivery"),
+        _reg_export_text(row, "delivery_mode"),
+        _reg_export_text(row, "is_rotary_sieve"),
+        status_label,
+        amt if amt is not None else "",
+    ]
+
+
 def _version_dict(v) -> dict:
     return {
         "id": v.id, "contract_id": v.contract_id, "version_no": v.version_no,
@@ -185,73 +357,61 @@ async def list_contracts(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:view")),
 ):
-    from app.domains.contract.models import Contract
-    q = select(Contract).where(Contract.tenant_id == tenant_id)
-    cq = select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id)
-    if status:
-        q, cq = _apply_contract_display_status_filter(q, cq, tenant_id, status)
-    if keyword:
-        like = f"%{keyword}%"
-        from sqlalchemy import or_
-        kw_clause = or_(
-            Contract.contract_no.ilike(like),
-            Contract.drawing_no.ilike(like),
-            Contract.peer_contract_no.ilike(like),
-        )
-        q = q.where(kw_clause)
-        cq = cq.where(kw_clause)
-    cust_clause = _contract_customer_name_clause(tenant_id, customer_name)
-    if cust_clause is not None:
-        q = q.where(cust_clause)
-        cq = cq.where(cust_clause)
-    # 高级筛选（多字段/多条件，含自定义扩展字段）
-    from app.common.search import (
-        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    rows, total = await _fetch_contract_list_rows(
+        db, tenant_id, current_user,
+        page_no=pageNo, page_size=pageSize,
+        status=status, keyword=keyword, customer_name=customer_name,
+        filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
-    search_schema = await entity_search_context("contract", db, tenant_id)
-    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": current_user.get("sub")})
-    if clause is not None:
-        q = q.where(clause)
-        cq = cq.where(clause)
-    from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract, biz_type="contract")
-    total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Contract.created_at.desc())
-    items = (await db.execute(
-        q.order_by(order)
-        .offset((pageNo - 1) * pageSize).limit(pageSize)
-    )).scalars().all()
-    # 与详情保持一致的字段脱敏（避免列表泄露详情已脱敏的字段）
-    perms = current_user.get("permissions", [])
-    policies = await load_mask_policies(db, tenant_id)
-    from app.common.list_enrich import project_names_map, customer_names_map
-    name_map = await project_names_map(db, tenant_id, [c.project_id for c in items])
-    # 外部合同直接挂 customer_id，需补客户名
-    direct_cust = await customer_names_map(
-        db, tenant_id,
-        [c.customer_id for c in items if c.customer_id and not (name_map.get(c.project_id) or {}).get("customer_name")],
+    return ok({"items": rows, "total": total or 0})
+
+
+@router.get("/api/v1/contracts/export/excel")
+async def export_contracts_excel(
+    status: str = Query(None),
+    keyword: str = Query(None),
+    customer_name: str = Query(None, description="客户名称（模糊）"),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:view")),
+):
+    from app.config import settings
+    from app.common.export import build_excel, excel_response
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+
+    rows, _ = await _fetch_contract_list_rows(
+        db, tenant_id, current_user,
+        page_no=1, page_size=settings.MAX_EXPORT_ROWS,
+        status=status, keyword=keyword, customer_name=customer_name,
+        filter=filter, sort_by=sort_by, sort_order=sort_order,
+        count_total=False,
     )
-    rows = []
-    for c in items:
-        base = {**_contract_dict(c), **(name_map.get(c.project_id) or {})}
-        if not base.get("customer_name") and c.customer_id:
-            base["customer_name"] = direct_cust.get(c.customer_id)
-        rows.append(base)
-    rows = await _attach_current_version_status(db, tenant_id, items, rows)
-    rows = apply_field_mask(rows, "contract", perms, policies)
-    # 角色键控的字段权限（隐藏/脱敏），与按权限脱敏的 apply_field_mask 并行生效
-    from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
-    await strip_entity_dicts(db, tenant_id, "contract", rows, current_user.get("roles"))
-    return ok({"items": rows, "total": total})
+    rst = await entity_field_restrictions(db, tenant_id, "contract", current_user.get("roles"))
+    cell = lambda fid, v: export_cell(rst, fid, v)  # noqa: E731
+    excel_rows = [_contract_export_row(r, cell) for r in rows]
+    buf = build_excel("合同登记", _CONTRACT_EXPORT_HEADERS, excel_rows)
+    return excel_response(buf, "contracts.xlsx")
 
 
 @router.get("/api/v1/contracts/dashboard/summary")
 async def contract_management_dashboard_summary(
-    customer_name: str = Query(None, description="客户名称（模糊）"),
+    customer_name: str = Query(None, description="客户名称"),
+    customer_names: str = Query(None, description="客户名称多个，逗号分隔"),
+    customer_op: str = Query(None, description="客户名称运算符"),
+    customer_match: str = Query(None, description="兼容旧版：eq 精确"),
+    card_date_op: str = Query(None, description="下卡日期运算符"),
+    card_date: str = Query(None, description="下卡日期单值 YYYY-MM-DD"),
     card_date_from: str = Query(None, description="下卡日期起 YYYY-MM-DD"),
     card_date_to: str = Query(None, description="下卡日期止 YYYY-MM-DD"),
     department_id: str = Query(None),
+    department_ids: str = Query(None, description="部门 id 逗号分隔，含 __empty__ 表示未填写"),
+    department_op: str = Query(None, description="部门运算符"),
     assignee_id: str = Query(None, description="业务人员 user id"),
+    assignee_ids: str = Query(None, description="业务人员 id 逗号分隔"),
+    assignee_op: str = Query(None, description="业务人员运算符"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:view")),
@@ -262,10 +422,19 @@ async def contract_management_dashboard_summary(
     data = await contract_dashboard_summary(
         db, tenant_id, current_user,
         customer_name=customer_name,
+        customer_names=customer_names,
+        customer_op=customer_op,
+        customer_match=customer_match,
+        card_date_op=card_date_op,
+        card_date=card_date,
         card_date_from=card_date_from,
         card_date_to=card_date_to,
         department_id=department_id,
+        department_ids=department_ids,
+        department_op=department_op,
         assignee_id=assignee_id,
+        assignee_ids=assignee_ids,
+        assignee_op=assignee_op,
     )
     return ok(data)
 
@@ -458,6 +627,21 @@ async def get_contract(
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     contract_dict = apply_field_mask(_contract_dict(contract), "contract", perms, policies)
+    from app.common.list_enrich import project_names_map, customer_names_map
+    if contract.project_id:
+        pinfo = (await project_names_map(db, tenant_id, [contract.project_id])).get(contract.project_id) or {}
+        contract_dict["project_name"] = pinfo.get("project_name")
+        if pinfo.get("customer_name") and not contract_dict.get("customer_name"):
+            contract_dict["customer_name"] = pinfo.get("customer_name")
+        from app.domains.project.models import OpportunityProject
+        prow = (await db.execute(
+            select(OpportunityProject.project_code).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.id == contract.project_id,
+            )
+        )).scalar_one_or_none()
+        if prow:
+            contract_dict["project_code"] = prow
     # 详情也补客户名（无商机链或仅挂 customer_id 的合同）
     if contract.customer_id and not contract_dict.get("customer_name"):
         from app.common.list_enrich import customer_names_map

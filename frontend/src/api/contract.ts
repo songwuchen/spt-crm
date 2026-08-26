@@ -7,10 +7,19 @@ export const contractApi = {
   /** 合同管理仪表盘汇总 */
   dashboardSummary: (params?: {
     customer_name?: string
+    customer_names?: string
+    customer_op?: string
+    customer_match?: 'eq'
+    card_date_op?: string
+    card_date?: string
     card_date_from?: string
     card_date_to?: string
     department_id?: string
+    department_ids?: string
+    department_op?: string
     assignee_id?: string
+    assignee_ids?: string
+    assignee_op?: string
   }) =>
     client.get('/api/v1/contracts/dashboard/summary', { params }),
   listByProject: (projectId: string) =>

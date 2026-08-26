@@ -133,10 +133,11 @@ def test_prod_card_approver_only_fields_hidden_on_create():
     ]
     apply_prod_card_contract_pick_fields(defs)
     by = {f["id"]: f for f in defs}
-    for fid in ("confirm_agreement", "install_project_no"):
-        assert by[fid]["available_on_create"] is False
-        assert by[fid]["fill_stage"] == "approver"
-        assert by[fid]["required"] is False
+    assert by["confirm_agreement"]["available_on_create"] is False
+    assert by["confirm_agreement"]["fill_stage"] == "approver"
+    assert by["confirm_agreement"]["required"] is False
+    assert by["install_project_no"]["available_on_create"] is True
+    assert by["install_project_no"]["fill_stage"] == "initiator"
     assert by["f_0414"]["available_on_create"] is False
     assert by["f_0414"]["required"] is False
     assert "fill_stage" not in by["f_0414"]
@@ -210,8 +211,9 @@ def test_apply_prod_card_design_assign_field_perms():
     assert "need_dispatch" not in fields
     assert "has_contract_tech_review" not in fields
     assert "select_contract_tech_review" not in fields
-    assert fields["install_project_no"] == "readonly"
-    assert fields["f_251128"] == "required"
+    assert "f_251128" not in fields
+    assert "has_install_project" not in fields
+    assert "install_project_no" not in fields
     assert "f_0414" not in fields
     assert fields["design_assignees"] == "required"
     assert apply_prod_card_design_assign_field_perms(nodes) is False
@@ -533,6 +535,106 @@ def test_build_prod_card_install_fill():
         "field_4": "",
         "field_6": "事项B",
     }
+
+
+def test_ensure_prod_card_install_fields_on_create():
+    from app.domains.lowcode.prod_card_contract_fill import ensure_prod_card_install_fields_on_create
+
+    defs = [
+        {"id": "has_install_project", "type": "radio"},
+        {"id": "f_251128", "type": "detail_table", "available_on_create": False, "fill_stage": "approver"},
+        {"id": "install_project_no", "type": "text", "available_on_create": False, "fill_stage": "approver"},
+        {"id": "design_assignees", "type": "person", "available_on_create": False, "fill_stage": "approver"},
+    ]
+    ensure_prod_card_install_fields_on_create(defs)
+    by = {f["id"]: f for f in defs}
+    assert by["has_install_project"]["available_on_create"] is True
+    assert by["has_install_project"]["fill_stage"] == "initiator"
+    assert by["has_install_project"]["required"] is True
+    assert by["f_251128"]["fill_stage"] == "initiator"
+    assert by["f_251128"]["required"] is False
+    assert by["install_project_no"]["fill_stage"] == "initiator"
+    assert by["design_assignees"]["fill_stage"] == "approver"
+
+
+def test_apply_prod_card_install_visibility_rules():
+    from app.domains.lowcode.prod_card_contract_fill import _apply_prod_card_install_visibility_rules
+
+    rules = _apply_prod_card_install_visibility_rules([])
+    vis = {r["target_field_id"]: r for r in rules if r.get("type") == "visibility"}
+    assert vis["f_251128"]["condition"]["cond"][0]["field"] == "has_install_project"
+    assert vis["install_project_no"]["type"] == "visibility"
+    req = [r for r in rules if r.get("type") == "required" and r.get("target_field_id") == "f_251128"]
+    assert len(req) == 1
+
+
+def test_prod_card_install_auto_fill_clear_keys():
+    from app.domains.lowcode.prod_card_contract_fill import prod_card_install_auto_fill_clear_keys
+
+    assert prod_card_install_auto_fill_clear_keys() == [
+        "has_install_project", "f_251128", "install_project_no",
+    ]
+
+
+def test_install_auto_fill_no_project():
+    import asyncio
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_install_auto_fill_for_project
+
+    result = asyncio.run(build_prod_card_install_auto_fill_for_project(
+        None, "00000000-0000-0000-0000-000000000001", project_id=None,
+    ))
+    assert result["has_install_project"] == "否"
+    assert result["f_251128"] == []
+    assert result["install_project_no"] is None
+
+
+def test_install_auto_fill_with_notice(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_install_auto_fill_for_project
+
+    pid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    inst = SimpleNamespace(
+        id="11111111-2222-3333-4444-555555555555",
+        business_no="AZ202608104",
+        form_data={"serial_no": "AZ202608104", "project_no": pid},
+    )
+
+    async def fake_find(_db, _tid, project_id):
+        assert project_id == pid
+        return inst
+
+    monkeypatch.setattr(
+        "app.domains.lowcode.prod_card_contract_fill._find_install_notice_for_project",
+        fake_find,
+    )
+
+    async def fake_row_ctx(_db, _tid, _inst, _pid):
+        return {
+            "install_project_no": "AZ202608104",
+            "field_3": "韩开强",
+            "field_4": "测试客户",
+            "field_5": "AZ202608104",
+            "field_6": "测试事项",
+        }
+
+    monkeypatch.setattr(
+        "app.domains.lowcode.prod_card_contract_fill._build_install_row_fill_for_notice",
+        fake_row_ctx,
+    )
+
+    result = asyncio.run(build_prod_card_install_auto_fill_for_project(
+        None, "00000000-0000-0000-0000-000000000001", project_id=pid,
+    ))
+    assert result["has_install_project"] == "是"
+    assert result["install_project_no"] == "AZ202608104"
+    assert len(result["f_251128"]) == 1
+    row = result["f_251128"][0]
+    assert row["field_2"] == inst.id
+    assert row["field_3"] == "韩开强"
+    assert row["field_4"] == "测试客户"
+    assert row["field_6"] == "测试事项"
 
 
 def test_builtin_prod_card_install_detail_select_data():

@@ -821,8 +821,8 @@ async def pickable_contract_prod_card_fill(
             form_key=mode,
         )
     elif mode == "payment_allocation":
-        draw = (c.drawing_no or c.contract_no or "").strip()
-        fill = {"drawing_no": draw} if draw else {}
+        cn = (c.contract_no or "").strip()
+        fill = {"contract_no": cn} if cn else {}
     else:
         fill = build_prod_card_fill_from_contract(
             contract_no=c.contract_no,

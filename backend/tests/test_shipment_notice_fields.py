@@ -103,7 +103,11 @@ def test_shipment_notice_ship_amount_is_formula():
     assert by_id["ship_amount"]["type"] == "formula"
     assert by_id["ship_amount"]["props"]["formula"] == "SUM($ship_lines.line_amount#)"
     assert by_id["shipped_amount_incl"]["props"]["formula"] == "$prior_shipped_amount#+$ship_amount#"
+    assert by_id["shipped_amount_incl"]["props"]["formula_editable"] is True
+    assert by_id["shipped_amount_incl"]["form_editable"] is True
     assert by_id["unshipped_amount"]["props"]["formula"] == "$contract_amount#-$shipped_amount_incl#"
+    assert by_id["unshipped_amount"]["props"]["formula_editable"] is True
+    assert by_id["unshipped_amount"]["form_editable"] is True
     assert by_id["prior_shipped_amount"]["props"]["hidden"] is True
 
 

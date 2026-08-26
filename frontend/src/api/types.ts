@@ -468,6 +468,7 @@ export interface ContractItem {
   updated_at: string
   versions?: ContractVersion[]
   project_name?: string
+  project_code?: string
   customer_name?: string
 }
 

@@ -228,7 +228,11 @@ async def load_prod_card_fill_for_contract(
         key_clauses_json=ver.key_clauses_json if ver else None,
         mode=mode,
     )
-    return await enrich_prod_card_fill_with_region_manager(db, tenant_id, fill, user)
+    fill = await enrich_prod_card_fill_with_region_manager(db, tenant_id, fill, user)
+    install_fill = await build_prod_card_install_auto_fill_for_project(
+        db, tenant_id, project_id=c.project_id,
+    )
+    return {**fill, **install_fill}
 
 
 async def overlay_prod_card_contract_live(
@@ -525,6 +529,26 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
     apply_prod_card_detail_quick_fill_flags(defs)
     ensure_prod_card_contract_fill_on_create(defs)
     apply_prod_card_install_pick_fields(defs)
+    ensure_prod_card_install_fields_on_create(defs)
+
+
+def ensure_prod_card_install_fields_on_create(defs: list) -> None:
+    """安装图项目号相关字段：发起选合同后即可见、可改（不必等到安排设计审批）。"""
+    for f in defs:
+        if not isinstance(f, dict):
+            continue
+        fid = f.get("id")
+        if fid not in PROD_CARD_INSTALL_INITIATOR_FIELDS:
+            continue
+        f["available_on_create"] = True
+        f["fill_stage"] = "initiator"
+        if fid == "has_install_project":
+            f["required"] = True
+        elif fid == "f_251128":
+            f["required"] = False
+        elif fid == "install_project_no":
+            f["required"] = False
+            f["form_editable"] = False
 
 
 # 圈选区：仅审批可填（创建页隐藏）；字段级必填下沉到节点 field_perms
@@ -533,13 +557,16 @@ _PROD_CARD_SALES_CONFIRM_PERMS: dict[str, str] = {
     "confirm_agreement": "required",
 }
 # 研管办安排：设计指派填写（对齐简道云 安排设计1 optAuth）
-# 注：f_0414「室主任0414」在简道云全流程 optAuth 均未出现（legacy 子表），不在任何节点填写。
+# 安装图项目号（has_install_project / f_251128）改由发起人选合同后填写，不在审批节点处理。
 _PROD_CARD_DESIGN_ASSIGN_PERMS: dict[str, str] = {
-    "f_251128": "required",
-    "has_install_project": "required",
-    "install_project_no": "readonly",
     "design_assignees": "required",
 }
+# 发起页填写；安排设计审批节点不再展示/编辑
+PROD_CARD_INSTALL_INITIATOR_FIELDS: frozenset[str] = frozenset({
+    "has_install_project",
+    "f_251128",
+    "install_project_no",
+})
 # 表单保留但简道云流程已废弃：全程隐藏（创建/审批/详情均不展示）
 PROD_CARD_LEGACY_HIDDEN_FIELDS: frozenset[str] = frozenset({"f_0414"})
 # 安排设计节点：发起人已填，本节点不再展示/编辑（不沿用简道云 optAuth 的可编辑项）
@@ -548,6 +575,7 @@ PROD_CARD_DESIGN_INITIATOR_ONLY_FIELDS: frozenset[str] = frozenset({
     "has_contract_tech_review",
     "select_contract_tech_review",
     "contract_tech_review_sn",
+    *PROD_CARD_INSTALL_INITIATOR_FIELDS,
 })
 _PROD_CARD_APPROVER_ONLY: dict[str, str] = {
     **_PROD_CARD_SALES_CONFIRM_PERMS,
@@ -903,7 +931,21 @@ def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
         if len(pruned) != len(perms):
             n["field_perms"] = pruned
             changed = True
+    changed = apply_prod_card_prune_install_approver_field_perms(nodes) or changed
     changed = apply_prod_card_prune_legacy_field_perms(nodes) or changed
+    return changed
+
+
+def apply_prod_card_prune_install_approver_field_perms(nodes: list | None) -> bool:
+    """安装图项目号改发起填写：从各审批节点 field_perms 移除。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        if _prune_node_field_perms(n, PROD_CARD_INSTALL_INITIATOR_FIELDS):
+            changed = True
     return changed
 
 
@@ -1109,6 +1151,143 @@ def prod_card_install_fill_clear_keys() -> list[str]:
     return ["install_project_no"]
 
 
+def prod_card_install_auto_fill_clear_keys() -> list[str]:
+    """选合同/清合同时同步清空安装图自动带出字段（仍可手改）。"""
+    return ["has_install_project", "f_251128", *prod_card_install_fill_clear_keys()]
+
+
+async def _find_install_notice_for_project(db, tenant_id: str, project_id: str):
+    """按商机关联查找最新一条安装图设计通知（排除草稿/撤回）。"""
+    import json
+
+    from sqlalchemy import select
+
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+    from app.domains.lowcode.pricing_checklist_fields import PICKABLE_EXCLUDED_STATUSES
+    from app.domains.lowcode.service import _instance_list_filter_bundle
+
+    pid = str(project_id or "").strip()
+    if not pid:
+        return None
+    tpl = (
+        await db.execute(
+            select(FormTemplate).where(
+                FormTemplate.tenant_id == tenant_id,
+                FormTemplate.code == "install_drawing_notice",
+                FormTemplate.is_deleted == False,  # noqa: E712
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not tpl:
+        return None
+    filters = json.dumps({
+        "match": "all",
+        "rules": [{"field": "project_no", "op": "eq", "value": pid}],
+    }, ensure_ascii=False)
+    bundle = await _instance_list_filter_bundle(db, tenant_id, tpl.id, filters)
+    conds = [
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.template_id == tpl.id,
+        FormInstance.is_deleted == False,  # noqa: E712
+        FormInstance.status.notin_(list(PICKABLE_EXCLUDED_STATUSES)),
+    ]
+    if bundle:
+        conds.extend(bundle)
+    return (
+        await db.execute(
+            select(FormInstance)
+            .where(*conds)
+            .order_by(FormInstance.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def _build_install_row_fill_for_notice(
+    db,
+    tenant_id: str,
+    inst,
+    project_id: str,
+) -> dict[str, Any]:
+    data = inst.form_data if isinstance(inst.form_data, dict) else {}
+    user_names: dict[str, str] = {}
+    sales = data.get("sales_person")
+    sid = _install_pick_as_id(sales)
+    if sid and db is not None:
+        from sqlalchemy import select
+        from app.domains.auth.models import User
+
+        urow = (
+            await db.execute(
+                select(User.real_name, User.username).where(
+                    User.tenant_id == tenant_id,
+                    User.id == sid,
+                )
+            )
+        ).one_or_none()
+        if urow:
+            user_names[sid] = (urow[0] or urow[1] or "").strip() or sid
+    project_codes: dict[str, str] = {}
+    if db is not None:
+        from sqlalchemy import select
+        from app.domains.project.models import OpportunityProject
+
+        prow = (
+            await db.execute(
+                select(OpportunityProject.project_code, OpportunityProject.name).where(
+                    OpportunityProject.tenant_id == tenant_id,
+                    OpportunityProject.id == project_id,
+                )
+            )
+        ).one_or_none()
+        if prow:
+            label = (prow[0] or "").strip() or (prow[1] or "").strip()
+            if label:
+                project_codes[project_id] = label
+    return build_prod_card_install_fill(
+        business_no=inst.business_no,
+        form_data=data,
+        project_codes=project_codes,
+        user_names=user_names,
+    )
+
+
+async def build_prod_card_install_auto_fill_for_project(
+    db,
+    tenant_id: str,
+    *,
+    project_id: str | None,
+) -> dict[str, Any]:
+    """合同关联商机 → 自动判定是否有安装图项目号，并预填项目号选择251128明细。"""
+    pid = str(project_id or "").strip()
+    if not pid:
+        return {
+            "has_install_project": "否",
+            "f_251128": [],
+            "install_project_no": None,
+        }
+    inst = await _find_install_notice_for_project(db, tenant_id, pid)
+    if not inst:
+        return {
+            "has_install_project": "否",
+            "f_251128": [],
+            "install_project_no": None,
+        }
+    row_fill = await _build_install_row_fill_for_notice(db, tenant_id, inst, pid)
+    detail_row = {
+        _PROD_CARD_INSTALL_COL_ID: inst.id,
+        _PROD_CARD_INSTALL_COL_SALES: row_fill.get(_PROD_CARD_INSTALL_COL_SALES) or "",
+        _PROD_CARD_INSTALL_COL_SITE: row_fill.get(_PROD_CARD_INSTALL_COL_SITE) or "",
+        _PROD_CARD_INSTALL_COL_PRINT: row_fill.get(_PROD_CARD_INSTALL_COL_PRINT) or "",
+        _PROD_CARD_INSTALL_COL_MATTER: row_fill.get(_PROD_CARD_INSTALL_COL_MATTER) or "",
+    }
+    return {
+        "has_install_project": "是",
+        "f_251128": [detail_row],
+        "install_project_no": row_fill.get("install_project_no") or "",
+    }
+
+
 def apply_prod_card_install_pick_fields(defs: list) -> None:
     """项目号选择251128 → 选择数据：关联安装图设计通知实例。"""
     _display_cols = (
@@ -1180,5 +1359,48 @@ def apply_prod_card_supplement_rules(rules: list[dict[str, Any]] | None) -> list
             "enabled": True,
         })
     out = apply_prod_card_contract_fill_visibility(out)
+    out = _apply_prod_card_install_visibility_rules(out)
     from app.domains.lowcode.cs_drawing_request_fields import apply_cs_drawing_request_rules
     return apply_cs_drawing_request_rules(out)
+
+
+_WHEN_HAS_INSTALL_PROJECT = {
+    "rel": "and",
+    "cond": [{"field": "has_install_project", "operator": "in", "value": ["是"]}],
+}
+
+
+def _apply_prod_card_install_visibility_rules(
+    rules: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """has_install_project=是 → 显示/必填项目号选择251128 与安装图项目号。"""
+    strip_ids = {"jdy_vis_f_251128", "crm_vis_f_251128", "crm_req_f_251128"}
+    out: list[dict[str, Any]] = [
+        r for r in (rules or [])
+        if isinstance(r, dict) and r.get("id") not in strip_ids
+    ]
+    out.append({
+        "id": "crm_vis_f_251128",
+        "type": "visibility",
+        "target_field_id": "f_251128",
+        "condition": dict(_WHEN_HAS_INSTALL_PROJECT),
+        "action": {"visible": True},
+        "enabled": True,
+    })
+    out.append({
+        "id": "crm_vis_install_project_no",
+        "type": "visibility",
+        "target_field_id": "install_project_no",
+        "condition": dict(_WHEN_HAS_INSTALL_PROJECT),
+        "action": {"visible": True},
+        "enabled": True,
+    })
+    out.append({
+        "id": "crm_req_f_251128",
+        "type": "required",
+        "target_field_id": "f_251128",
+        "condition": dict(_WHEN_HAS_INSTALL_PROJECT),
+        "action": {"required": True},
+        "enabled": True,
+    })
+    return out

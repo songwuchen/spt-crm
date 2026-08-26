@@ -24,6 +24,7 @@ import { computeFieldStates, validateApproverDetailRows } from '@/components/low
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
 import {
   applyProdCardOrderTypeMerged,
+  formHasProdCardOrderTypeMerged,
   applySimpleFormulas,
 } from '@/utils/lowcodeSimpleFormulas'
 import { filterProdCardLegacyFieldPerms, PROD_CARD_LEGACY_HIDDEN_FIELD_IDS, pruneProdCardDetailColumns } from '@/constants/prodCardLegacyFields'
@@ -220,17 +221,23 @@ export default function ApproveFieldForm({
     return computeFieldStates(fieldsForRules, mergedValues, rules, permissions)
   }, [rules, perms, fieldsForRules, mergedValues])
 
+  const prodCardOrderTypeMerged = useMemo(
+    () => formHasProdCardOrderTypeMerged(formFields.length ? formFields : fieldsForRules),
+    [formFields, fieldsForRules],
+  )
+
   // 打开节点时若已有下单类型，立刻回填「下单类型（合并含补充）」
   useEffect(() => {
+    if (!prodCardOrderTypeMerged) return
     if (!perms.some((p) => p.field === 'field' || p.field === 'order_type')) return
     const base = { ...formData, ...values }
     let out = applySimpleFormulas(fieldsForRules, base)
-    out = applyProdCardOrderTypeMerged(out)
+    out = applyProdCardOrderTypeMerged(out, { fields: fieldsForRules })
     const nextField = out.field
     if (nextField == null || nextField === '') return
     if (values.field === nextField) return
     onChange({ ...values, field: nextField })
-  }, [fieldsForRules, formData, onChange, perms, values])
+  }, [fieldsForRules, formData, onChange, perms, prodCardOrderTypeMerged, values])
 
   if (!perms.length) return null
 
@@ -242,11 +249,13 @@ export default function ApproveFieldForm({
       const sf = (f.props as { suggest_formula?: string } | undefined)?.suggest_formula
       if ((f.type === 'formula' || sf) && f.id in out) patch[f.id] = out[f.id]
     }
-    out = applyProdCardOrderTypeMerged(
-      { ...formData, ...patch },
-      { skipField: changedField === 'field' },
-    )
-    if ('field' in out && changedField !== 'field') patch.field = out.field
+    if (prodCardOrderTypeMerged) {
+      out = applyProdCardOrderTypeMerged(
+        { ...formData, ...patch },
+        { skipField: changedField === 'field', fields: fieldsForRules },
+      )
+      if ('field' in out && changedField !== 'field') patch.field = out.field
+    }
     onChange(patch)
   }
 

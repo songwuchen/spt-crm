@@ -94,12 +94,21 @@ def apply_payment_registration_fields(defs: list) -> None:
             for col in f.get("detail_table_columns") or []:
                 if not isinstance(col, dict):
                     continue
-                if col.get("id") == "contract_no":
+                cid = col.get("id")
+                if cid == "drawing_no":
                     col["type"] = "contract"
-                    col["label"] = "合同号"
-                    col["description"] = "从合同管理中选择；选中后自动带出图纸编号。"
+                    col["label"] = col.get("label") or "图纸编号"
+                    col["description"] = "从合同管理中选择；选中后自动带出合同号。"
                     props = dict(col.get("props") or {})
                     props["contract_fill"] = "payment_allocation"
+                    col["props"] = props
+                elif cid == "contract_no":
+                    col["type"] = "text"
+                    col["label"] = "合同号"
+                    col["form_editable"] = False
+                    col["description"] = "由所选图纸编号（合同）自动带出。"
+                    props = dict(col.get("props") or {})
+                    props.pop("contract_fill", None)
                     col["props"] = props
             f["available_on_create"] = False
             f["fill_stage"] = "approver"

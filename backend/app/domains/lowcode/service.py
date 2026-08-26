@@ -1706,6 +1706,12 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     if tpl_code == "quote_management":
         from app.domains.lowcode.quote_management_fields import prepare_quote_field_defs
         field_defs = prepare_quote_field_defs(field_defs)
+    if tpl_code == "payment_registration":
+        from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
+        apply_payment_registration_fields(field_defs)
+    if tpl_code == "shipment_notice":
+        from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
+        apply_shipment_notice_fields(field_defs)
     retroactive_perms: list[dict] = []
     if inst.process_instance_id:
         from app.domains.lowcode.wf_field_writeback import (

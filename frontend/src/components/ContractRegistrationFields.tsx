@@ -18,6 +18,7 @@ import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import { contractApi } from '@/api/contract'
+import { projectApi } from '@/api/project'
 import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import { formDateRule } from '@/utils/formDate'
@@ -26,7 +27,7 @@ const DATE_KEYS = new Set([
   'delivery_date', 'order_date', 'card_date', 'end_date', 'note_date', 'accept_date',
 ])
 const NATIVE_KEYS = new Set([
-  'customer_id', 'contract_no', 'drawing_no', 'peer_contract_no', 'acquire_method',
+  'project_id', 'customer_id', 'contract_no', 'drawing_no', 'peer_contract_no', 'acquire_method',
   'delivery_date', 'change_type', 'amount_total', 'order_date', 'card_date', 'end_date',
   'assignee_id', 'assignee_name', 'department_id', 'department_name',
 ])
@@ -44,6 +45,10 @@ type Props = {
   customerSelect?: CustomerSelectApi
   /** 选定客户后回填编号/部门/业务员 */
   onCustomerChange?: (customerId?: string) => void | Promise<void>
+  /** 选定商机后回填客户/部门/业务员等 */
+  onProjectChange?: (projectId?: string) => void | Promise<void>
+  /** 编辑回显：关联商机下拉初始项 */
+  projectInitialOption?: { label: string; value: string }
 }
 
 function readDepValue(
@@ -385,6 +390,72 @@ function CustomerSelectField({
   )
 }
 
+function ProjectSelectField({
+  value,
+  onChange,
+  onPicked,
+  initialOption,
+}: {
+  value?: string
+  onChange?: (v?: string) => void
+  onPicked?: (projectId?: string) => void | Promise<void>
+  initialOption?: { label: string; value: string }
+}) {
+  const [options, setOptions] = useState<{ label: string; value: string }[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (initialOption?.value) {
+      setOptions((prev) => {
+        if (prev.some((o) => o.value === initialOption.value)) return prev
+        return [{ label: initialOption.label, value: initialOption.value }, ...prev]
+      })
+    }
+  }, [initialOption?.value, initialOption?.label])
+
+  const load = async (kw?: string) => {
+    setLoading(true)
+    try {
+      const r = await projectApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined })
+      const items = (r.data?.items || []).map((p) => ({
+        label: `${p.name}（${p.project_code}）`,
+        value: p.id,
+      }))
+      if (value && initialOption?.value === value) {
+        const merged = items.some((o) => o.value === value)
+          ? items
+          : [{ label: initialOption.label, value: initialOption.value }, ...items]
+        setOptions(merged)
+      } else {
+        setOptions(items)
+      }
+    } catch {
+      setOptions(initialOption?.value ? [initialOption] : [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Select
+      allowClear
+      showSearch
+      filterOption={false}
+      placeholder="可选：搜索商机名称 / 编号"
+      value={value}
+      loading={loading}
+      options={options}
+      onSearch={(kw) => void load(kw)}
+      onDropdownVisibleChange={(open) => { if (open && options.length === 0) void load() }}
+      onChange={(id) => {
+        const next = (id as string | undefined) || undefined
+        onChange?.(next)
+        void onPicked?.(next)
+      }}
+    />
+  )
+}
+
 function FieldControl({
   field,
   form,
@@ -393,6 +464,8 @@ function FieldControl({
   onChange,
   customerSelect,
   onCustomerChange,
+  onProjectChange,
+  projectInitialOption,
   ...rest
 }: {
   field: RegFieldDef
@@ -402,6 +475,8 @@ function FieldControl({
   onChange?: (...args: any[]) => void
   customerSelect?: CustomerSelectApi
   onCustomerChange?: (customerId?: string) => void | Promise<void>
+  onProjectChange?: (projectId?: string) => void | Promise<void>
+  projectInitialOption?: { label: string; value: string }
   [k: string]: unknown
 }) {
   const widget = field.widget || 'text'
@@ -491,6 +566,16 @@ function FieldControl({
         onChange={onChange as ((v?: string) => void) | undefined}
         customerSelect={customerSelect}
         onPicked={onCustomerChange}
+      />
+    )
+  }
+  if (widget === 'project' || field.key === 'project_id') {
+    return (
+      <ProjectSelectField
+        value={value as string | undefined}
+        onChange={onChange as ((v?: string) => void) | undefined}
+        onPicked={onProjectChange}
+        initialOption={projectInitialOption}
       />
     )
   }
@@ -602,6 +687,8 @@ function FieldGrid({
   form,
   customerSelect,
   onCustomerChange,
+  onProjectChange,
+  projectInitialOption,
   excludeContractId,
 }: {
   fields: RegFieldDef[]
@@ -610,6 +697,8 @@ function FieldGrid({
   form: FormInstance
   customerSelect?: CustomerSelectApi
   onCustomerChange?: (customerId?: string) => void | Promise<void>
+  onProjectChange?: (projectId?: string) => void | Promise<void>
+  projectInitialOption?: { label: string; value: string }
   excludeContractId?: string
 }) {
   const policy = useFieldPolicy()
@@ -690,6 +779,8 @@ function FieldGrid({
                       mode={mode}
                       customerSelect={customerSelect}
                       onCustomerChange={onCustomerChange}
+                      onProjectChange={onProjectChange}
+                      projectInitialOption={projectInitialOption}
                       excludeContractId={excludeContractId}
                     />
                   </PolicyItem>
@@ -725,10 +816,18 @@ export default function ContractRegistrationFields({
   excludeContractId,
   customerSelect: customerSelectProp,
   onCustomerChange,
+  onProjectChange,
+  projectInitialOption,
 }: Props) {
   const internalCustomerSelect = useCustomerSelect()
   const customerSelect = customerSelectProp ?? internalCustomerSelect
-  const gridProps = { customerSelect, onCustomerChange, excludeContractId }
+  const gridProps = {
+    customerSelect,
+    onCustomerChange,
+    onProjectChange,
+    projectInitialOption,
+    excludeContractId,
+  }
   return (
     <div className="space-y-5">
       {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}

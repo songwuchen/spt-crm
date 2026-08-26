@@ -12,25 +12,220 @@ from app.domains.customer.models import Customer
 from app.domains.project.models import OpportunityProject
 
 
-def _customer_name_clause(tenant_id: str, customer_name: str):
-    """按展示用客户名称筛选：直连 customer_id、商机客户、登记 JSON 兜底。"""
-    kw = (customer_name or "").strip()
+def _customer_display_name_empty():
+    """登记 JSON / 直连客户均为空。"""
+    reg_name = Contract.registration_json["customer_name"].as_string()
+    return and_(
+        Contract.customer_id.is_(None),
+        or_(reg_name.is_(None), reg_name == ""),
+    )
+
+
+def _customer_display_name_not_empty():
+    return or_(
+        Contract.customer_id.isnot(None),
+        and_(
+            Contract.registration_json["customer_name"].as_string().isnot(None),
+            Contract.registration_json["customer_name"].as_string() != "",
+        ),
+    )
+
+
+def _customer_name_match(tenant_id: str, kw: str, *, mode: str):
+    """单值客户名匹配（eq / ne / contains / not_contains）。"""
+    mode = (mode or "contains").lower()
     if not kw:
         return None
+    if mode in ("eq", "ne"):
+        matching = select(Customer.id).where(
+            Customer.tenant_id == tenant_id,
+            func.lower(Customer.name) == kw.lower(),
+        )
+        via_direct = Contract.customer_id.in_(matching)
+        via_project = Contract.project_id.in_(
+            select(OpportunityProject.id).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.customer_id.in_(matching),
+            )
+        )
+        via_reg = func.lower(Contract.registration_json["customer_name"].as_string()) == kw.lower()
+        clause = or_(via_direct, via_project, via_reg)
+        return ~clause if mode == "ne" else clause
     like = f"%{kw}%"
-    matching_customers = select(Customer.id).where(
+    matching = select(Customer.id).where(
         Customer.tenant_id == tenant_id,
         Customer.name.ilike(like),
     )
-    via_direct = Contract.customer_id.in_(matching_customers)
+    via_direct = Contract.customer_id.in_(matching)
     via_project = Contract.project_id.in_(
         select(OpportunityProject.id).where(
             OpportunityProject.tenant_id == tenant_id,
-            OpportunityProject.customer_id.in_(matching_customers),
+            OpportunityProject.customer_id.in_(matching),
         )
     )
     via_reg = Contract.registration_json["customer_name"].as_string().ilike(like)
-    return or_(via_direct, via_project, via_reg)
+    clause = or_(via_direct, via_project, via_reg)
+    return ~clause if mode == "not_contains" else clause
+
+
+def _customer_filter_clause(
+    tenant_id: str,
+    *,
+    customer_op: str | None,
+    customer_name: str | None,
+    customer_names: str | None,
+    customer_match: str | None = None,
+):
+    op = (customer_op or "").lower()
+    if not op and customer_match:
+        op = "eq" if customer_match.lower() == "eq" else "contains"
+    if not op:
+        op = "contains"
+
+    if op == "is_empty":
+        return _customer_display_name_empty()
+    if op == "is_not_empty":
+        return _customer_display_name_not_empty()
+
+    if op in ("in", "nin"):
+        names = [x.strip() for x in (customer_names or customer_name or "").split(",") if x.strip()]
+        if not names:
+            return None
+        parts = [_customer_name_match(tenant_id, n, mode="eq") for n in names]
+        parts = [p for p in parts if p is not None]
+        if not parts:
+            return None
+        clause = or_(*parts)
+        return ~clause if op == "nin" else clause
+
+    kw = (customer_name or "").strip()
+    if not kw:
+        return None
+    mode = op if op in ("eq", "ne", "contains", "not_contains") else "contains"
+    return _customer_name_match(tenant_id, kw, mode=mode)
+
+
+def _dept_empty_clause():
+    return or_(Contract.department_id.is_(None), Contract.department_id == "")
+
+
+def _department_filter_clause(
+    department_id: str | None,
+    department_ids: str | None,
+    *,
+    department_op: str | None = None,
+):
+    op = (department_op or "in").lower()
+    if op == "is_empty":
+        return _dept_empty_clause()
+    if op == "is_not_empty":
+        return ~_dept_empty_clause()
+
+    ids: list[str] = []
+    if department_ids:
+        ids = [x.strip() for x in department_ids.split(",") if x.strip()]
+    elif department_id:
+        ids = [department_id.strip()]
+    if not ids:
+        return None
+
+    empty_marker = "__empty__"
+    has_empty = empty_marker in ids
+    real_ids = [x for x in ids if x != empty_marker]
+
+    def _in_real():
+        if not real_ids:
+            return None
+        if len(real_ids) == 1:
+            return Contract.department_id == real_ids[0]
+        return Contract.department_id.in_(real_ids)
+
+    def _match_in():
+        parts: list = []
+        r = _in_real()
+        if r is not None:
+            parts.append(r)
+        if has_empty:
+            parts.append(_dept_empty_clause())
+        if not parts:
+            return None
+        if len(parts) == 1:
+            return parts[0]
+        return or_(*parts)
+
+    if op == "eq":
+        clause = _match_in()
+        return clause
+    if op == "in":
+        return _match_in()
+    if op == "ne":
+        clause = _match_in()
+        return ~clause if clause is not None else None
+    if op == "nin":
+        clause = _match_in()
+        return ~clause if clause is not None else None
+    return _match_in()
+
+
+def _assignee_filter_clause(
+    assignee_id: str | None,
+    assignee_ids: str | None,
+    *,
+    assignee_op: str | None = None,
+):
+    op = (assignee_op or "eq").lower()
+    if op == "is_empty":
+        return or_(Contract.assignee_id.is_(None), Contract.assignee_id == "")
+    if op == "is_not_empty":
+        return and_(Contract.assignee_id.isnot(None), Contract.assignee_id != "")
+
+    ids: list[str] = []
+    if assignee_ids:
+        ids = [x.strip() for x in assignee_ids.split(",") if x.strip()]
+    elif assignee_id:
+        ids = [assignee_id.strip()]
+    if not ids:
+        return None
+
+    if op in ("eq", "in"):
+        if len(ids) == 1:
+            return Contract.assignee_id == ids[0]
+        return Contract.assignee_id.in_(ids)
+    if op in ("ne", "nin"):
+        if len(ids) == 1:
+            return or_(Contract.assignee_id.is_(None), Contract.assignee_id != ids[0])
+        return or_(Contract.assignee_id.is_(None), ~Contract.assignee_id.in_(ids))
+    return Contract.assignee_id == ids[0] if len(ids) == 1 else Contract.assignee_id.in_(ids)
+
+
+def _card_date_filter_clause(
+    *,
+    card_date_op: str | None,
+    card_from: date | None,
+    card_to: date | None,
+    card_date: date | None,
+):
+    op = (card_date_op or "preset").lower()
+    if op == "is_empty":
+        return Contract.card_date.is_(None)
+    if op == "is_not_empty":
+        return Contract.card_date.isnot(None)
+    if op == "eq" and card_date:
+        return Contract.card_date == card_date
+    if op == "ne" and card_date:
+        return or_(Contract.card_date.is_(None), Contract.card_date != card_date)
+    if op == "gte" and card_date:
+        return Contract.card_date >= card_date
+    if op == "lte" and card_date:
+        return Contract.card_date <= card_date
+    parts: list = []
+    if card_from:
+        parts.append(Contract.card_date >= card_from)
+    if card_to:
+        parts.append(Contract.card_date <= card_to)
+    if not parts:
+        return None
+    return and_(*parts) if len(parts) > 1 else parts[0]
 
 
 def _customer_industry_label():
@@ -186,6 +381,35 @@ async def _contract_industry_amount(
     ]
 
 
+async def _dept_month_stats(db: AsyncSession, base: list) -> list[dict[str, Any]]:
+    """合同数量和金额表：下卡月 × 部门 → 数量/金额/平均。"""
+    month_l = func.coalesce(func.to_char(Contract.card_date, "YYYY-MM"), literal("未知")).label("month")
+    dept_l = func.coalesce(Contract.department_name, literal("未填写")).label("department")
+    rows = (await db.execute(
+        select(
+            month_l,
+            dept_l,
+            func.count(Contract.id).label("count"),
+            func.coalesce(func.sum(Contract.amount_total), 0).label("amount"),
+        )
+        .where(*base)
+        .group_by(month_l, dept_l)
+        .order_by(month_l.desc(), dept_l)
+    )).all()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        cnt = int(r.count or 0)
+        amt = float(r.amount or 0)
+        out.append({
+            "month": str(r.month or "未知"),
+            "department": str(r.department or "未填写"),
+            "count": cnt,
+            "amount": amt,
+            "avg_amount": (amt / cnt) if cnt else 0.0,
+        })
+    return out
+
+
 async def _dept_workload_stats(db: AsyncSession, base: list) -> list[dict[str, Any]]:
     """部门工作量统计：下卡月 × 部门 × 工作量 → 合同金额。"""
     month_l = func.coalesce(func.to_char(Contract.card_date, "YYYY-MM"), literal("未知")).label("month")
@@ -228,23 +452,52 @@ async def _scoped_contract_ids(
     user: dict,
     *,
     customer_name: str | None,
+    customer_names: str | None = None,
+    customer_op: str | None = None,
+    customer_match: str | None = None,
+    card_date_op: str | None = None,
     card_from: date | None,
     card_to: date | None,
+    card_date: date | None = None,
     department_id: str | None,
+    department_ids: str | None = None,
+    department_op: str | None = None,
     assignee_id: str | None,
+    assignee_ids: str | None = None,
+    assignee_op: str | None = None,
 ):
     from app.common.data_scope import apply_project_child_scope
 
     conds: list = [Contract.tenant_id == tenant_id]
-    if card_from:
-        conds.append(Contract.card_date >= card_from)
-    if card_to:
-        conds.append(Contract.card_date <= card_to)
-    if department_id:
-        conds.append(Contract.department_id == department_id)
-    if assignee_id:
-        conds.append(Contract.assignee_id == assignee_id)
-    cust = _customer_name_clause(tenant_id, customer_name or "")
+
+    card_clause = _card_date_filter_clause(
+        card_date_op=card_date_op,
+        card_from=card_from,
+        card_to=card_to,
+        card_date=card_date,
+    )
+    if card_clause is not None:
+        conds.append(card_clause)
+
+    dept = _department_filter_clause(
+        department_id, department_ids, department_op=department_op,
+    )
+    if dept is not None:
+        conds.append(dept)
+
+    assignee = _assignee_filter_clause(
+        assignee_id, assignee_ids, assignee_op=assignee_op,
+    )
+    if assignee is not None:
+        conds.append(assignee)
+
+    cust = _customer_filter_clause(
+        tenant_id,
+        customer_op=customer_op,
+        customer_name=customer_name,
+        customer_names=customer_names,
+        customer_match=customer_match,
+    )
     if cust is not None:
         conds.append(cust)
 
@@ -262,25 +515,46 @@ async def contract_dashboard_summary(
     user: dict,
     *,
     customer_name: str | None = None,
+    customer_names: str | None = None,
+    customer_op: str | None = None,
+    customer_match: str | None = None,
+    card_date_op: str | None = None,
+    card_date: str | None = None,
     card_date_from: str | None = None,
     card_date_to: str | None = None,
     department_id: str | None = None,
+    department_ids: str | None = None,
+    department_op: str | None = None,
     assignee_id: str | None = None,
+    assignee_ids: str | None = None,
+    assignee_op: str | None = None,
 ) -> dict[str, Any]:
+    card_op = (card_date_op or "preset").lower()
     card_from = _parse_date(card_date_from)
     card_to = _parse_date(card_date_to)
-    if card_from is None and card_to is None:
-        today = date.today()
-        card_from = date(today.year, 1, 1)
-        card_to = date(today.year, 12, 31)
+    card_d = _parse_date(card_date)
+    if card_op not in ("is_empty", "is_not_empty", "eq", "ne", "gte", "lte"):
+        if card_from is None and card_to is None:
+            today = date.today()
+            card_from = date(today.year, 1, 1)
+            card_to = date(today.year, 12, 31)
 
     scoped = await _scoped_contract_ids(
         db, tenant_id, user,
         customer_name=customer_name,
+        customer_names=customer_names,
+        customer_op=customer_op,
+        customer_match=customer_match,
+        card_date_op=card_date_op,
         card_from=card_from,
         card_to=card_to,
+        card_date=card_d,
         department_id=department_id,
+        department_ids=department_ids,
+        department_op=department_op,
         assignee_id=assignee_id,
+        assignee_ids=assignee_ids,
+        assignee_op=assignee_op,
     )
     base = [Contract.id.in_(select(scoped.c.id))]
 
@@ -314,10 +588,19 @@ async def contract_dashboard_summary(
     today_scoped = await _scoped_contract_ids(
         db, tenant_id, user,
         customer_name=customer_name,
-        card_from=today,
-        card_to=today,
+        customer_names=customer_names,
+        customer_op=customer_op,
+        customer_match=customer_match,
+        card_date_op="eq",
+        card_from=None,
+        card_to=None,
+        card_date=today,
         department_id=department_id,
+        department_ids=department_ids,
+        department_op=department_op,
         assignee_id=assignee_id,
+        assignee_ids=assignee_ids,
+        assignee_op=assignee_op,
     )
     today_row = (await db.execute(
         select(func.coalesce(func.sum(Contract.amount_total), 0)).where(
@@ -380,6 +663,7 @@ async def contract_dashboard_summary(
 
     by_industry_contract = await _contract_industry_amount(db, tenant_id, base)
     dept_workload = await _dept_workload_stats(db, base)
+    dept_month_stats = await _dept_month_stats(db, base)
 
     customers: dict[str, Any] | None = None
     perms = user.get("permissions") or []
@@ -405,5 +689,6 @@ async def contract_dashboard_summary(
         "top_customers": _pack(top_cust_rows),
         "by_industry_contract": by_industry_contract,
         "dept_workload": dept_workload,
+        "dept_month_stats": dept_month_stats,
         "customers": customers,
     }

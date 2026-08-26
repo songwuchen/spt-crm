@@ -41,7 +41,12 @@ import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLo
 import FormInstanceLookupField from './fields/FormInstanceLookupField'
 import { linkFillClearKeys } from '@/constants/prodCardInstallLinks'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
-import { applyProdCardOrderTypeMerged, applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
+import {
+  applyProdCardOrderTypeMerged,
+  applySimpleFormulas,
+  formHasProdCardOrderTypeMerged,
+  recomputeDetailRowOnColChange,
+} from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
 import { fetchCustomerFormFill, needsCustomerFormFill, clearCustomerFormFillPatch, pickShipAddressFill } from '@/utils/customerFormFill'
 import FillHeightTable from '@/components/list/FillHeightTable'
@@ -203,9 +208,19 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
     [fields, ruleValues, rules, mergedPerms],
   )
 
+  const prodCardOrderTypeMerged = useMemo(
+    () => formHasProdCardOrderTypeMerged(fields),
+    [fields],
+  )
+
   const applyFormulas = (values: Record<string, unknown>, changedField?: string) => {
-    let out = applySimpleFormulas(fields, values)
-    out = applyProdCardOrderTypeMerged(out, { skipField: changedField === 'field' })
+    let out = applySimpleFormulas(fields, values, { changedField })
+    if (prodCardOrderTypeMerged) {
+      out = applyProdCardOrderTypeMerged(out, {
+        skipField: changedField === 'field',
+        fields,
+      })
+    }
     return out
   }
 
@@ -774,19 +789,32 @@ function FieldWidget({
       return <Switch checked={!!value} onChange={(v) => onChange(v)} />
     case 'formula':
     case 'auto_number': {
-      // 默认只读展示；form_editable=true 时可手改（合同图纸对应表图纸编号对齐简道云）
+      // 默认只读展示；form_editable / formula_editable 时可手改
       const preview = field.type === 'auto_number' && serialPreview ? serialPreview : ''
       const display = value != null && value !== '' ? String(value) : preview
-      const allowEdit = field.type === 'auto_number'
-        && !readonly
-        && (field.form_editable === true
-          || !!(field.props as { manual_edit?: boolean } | undefined)?.manual_edit)
+      const formulaEditable = !!(field.props as { formula_editable?: boolean } | undefined)?.formula_editable
+      const allowEdit = !readonly && (
+        formulaEditable
+        || (field.type === 'auto_number'
+          && (field.form_editable === true
+            || !!(field.props as { manual_edit?: boolean } | undefined)?.manual_edit))
+      )
       if (!allowEdit) {
         return (
           <Input
             value={display}
             disabled
             placeholder={field.type === 'auto_number' ? '提交后自动生成' : '自动计算'}
+          />
+        )
+      }
+      if (formulaEditable) {
+        return (
+          <InputNumber
+            style={{ width: '100%' }}
+            value={value == null || value === '' ? undefined : Number(value)}
+            placeholder="可手改；改发货金额等会自动重算"
+            onChange={(v) => onChange(v ?? undefined)}
           />
         )
       }

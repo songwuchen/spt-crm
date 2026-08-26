@@ -3,16 +3,30 @@ import { Input, TreeSelect } from 'antd'
 import client from '@/api/client'
 import type { ApiResponse, Department } from '@/api/types'
 
-interface Props {
-  value?: string
-  /** 第二个参数为选中节点标题，便于同步写 department_name */
-  onChange?: (v: string | undefined, label?: string) => void
+const EMPTY_DEPT_VALUE = '__empty__'
+
+interface DeptSelectBase {
   placeholder?: string
   disabled?: boolean
   allowClear?: boolean
-  /** 已有部门名称（无 dept:view / 树未加载时用于回显，避免只显示 UUID） */
   labelHint?: string
 }
+
+interface DeptSelectSingleProps extends DeptSelectBase {
+  multiple?: false
+  allowEmptyOption?: boolean
+  value?: string
+  onChange?: (v: string | undefined, label?: string) => void
+}
+
+interface DeptSelectMultiProps extends DeptSelectBase {
+  multiple: true
+  allowEmptyOption?: boolean
+  value?: string[]
+  onChange?: (v: string[] | undefined, label?: string[]) => void
+}
+
+type Props = DeptSelectSingleProps | DeptSelectMultiProps
 
 interface TreeNode {
   title: string
@@ -54,9 +68,14 @@ async function fetchDeptTree(): Promise<TreeNode[]> {
   return data
 }
 
-export default function DepartmentSelect({
-  value, onChange, placeholder = '选择部门', disabled, allowClear = true, labelHint,
-}: Props) {
+export default function DepartmentSelect(props: Props) {
+  const {
+    placeholder = '选择部门', disabled, allowClear = true, labelHint,
+  } = props
+  const multiple = props.multiple === true
+  const allowEmptyOption = props.allowEmptyOption === true
+  const value = props.value
+  const onChange = props.onChange
   const [treeData, setTreeData] = useState<TreeNode[]>(cached?.data || [])
   const [loading, setLoading] = useState(false)
 
@@ -72,27 +91,60 @@ export default function DepartmentSelect({
     return () => { cancelled = true }
   }, [disabled])
 
-  const displayName = (labelHint || '').trim() || (value ? findTitle(treeData, value) : undefined) || ''
+  const singleValue = multiple ? undefined : (value as string | undefined)
+  const multiValue = multiple
+    ? (Array.isArray(value) ? value : (value ? [String(value)] : []))
+    : undefined
+
+  const displayName = (labelHint || '').trim()
+    || (singleValue ? findTitle(treeData, singleValue) : undefined)
+    || ''
 
   // 禁用：纯文本展示名称，绝不请求部门树
   if (disabled) {
+    if (multiple && Array.isArray(value) && value.length) {
+      const names = value.map((id) => {
+        if (id === EMPTY_DEPT_VALUE) return '未填写'
+        return findTitle(treeData, id) || id
+      })
+      return <Input disabled value={names.join('，') || '—'} />
+    }
     return <Input disabled value={displayName || '—'} />
   }
 
   const mergedTree = useMemo(() => {
-    if (!value) return treeData
-    if (findTitle(treeData, value)) return treeData
+    let nodes = treeData
+    if (allowEmptyOption) {
+      nodes = [{ title: '未填写', value: EMPTY_DEPT_VALUE }, ...nodes]
+    }
+    if (multiple) return nodes
+    if (!singleValue) return nodes
+    if (findTitle(nodes, singleValue)) return nodes
     const title = (labelHint || '').trim()
-    if (!title) return treeData
-    return [{ title, value }, ...treeData]
-  }, [treeData, value, labelHint])
+    if (!title) return nodes
+    return [{ title, value: singleValue }, ...nodes]
+  }, [treeData, singleValue, labelHint, multiple, allowEmptyOption])
 
   return (
     <TreeSelect
-      value={value}
+      value={multiple ? multiValue : singleValue}
+      multiple={multiple}
+      treeCheckable={multiple}
+      maxTagCount={multiple ? 'responsive' : undefined}
       onChange={(v) => {
+        if (multiple) {
+          const ids = (Array.isArray(v) ? v : (v ? [String(v)] : [])).map(String)
+          const labels = ids.map((id) => {
+            if (id === EMPTY_DEPT_VALUE) return '未填写'
+            return findTitle(mergedTree, id) || id
+          })
+          ;(onChange as DeptSelectMultiProps['onChange'])?.(ids.length ? ids : undefined, labels)
+          return
+        }
         const id = (v as string | undefined) || undefined
-        onChange?.(id, id ? (findTitle(mergedTree, id) || labelHint) : undefined)
+        ;(onChange as DeptSelectSingleProps['onChange'])?.(
+          id, id ? (findTitle(mergedTree, id) || labelHint) : undefined,
+        )
       }}
       treeData={mergedTree}
       placeholder={placeholder}
@@ -101,6 +153,7 @@ export default function DepartmentSelect({
       treeDefaultExpandAll
       showSearch
       treeNodeFilterProp="title"
+      variant="borderless"
       style={{ width: '100%' }}
     />
   )

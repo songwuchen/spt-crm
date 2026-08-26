@@ -357,6 +357,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
           'yes_sales_person',
           'customer_sales_select',
           'description',
+          'has_install_project', 'f_251128', 'install_project_no',
         ],
       },
       {
@@ -375,7 +376,6 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
         fieldIds: [
           'design_dispatch', 'transfer_packaging_users', 'design_assignees', 'offices',
           'order_datetime', 'order_type', 'field',
-          'has_install_project', 'f_251128', 'install_project_no',
         ],
       },
       {

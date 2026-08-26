@@ -37,6 +37,7 @@ import RecordPrevNextNav from '@/components/RecordPrevNextNav'
 import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import { customerApi } from '@/api/customer'
+import { projectApi } from '@/api/project'
 import dayjs from 'dayjs'
 import { formatFormDate, isValidFormDate } from '@/utils/formDate'
 
@@ -138,6 +139,7 @@ export default function ContractDetail() {
       else if (dn.startsWith('WMGF')) reg.number_attr = 'WMGF'
     }
     editForm.setFieldsValue({
+      project_id: contract?.project_id || undefined,
       amount_total: typeof contract?.amount_total === 'number' ? contract.amount_total : undefined,
       contract_no: contract?.contract_no || undefined,
       drawing_no: contract?.drawing_no || undefined,
@@ -244,6 +246,7 @@ export default function ContractDetail() {
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
+        project_id: v.project_id || null,
         customer_id: v.customer_id || null,
         assignee_id: v.assignee_id || null,
         assignee_name: v.assignee_name || null,
@@ -388,6 +391,38 @@ export default function ContractDetail() {
       if (c.owner_id) {
         patch.assignee_id = c.owner_id
         if (c.owner_name) patch.assignee_name = c.owner_name
+      }
+      editForm.setFieldsValue(patch)
+    } catch { /* ignore */ }
+  }
+
+  const fillFromProject = async (projectId?: string) => {
+    if (!projectId) return
+    try {
+      const r = await projectApi.get(projectId)
+      const p = r.data
+      if (!p) return
+      const reg = { ...(editForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+      if (p.name) reg.project_name = p.name
+      const patch: Record<string, unknown> = {
+        registration_json: reg,
+        ...(p.owner_id ? { assignee_id: p.owner_id } : {}),
+        ...(p.owner_name ? { assignee_name: p.owner_name } : {}),
+      }
+      if (p.customer_id) {
+        patch.customer_id = p.customer_id
+        try {
+          const c = (await customerApi.get(p.customer_id)).data
+          if (c?.name) customerSelect.setInitialOption({ label: c.name, value: p.customer_id })
+          if (c?.customer_code) reg.customer_code = c.customer_code
+          if (c?.department_id) patch.department_id = c.department_id
+          if (c?.department_name) patch.department_name = c.department_name
+          if (c?.owner_id && !patch.assignee_id) {
+            patch.assignee_id = c.owner_id
+            if (c.owner_name) patch.assignee_name = c.owner_name
+          }
+          patch.registration_json = { ...reg }
+        } catch { /* ignore */ }
       }
       editForm.setFieldsValue(patch)
     } catch { /* ignore */ }
@@ -566,6 +601,15 @@ export default function ContractDetail() {
 
   if (!contract) return <DetailSkeleton />
 
+  const projectInitialOption = contract.project_id && (contract.project_name || contract.project_code)
+    ? {
+      value: contract.project_id,
+      label: contract.project_code
+        ? `${contract.project_name || '商机'}（${contract.project_code}）`
+        : (contract.project_name || contract.project_id),
+    }
+    : undefined
+
   const verStatus = currentVersion?.status || 'draft'
   const displayStatus = (() => {
     const wfSt = wfInstance?.status
@@ -605,6 +649,28 @@ export default function ContractDetail() {
             </Tag>
           </div>
           <p className="text-sm text-slate-500">
+            {contract.project_id ? (
+              <>
+                关联商机：
+                <a className="text-primary" onClick={() => navigate(`/opportunities/${contract.project_id}`)}>
+                  {contract.project_name
+                    ? `${contract.project_name}${contract.project_code ? `（${contract.project_code}）` : ''}`
+                    : contract.project_id}
+                </a>
+                {' · '}
+              </>
+            ) : null}
+            {contract.customer_id || contract.customer_name ? (
+              <>
+                关联客户：
+                {contract.customer_id ? (
+                  <a className="text-primary" onClick={() => navigate(`/customers/${contract.customer_id}`)}>
+                    {contract.customer_name || contract.customer_id}
+                  </a>
+                ) : (contract.customer_name || '-')}
+                {' · '}
+              </>
+            ) : null}
             创建人: {contract.created_by_name || '-'} · {contract.created_at ? new Date(contract.created_at).toLocaleDateString('zh-CN') : ''}
           </p>
         </div>
@@ -668,7 +734,7 @@ export default function ContractDetail() {
           <Button key="save" type="primary" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(true)}>保存</Button>,
         ]}
       >
-        <FieldPolicyProvider entityType="contract" form={editForm}>
+        <FieldPolicyProvider entityType="contract" form={editForm} formMode="edit">
         <Form form={editForm} layout="vertical" className="py-2">
           <ContractRegistrationFields
             form={editForm}
@@ -676,6 +742,8 @@ export default function ContractDetail() {
             excludeContractId={cid}
             customerSelect={customerSelect}
             onCustomerChange={fillFromCustomer}
+            onProjectChange={fillFromProject}
+            projectInitialOption={projectInitialOption}
             slots={{
               line_items: (
                 <div>
@@ -857,6 +925,16 @@ export default function ContractDetail() {
             return sw.equals.includes(raw == null ? '' : String(raw))
           }
           const resolve = (f: (typeof sec.fields)[0]) => {
+            if (f.key === 'project_id') {
+              const pid = contract.project_id
+              if (!pid) return '-'
+              const label = contract.project_name
+                ? `${contract.project_name}${contract.project_code ? `（${contract.project_code}）` : ''}`
+                : pid
+              return (
+                <a className="text-primary" onClick={() => navigate(`/opportunities/${pid}`)}>{label}</a>
+              )
+            }
             // 组织架构 / 客户字段详情展示名称，不展示裸 id
             if (f.key === 'assignee_id') {
               return contract.assignee_name || contract.assignee_id || '-'
@@ -865,7 +943,13 @@ export default function ContractDetail() {
               return contract.department_name || contract.department_id || '-'
             }
             if (f.key === 'customer_id') {
-              return contract.customer_name || contract.customer_id || '-'
+              const name = contract.customer_name || contract.customer_id || '-'
+              if (contract.customer_id && name !== '-') {
+                return (
+                  <a className="text-primary" onClick={() => navigate(`/customers/${contract.customer_id}`)}>{name}</a>
+                )
+              }
+              return name
             }
             const raw = f.source === 'native'
               ? (contract as unknown as Record<string, unknown>)[f.key]

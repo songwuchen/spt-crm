@@ -82,6 +82,20 @@ describe('生产卡下单类型（合并含补充）', () => {
     )
     expect(next.field).toBe('自定义')
   })
+
+  it('售后补发：id=field 为部门时不改写部门值', () => {
+    const csFields: FieldDefinition[] = [
+      { id: 'field', type: 'department', label: '业务部门', required: true },
+      { id: 'sales_person', type: 'person', label: '业务员' },
+      { id: 'customer_name', type: 'customer', label: '客户名称' },
+    ]
+    const deptId = 'dept-uuid-123'
+    const next = applyProdCardOrderTypeMerged(
+      { field: deptId, sales_person: 'user-1', customer_name: 'cust-1' },
+      { fields: csFields },
+    )
+    expect(next.field).toBe(deptId)
+  })
 })
 
 describe('字段加减公式', () => {
@@ -114,5 +128,39 @@ describe('字段加减公式', () => {
     expect(next.ship_amount).toBe(8748)
     expect(next.shipped_amount_incl).toBe(20748)
     expect(next.unshipped_amount).toBe(107252.5)
+  })
+
+  it('formula_editable：手改累计后不被无关字段触发覆盖', () => {
+    const fields: FieldDefinition[] = [
+      {
+        id: 'shipped_amount_incl',
+        type: 'formula',
+        label: '累计已发货（含本次）',
+        props: { formula: '$prior_shipped_amount#+$ship_amount#', formula_editable: true },
+      },
+    ]
+    const next = applySimpleFormulas(
+      fields,
+      { prior_shipped_amount: 100, ship_amount: 200, shipped_amount_incl: 999 },
+      { changedField: 'remark' },
+    )
+    expect(next.shipped_amount_incl).toBe(999)
+  })
+
+  it('formula_editable：依赖字段变化时仍重算', () => {
+    const fields: FieldDefinition[] = [
+      {
+        id: 'shipped_amount_incl',
+        type: 'formula',
+        label: '累计已发货（含本次）',
+        props: { formula: '$prior_shipped_amount#+$ship_amount#', formula_editable: true },
+      },
+    ]
+    const next = applySimpleFormulas(
+      fields,
+      { prior_shipped_amount: 100, ship_amount: 300, shipped_amount_incl: 999 },
+      { changedField: 'ship_amount' },
+    )
+    expect(next.shipped_amount_incl).toBe(400)
   })
 })

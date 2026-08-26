@@ -293,25 +293,31 @@ def apply_shipment_notice_fields(fields: list[dict]) -> None:
             fd["form_editable"] = False
             fd["description"] = (fd.get("description") or "") or "选自合同总金额；是否售后=否时显示。"
         if fd.get("id") == "shipped_amount_incl":
-            # 对齐简道云：MAPX(历史发货金额) + 本次发货金额
+            # 对齐简道云：MAPX(历史发货金额) + 本次发货金额；可手改覆盖
             fd["type"] = "formula"
             fd["label"] = fd.get("label") or "累计已发货（含本次）"
             fd["required"] = False
             fd["available_on_create"] = True
             fd["fill_stage"] = "initiator"
-            fd["form_editable"] = False
-            fd["description"] = "同合同历史发货金额合计 + 本次发货金额。"
-            fd["props"] = {"formula": "$prior_shipped_amount#+$ship_amount#"}
+            fd["form_editable"] = True
+            fd["description"] = "同合同历史发货金额合计 + 本次发货金额；可手改。"
+            props = dict(fd.get("props") or {})
+            props["formula"] = "$prior_shipped_amount#+$ship_amount#"
+            props["formula_editable"] = True
+            fd["props"] = props
         if fd.get("id") == "unshipped_amount":
-            # 对齐简道云：合同金额 − 累计已发货
+            # 对齐简道云：合同金额 − 累计已发货；可手改覆盖
             fd["type"] = "formula"
             fd["label"] = fd.get("label") or "未发货"
             fd["required"] = False
             fd["available_on_create"] = True
             fd["fill_stage"] = "initiator"
-            fd["form_editable"] = False
-            fd["description"] = "合同金额 − 累计已发货（含本次）。"
-            fd["props"] = {"formula": "$contract_amount#-$shipped_amount_incl#"}
+            fd["form_editable"] = True
+            fd["description"] = "合同金额 − 累计已发货（含本次）；可手改。"
+            props = dict(fd.get("props") or {})
+            props["formula"] = "$contract_amount#-$shipped_amount_incl#"
+            props["formula_editable"] = True
+            fd["props"] = props
         if fd.get("id") == "prior_shipped_amount":
             fd["type"] = "number"
             fd["label"] = fd.get("label") or "历史已发货金额"

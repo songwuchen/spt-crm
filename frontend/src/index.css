@@ -632,3 +632,24 @@ body.spt-col-resizing * {
   gap: 16px;
   padding-bottom: 12px;
 }
+
+/* 合同管理仪表盘 — 筛选格内控件 */
+.contract-dash-filter .dash-filter-value .ant-input,
+.contract-dash-filter .dash-filter-value .ant-input-affix-wrapper,
+.contract-dash-filter .dash-filter-value .ant-select-selector,
+.contract-dash-filter .dash-filter-value .ant-picker {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+  min-height: 28px;
+}
+.contract-dash-filter .dash-filter-value .ant-input-affix-wrapper {
+  padding-inline-start: 0 !important;
+}
+.contract-dash-filter .dash-filter-box {
+  max-width: 100%;
+}
+.contract-dash-filter .ant-dropdown-menu-item-selected {
+  background: rgba(19, 127, 236, 0.08) !important;
+}

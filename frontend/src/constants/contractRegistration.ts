@@ -21,6 +21,7 @@ export type RegWidget =
   | 'person'      // 组织架构选人
   | 'department'  // 组织架构选部门
   | 'customer'    // 客户管理选择器
+  | 'project'     // 商机选择器
 
 export type RegAfterSlot =
   | 'line_items'
@@ -105,6 +106,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
     title: '基本信息',
     fields: [
       { key: 'serial_no', label: '流水号', source: 'native', widget: 'text', readOnly: true, placeholder: '保存后自动生成' },
+      { key: 'project_id', label: '关联商机', source: 'native', widget: 'project' },
       { key: 'customer_id', label: '关联客户', source: 'native', widget: 'customer', required: true },
       { key: 'card_date', label: '下卡日期', source: 'native', widget: 'date', required: true },
       { key: 'customer_code', label: '客户编号', source: 'reg', widget: 'text' },
