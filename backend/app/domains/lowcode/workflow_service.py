@@ -7719,6 +7719,42 @@ async def _heal_weak_form_titles(
 _FORM_WF_ACTIVE_STATUSES = frozenset({"running", "returned", "rejected", "withdrawn"})
 
 
+async def heal_form_instance_status_from_process(db, tenant_id: str) -> int:
+    """重提/激活后表单仍标 submitted 但流程进行中 → 回写 running（及 returned/rejected/withdrawn）。"""
+    from app.domains.lowcode.models import FormInstance
+    from sqlalchemy import text
+    rows = (await db.execute(text("""
+        UPDATE lc_form_instance fi
+        SET status = src.wf_status,
+            process_instance_id = COALESCE(fi.process_instance_id, src.pid)
+        FROM (
+            SELECT DISTINCT ON (pi.form_instance_id)
+                   pi.form_instance_id AS fid,
+                   pi.id AS pid,
+                   pi.status AS wf_status
+            FROM wf_process_instance pi
+            WHERE pi.tenant_id = :tid
+              AND pi.form_instance_id IS NOT NULL
+              AND pi.status IN ('running', 'returned', 'rejected', 'withdrawn')
+            ORDER BY pi.form_instance_id,
+                     pi.started_at DESC NULLS LAST,
+                     pi.created_at DESC
+        ) src
+        WHERE fi.id = src.fid
+          AND fi.tenant_id = :tid
+          AND fi.is_deleted = false
+          AND fi.status = 'submitted'
+          AND (
+            fi.process_instance_id IS NULL
+            OR fi.process_instance_id = src.pid
+          )
+        RETURNING fi.id
+    """), {"tid": tenant_id})).scalars().all()
+    if rows:
+        await db.commit()
+    return len(rows)
+
+
 async def current_node_names_for_form_instances(
     db, tenant_id: str, form_instance_ids: list[str],
 ) -> dict[str, str]:

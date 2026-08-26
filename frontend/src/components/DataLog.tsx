@@ -118,18 +118,42 @@ function formatValue(val: unknown, labels: Record<string, string>): string {
     const resolved = ids.map((id) => labels[id] || id).join('、')
     if (ids.some((id) => labels[id])) return resolved
   }
+  if (Array.isArray(val)) {
+    if (val.every((x) => x != null && typeof x === 'object' && !Array.isArray(x))) {
+      return val.map((row, i) => {
+        const cells = Object.entries(row as Record<string, unknown>)
+          .filter(([, v]) => v != null && v !== '')
+          .map(([k, v]) => `${k} ${formatValue(v, labels)}`)
+        return cells.length ? `第${i + 1}行：${cells.join('，')}` : `第${i + 1}行`
+      }).join('；')
+    }
+    return val.map((x) => formatValue(x, labels)).join('、')
+  }
   if (typeof val === 'object') {
     try {
       const s = JSON.stringify(val)
       if (looksLikeUnresolvedPerson(s)) return resolvePersonText(s, labels)
       return s
     } catch {
-      return String(val)
+      return '—'
     }
   }
   const s = String(val)
   if (looksLikeUnresolvedPerson(s)) return resolvePersonText(s, labels)
   return s
+}
+
+type DetailTableCellDiff = {
+  col_id: string
+  label: string
+  old?: string | null
+  new?: string | null
+  changed?: boolean
+}
+
+type DetailTableDiff = {
+  columns: Array<{ id: string; label: string }>
+  rows: Array<{ index: number; cells: DetailTableCellDiff[] }>
 }
 
 type FieldChange = {
@@ -138,6 +162,7 @@ type FieldChange = {
   label?: string
   display_old?: string | null
   display_new?: string | null
+  detail_table_diff?: DetailTableDiff
 }
 
 function parseChanges(
@@ -158,17 +183,69 @@ function displayText(
   side: 'old' | 'new',
   labels: Record<string, string>,
 ): string | null {
+  if (change.detail_table_diff) return null
   const displayKey = side === 'old' ? 'display_old' : 'display_new'
   const raw = side === 'old' ? change.old : change.new
   const preferred = change[displayKey]
   let text: string | null = null
   if (preferred != null && preferred !== '') {
-    text = String(preferred)
+    text = typeof preferred === 'object'
+      ? formatValue(preferred, labels)
+      : String(preferred)
     if (looksLikeUnresolvedPerson(text)) text = resolvePersonText(text, labels)
   } else if (raw != null && raw !== '') {
     text = formatValue(raw, labels)
   }
   return text
+}
+
+function DetailTableDiffView({ diff }: { diff: DetailTableDiff }) {
+  const cols = diff.columns || []
+  if (!cols.length || !diff.rows?.length) return null
+  return (
+    <div className="overflow-x-auto mt-1">
+      <table className="w-full border-collapse text-[12px] text-slate-700">
+        <thead>
+          <tr>
+            {cols.map((c) => (
+              <th
+                key={c.id}
+                className="border border-slate-200 bg-slate-50 px-2 py-1 text-left font-medium whitespace-nowrap"
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {diff.rows.map((row) => (
+            <tr key={row.index}>
+              {cols.map((c) => {
+                const cell = row.cells.find((x) => x.col_id === c.id)
+                if (!cell) {
+                  return <td key={c.id} className="border border-slate-200 px-2 py-1">—</td>
+                }
+                if (cell.changed && cell.old && cell.new && cell.old !== cell.new) {
+                  return (
+                    <td key={c.id} className="border border-slate-200 px-2 py-1 align-top">
+                      <div className="text-red-500 line-through break-all mb-0.5">{cell.old}</div>
+                      <div className="text-emerald-700 break-all">{cell.new}</div>
+                    </td>
+                  )
+                }
+                const text = cell.new || cell.old || '—'
+                return (
+                  <td key={c.id} className="border border-slate-200 px-2 py-1 break-all align-top">
+                    {text}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function FieldDiff({
@@ -178,6 +255,20 @@ function FieldDiff({
   change: FieldChange
   personLabels: Record<string, string>
 }) {
+  if (change.detail_table_diff) {
+    const label = change.label ? `${change.label}:` : ''
+    return (
+      <div className="py-2 border-b border-slate-100 last:border-b-0">
+        {label && (
+          <div className="flex items-center gap-1.5 text-[13px] text-slate-600 mb-1.5">
+            <FileTextOutlined className="text-slate-400 text-xs" />
+            <span>{label}</span>
+          </div>
+        )}
+        <DetailTableDiffView diff={change.detail_table_diff} />
+      </div>
+    )
+  }
   const oldText = displayText(change, 'old', personLabels)
   const newText = displayText(change, 'new', personLabels)
   if (!oldText && !newText) return null

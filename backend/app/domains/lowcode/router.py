@@ -963,6 +963,9 @@ def _inst_list_dict(
                 d["initiator_name"] = fallback
     if current_node_name:
         d["current_node_name"] = current_node_name
+        # 流程进行中但表单仍标 submitted（重提/激活后未回写）→ 列表展示审批中
+        if d.get("status") == "submitted":
+            d["status"] = "running"
     return d
 
 
@@ -1374,7 +1377,7 @@ async def list_form_instances(
     )
     active_fi_ids = [
         i.id for i in items
-        if i.status in ("running", "returned", "rejected", "withdrawn")
+        if i.status in ("running", "returned", "rejected", "withdrawn", "submitted")
     ]
     from app.domains.lowcode import workflow_service as wf_service
     node_map = await wf_service.current_node_names_for_form_instances(

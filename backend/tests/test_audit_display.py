@@ -1,6 +1,8 @@
 """数据日志展示增强。"""
 from app.common.audit_display import (
     _collect_ids,
+    _compute_detail_table_diff,
+    _format_detail_table_rows,
     _format_display_value,
     filter_create_log_changes,
 )
@@ -37,3 +39,42 @@ def test_create_log_skips_empty_without_serial():
     }
     out = filter_create_log_changes(changes)
     assert list(out.keys()) == ["service_location"]
+
+
+def test_format_detail_table_rows_readable():
+    field_def = {
+        "id": "std_room_fill",
+        "type": "detail_table",
+        "detail_table_columns": [
+            {"id": "material_code", "type": "text", "label": "物料代码"},
+            {"id": "product_name", "type": "text", "label": "产品名称"},
+        ],
+    }
+    rows = [{"material_code": "02.01.04.079", "product_name": "复合陶瓷衬板"}]
+    out = _format_detail_table_rows(rows, field_def, {}, {})
+    assert "物料代码 02.01.04.079" in out
+    assert "产品名称 复合陶瓷衬板" in out
+    assert "[object Object]" not in out
+
+
+def test_compute_detail_table_diff_cell_change():
+    field_def = {
+        "id": "std_room_fill",
+        "type": "detail_table",
+        "detail_table_columns": [
+            {"id": "material_code", "type": "text", "label": "物料代码"},
+            {"id": "product_name", "type": "text", "label": "产品名称"},
+            {"id": "spec_model", "type": "text", "label": "规格型号"},
+        ],
+    }
+    old = [{"material_code": "02.01.04.076", "product_name": "复合陶瓷衬板", "spec_model": "66+4+20(20*20"}]
+    new = [{"material_code": "02.01.04.079", "product_name": "复合陶瓷衬板", "spec_model": "66+4+20(17.5*1"}]
+    diff = _compute_detail_table_diff(old, new, field_def, {}, {})
+    assert diff is not None
+    assert diff["columns"][0]["label"] == "物料代码"
+    row = diff["rows"][0]
+    by_col = {c["col_id"]: c for c in row["cells"]}
+    assert by_col["material_code"]["changed"] is True
+    assert by_col["material_code"]["old"] == "02.01.04.076"
+    assert by_col["material_code"]["new"] == "02.01.04.079"
+    assert by_col["product_name"]["changed"] is False

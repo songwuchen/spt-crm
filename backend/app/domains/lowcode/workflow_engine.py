@@ -2407,7 +2407,7 @@ class WorkflowEngine:
             if inst.form_instance_id:
                 fi = await self.db.get(FormInstance, inst.form_instance_id)
                 if fi:
-                    fi.status = "submitted"
+                    fi.status = "running"
                     fi.process_instance_id = inst.id
             if inst.biz_type and inst.biz_id:
                 from app.domains.lowcode.wf_biz_writeback import writeback
@@ -2627,7 +2627,7 @@ class WorkflowEngine:
             if fi:
                 inst.title = (fi.title or "").strip() or inst.title
                 form_data = dict(fi.form_data or {}) or form_data
-                fi.status = "submitted"
+                fi.status = "running"
                 fi.process_instance_id = inst.id
         if inst.biz_type and inst.biz_id:
             from app.domains.lowcode.wf_biz_writeback import writeback

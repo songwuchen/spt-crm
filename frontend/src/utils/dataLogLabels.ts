@@ -28,11 +28,14 @@ export function buildContractReviewFieldLabels(): Record<string, string> {
 
 /** 从低代码字段定义构建 id → label */
 export function buildFormFieldLabels(
-  fields: Array<{ id?: string; label?: string }> | undefined,
+  fields: Array<{ id?: string; label?: string; detail_table_columns?: Array<{ id?: string; label?: string }> }> | undefined,
 ): Record<string, string> {
   const map: Record<string, string> = {}
   for (const f of fields || []) {
     if (f.id && f.label) map[f.id] = f.label
+    for (const col of f.detail_table_columns || []) {
+      if (col.id && col.label) map[col.id] = col.label
+    }
   }
   return map
 }
