@@ -884,6 +884,61 @@ async def test_delete_form_instance_blocked_after_flow_started(db):
 
 
 @pytest.mark.asyncio
+async def test_delete_payment_registration_allowed_after_flow_started(db):
+    """收款登记：有 form_data:delete 时允许删除已走流程单据（对齐简道云财务权限组）。"""
+    from sqlalchemy import select
+    from app.domains.lowcode.models import FormInstance, FormTemplate, FormTemplateVersion
+    from app.domains.lowcode.service import delete_instance
+
+    user = {"sub": "ut-finance", "username": "finance", "real_name": "财务UT"}
+    tpl = (await db.execute(
+        select(FormTemplate).where(
+            FormTemplate.tenant_id == DEMO_TENANT,
+            FormTemplate.code == "payment_registration",
+        ).limit(1)
+    )).scalar_one_or_none()
+    if not tpl:
+        tpl_id = generate_uuid()
+        ver_id = generate_uuid()
+        db.add(FormTemplate(
+            id=tpl_id, tenant_id=DEMO_TENANT, code="payment_registration",
+            name="收款登记UT", status="published", current_version=1,
+        ))
+        db.add(FormTemplateVersion(
+            id=ver_id, tenant_id=DEMO_TENANT, template_id=tpl_id, version_number=1,
+            status="published", field_definitions=[],
+        ))
+        await db.flush()
+        tpl = await db.get(FormTemplate, tpl_id)
+    ver = (await db.execute(
+        select(FormTemplateVersion).where(
+            FormTemplateVersion.template_id == tpl.id,
+            FormTemplateVersion.version_number == (tpl.current_version or 1),
+        ).limit(1)
+    )).scalar_one_or_none()
+    ver_id = ver.id if ver else generate_uuid()
+    if not ver:
+        db.add(FormTemplateVersion(
+            id=ver_id, tenant_id=DEMO_TENANT, template_id=tpl.id, version_number=1,
+            status="published", field_definitions=[],
+        ))
+        await db.flush()
+    started = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver_id,
+        title="已发起可删", status="running", initiator_id=user["sub"],
+        process_instance_id=generate_uuid(),
+        form_data={}, field_definitions=[],
+    )
+    db.add(started)
+    await db.commit()
+
+    await delete_instance(db, DEMO_TENANT, started.id, user)
+    await db.refresh(started)
+    assert started.is_deleted is True
+
+
+@pytest.mark.asyncio
 async def test_abort_deleted_form_cancels_pending_todo(db):
     """表单已软删时，作废进行中流程并取消待办。"""
     from app.domains.lowcode.models import FormInstance

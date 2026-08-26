@@ -1230,9 +1230,15 @@ export default function FormDataListPage({
   const canEditRecord = (_status?: string | null) => true
   const canResubmitRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected' || status === 'returned'
-  /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
-  const canDeleteRecord = (rec: ViewRec | null) =>
-    Boolean(rec) && !rec?.process_instance_id && !wfDetail?.id
+  /** 有 form_data:delete 且为收款登记时，对齐简道云财务权限组可删已走流程单据 */
+  const canForceDeleteAfterFlow =
+    templateCode === 'payment_registration' && hasPermission('form_data:delete')
+  /** 流程一旦发起默认不可删；收款登记财务删除权限除外 */
+  const canDeleteRecord = (rec: ViewRec | null) => {
+    if (!rec || !hasPermission('form_data:delete')) return false
+    if (canForceDeleteAfterFlow) return true
+    return !rec.process_instance_id && !wfDetail?.id
+  }
 
   /** 通过后编辑：露出审批才填字段（设计单分派/科室/下单日期/附件等） */
   const includeApproverFieldsOnEdit = Boolean(

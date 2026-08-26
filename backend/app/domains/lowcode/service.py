@@ -30,6 +30,10 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# 简道云「财务-编辑删除/export」：有 form_data:delete 时可删已走流程单据
+_FORM_DELETE_AFTER_FLOW_CODES = frozenset({"payment_registration"})
+
+
 async def user_display_names(
     db: AsyncSession, tenant_id: str, user_ids: list[str] | set[str],
 ) -> dict[str, str]:
@@ -2985,12 +2989,18 @@ async def delete_instance(db: AsyncSession, tenant_id: str, instance_id: str, us
     )).scalar_one_or_none()
     if not inst:
         raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
+    tpl_code = None
+    if inst.template_id:
+        tpl = await db.get(FormTemplate, inst.template_id)
+        tpl_code = tpl.code if tpl else None
+    allow_after_flow = tpl_code in _FORM_DELETE_AFTER_FLOW_CODES
     from app.domains.lowcode.workflow_service import (
         STARTED_FLOW_DELETE_MSG, assert_no_started_process,
     )
-    if inst.process_instance_id:
-        raise BusinessException(code=BUSINESS_ERROR, message=STARTED_FLOW_DELETE_MSG)
-    await assert_no_started_process(db, tenant_id, form_instance_id=inst.id)
+    if not allow_after_flow:
+        if inst.process_instance_id:
+            raise BusinessException(code=BUSINESS_ERROR, message=STARTED_FLOW_DELETE_MSG)
+        await assert_no_started_process(db, tenant_id, form_instance_id=inst.id)
     inst.is_deleted = True
     inst.deleted_at = _now()
     inst.deleted_by = user.get("sub")
