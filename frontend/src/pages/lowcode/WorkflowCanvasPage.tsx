@@ -722,7 +722,7 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
           />
           {node.type === 'cc' && (
             <Text type="secondary" style={{ fontSize: 11 }}>
-              指定人员可与「部门负责人」组合；抄送表单部门负责人请选「表单部门·负责人」并选部门字段。
+              指定人员可与「部门负责人」组合；抄送表单部门负责人选「表单部门·负责人」，抄送业务员选「表单人员字段」→ 业务人员。
               按部门圈全员用「指定部门·全体成员」或「表单部门·全体成员」。
             </Text>
           )}

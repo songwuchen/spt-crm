@@ -1350,13 +1350,18 @@ def _flow_is_jdy_payment(nodes: list | None) -> bool:
 
 
 _PAYMENT_CC_NODE_IDS = frozenset({"n24", "n25", "n27"})
-# 简道云 ccUsers.deptManager.deptWidgets → 表单「部门」字段负责人（非业务人员所属部门）
+# 简道云 ccUsers.deptManager.deptWidgets → 表单「部门」字段负责人
 _PAYMENT_CC_DEPT_HEAD = {
     "type": "form_field_dept",
     "value": "department",
     "exclude_initiator": True,
 }
-# 曾误对齐为 userWidgets/业务人员，升级时移除
+# 简道云 ccUsers.widgets → 表单「业务人员」
+_PAYMENT_CC_SALES_PERSON = {
+    "type": "form_field_person",
+    "value": "sales_person",
+}
+# 曾误对齐为 userWidgets/业务人员部门负责人，升级时移除
 _PAYMENT_CC_WRONG_PERSON_DEPT_HEAD = {
     "type": "form_field_person_dept_head",
     "value": "sales_person",
@@ -1425,7 +1430,7 @@ def _remove_mixed_sub(rule: dict | None, sub_type: str) -> tuple[dict, bool]:
 
 
 def _flow_payment_cc_needs_dept_head(nodes: list | None) -> bool:
-    """收款登记抄送缺少简道云 deptManager（表单「部门」字段负责人）。"""
+    """收款登记抄送缺少部门负责人或表单业务人员。"""
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("type") != "cc":
             continue
@@ -1435,6 +1440,8 @@ def _flow_payment_cc_needs_dept_head(nodes: list | None) -> bool:
         rule = n.get("approver_rule") or {}
         if not _approver_rule_has_sub(rule, _PAYMENT_CC_DEPT_HEAD):
             return True
+        if not _approver_rule_has_sub(rule, _PAYMENT_CC_SALES_PERSON):
+            return True
         if _approver_rule_has_sub_type(rule, "dept_head"):
             return True
         if _approver_rule_has_sub(rule, _PAYMENT_CC_WRONG_PERSON_DEPT_HEAD):
@@ -1443,7 +1450,7 @@ def _flow_payment_cc_needs_dept_head(nodes: list | None) -> bool:
 
 
 def apply_payment_registration_cc_dept_head(nodes: list[dict] | None) -> bool:
-    """收款登记：抄送节点叠加表单部门负责人（n24/n25/n27，对齐简道云 deptManager.deptWidgets）。"""
+    """收款登记：抄送叠加表单部门负责人 + 业务人员（n24/n25/n27）。"""
     if not nodes:
         return False
     changed = False
@@ -1459,10 +1466,11 @@ def apply_payment_registration_cc_dept_head(nodes: list[dict] | None) -> bool:
             if stripped:
                 changed = True
         n["approver_rule"] = rule
-        new_rule, did = _ensure_mixed_sub(rule, _PAYMENT_CC_DEPT_HEAD)
-        if did:
-            n["approver_rule"] = new_rule
-            changed = True
+        for sub in (_PAYMENT_CC_DEPT_HEAD, _PAYMENT_CC_SALES_PERSON):
+            new_rule, did = _ensure_mixed_sub(n.get("approver_rule"), sub)
+            if did:
+                n["approver_rule"] = new_rule
+                changed = True
     return changed
 
 
@@ -5254,7 +5262,7 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"开票申请可下载改到发起人接收后({form_code})",
         )
         return
-    # 收款登记：抄送叠加表单部门负责人（对齐简道云 deptManager.deptWidgets）
+    # 收款登记：抄送叠加表单部门负责人 + 业务人员
     if (
         topology_ok
         and form_code == "payment_registration"
@@ -5266,7 +5274,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"抄送对齐简道云表单部门负责人({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"抄送叠加部门负责人与业务人员({form_code})",
         )
         return
     if (

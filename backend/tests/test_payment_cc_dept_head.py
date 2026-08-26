@@ -46,6 +46,10 @@ def test_payment_cc_patches_n24_n25_and_n27():
         "value": "department",
     })
     assert _approver_rule_has_sub(n24_rule, {
+        "type": "form_field_person",
+        "value": "sales_person",
+    })
+    assert _approver_rule_has_sub(n24_rule, {
         "type": "specified_user",
         "value": ["023641581817", "manager2820"],
     })
@@ -54,6 +58,10 @@ def test_payment_cc_patches_n24_n25_and_n27():
     assert _approver_rule_has_sub(n27_rule, {
         "type": "form_field_dept",
         "value": "department",
+    })
+    assert _approver_rule_has_sub(n27_rule, {
+        "type": "form_field_person",
+        "value": "sales_person",
     })
     assert not _approver_rule_has_sub(n27_rule, {"type": "dept_head"})
     assert not _approver_rule_has_sub(n27_rule, {
