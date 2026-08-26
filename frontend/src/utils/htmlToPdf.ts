@@ -108,6 +108,7 @@ function applyPdfPageBreaks(doc: Document, pageHeightPx: number): void {
 
   const pushToNextPage = (el: Element, topPad = TOP_PAD) => {
     const { top, bottom, height } = measureEl(el)
+    if (height >= pageHeightPx * 0.92) return false
     const pageIndex = Math.floor(top / pageHeightPx)
     const pageEnd = (pageIndex + 1) * pageHeightPx
     if (crossesPage(top, bottom)) {
@@ -121,16 +122,25 @@ function applyPdfPageBreaks(doc: Document, pageHeightPx: number): void {
     return false
   }
 
-  for (let i = 0; i < 24; i += 1) {
+  /** 按优先级依次处理，避免长单据分页时表头/行/意见被拦腰截断 */
+  const breakSelectors = [
+    'tr.section-row',
+    'table.tail-table',
+    'tr.kv-row',
+    'tr.span-row',
+    'tr.approval-row',
+    '.approval-foot',
+    '.ops .op',
+    '.approval-body .op',
+    '.foot-side',
+  ]
+
+  for (let i = 0; i < 64; i += 1) {
     let changed = false
-    for (const foot of body.querySelectorAll('.approval-foot')) {
-      if (pushToNextPage(foot)) changed = true
-    }
-    for (const op of body.querySelectorAll('.ops .op')) {
-      if (pushToNextPage(op)) changed = true
-    }
-    for (const side of body.querySelectorAll('.foot-side')) {
-      if (pushToNextPage(side)) changed = true
+    for (const sel of breakSelectors) {
+      for (const el of body.querySelectorAll(sel)) {
+        if (pushToNextPage(el)) changed = true
+      }
     }
     if (!changed) break
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button, Space, Spin, Tag, message, Modal } from 'antd'
-import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, AuditOutlined, PrinterOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import { workflowApi } from '@/api/lowcodeWorkflow'
@@ -16,6 +16,7 @@ import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { buildContractReviewFieldLabels } from '@/utils/dataLogLabels'
+import { printContractReview } from '@/pages/contractReview/contractReviewPrint'
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
   CONTRACT_REVIEW_STATUS.map((s) => [s.value, s.label]),
@@ -151,6 +152,15 @@ export default function ContractReviewDetail() {
             />
           )}
           <Button onClick={() => navigate('/contract-reviews')}>返回</Button>
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={() => {
+              if (!row) return
+              void printContractReview({ row, flowSteps: wfInstance?.flow_steps })
+            }}
+          >
+            打印
+          </Button>
           {canSubmit && (
             <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
               提交审批

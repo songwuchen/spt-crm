@@ -49,6 +49,7 @@ import {
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
 import { isTechAgreementReviewBiz, printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
+import { isContractReviewBiz, printContractReview } from '@/pages/contractReview/contractReviewPrint'
 import { techAgreementReviewApi } from '@/api/techAgreementReview'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath, LEAD_INTEL_FIELD_PERMS } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
@@ -268,6 +269,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const canPrintQuote = isQuoteManagementForm(undefined, detail?.form_code)
   const canPrintBonus = isBizBonusForm(detail?.form_code, undefined, detail?.process_name)
   const canPrintTar = isTechAgreementReviewBiz(detail?.biz_type)
+  const canPrintContractReview = isContractReviewBiz(detail?.biz_type)
   const approveAndPrint = canAct && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
@@ -281,6 +283,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       if (canPrintTar && detail?.biz_id) {
         const res = await techAgreementReviewApi.get(detail.biz_id)
         await printTechAgreementReview({ row: res.data, flowSteps: detail?.flow_steps })
+        return
+      }
+      if (canPrintContractReview && detail?.biz_id) {
+        const res = await contractReviewApi.get(detail.biz_id)
+        await printContractReview({ row: res.data, flowSteps: detail?.flow_steps })
         return
       }
       if (canPrintQuote) {
@@ -759,6 +766,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 </div>
                 <Space size="small" wrap className="shrink-0">
                   {canPrintTar && (
+                    <Button
+                      size="small"
+                      icon={<PrinterOutlined />}
+                      onClick={() => { void handlePrintScheme() }}
+                    >
+                      打印
+                    </Button>
+                  )}
+                  {canPrintContractReview && (
                     <Button
                       size="small"
                       icon={<PrinterOutlined />}
