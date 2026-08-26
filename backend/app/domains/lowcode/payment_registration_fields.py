@@ -7,7 +7,6 @@ from typing import Any
 
 _OFFICE_FILL_IDS = frozenset({
     "sales_person",
-    "payment_allocation",
     "alloc_total",
     "discount_docs",
     "penalty_docs",
@@ -91,6 +90,20 @@ def apply_payment_registration_fields(defs: list) -> None:
             f["fill_stage"] = "approver"
             f["description"] = "由款项分配金额自动汇总；内勤审批时计算。"
             f["props"] = {"formula": "SUM($payment_allocation.alloc_amount#)"}
+        elif fid == "payment_allocation":
+            for col in f.get("detail_table_columns") or []:
+                if not isinstance(col, dict):
+                    continue
+                if col.get("id") == "contract_no":
+                    col["type"] = "contract"
+                    col["label"] = "合同号"
+                    col["description"] = "从合同管理中选择；选中后自动带出图纸编号。"
+                    props = dict(col.get("props") or {})
+                    props["contract_fill"] = "payment_allocation"
+                    col["props"] = props
+            f["available_on_create"] = False
+            f["fill_stage"] = "approver"
+            f["required"] = False
         elif fid in _OFFICE_FILL_IDS:
             f["available_on_create"] = False
             f["fill_stage"] = "approver"

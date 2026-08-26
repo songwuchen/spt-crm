@@ -152,6 +152,7 @@ export type ContractFillMode =
   | 'biz_bonus_transfer'
   | 'biz_bonus_biz_initiate'
   | 'commission_database'
+  | 'payment_allocation'
 
 export type PriorInvoiceRow = {
   id: string
@@ -257,6 +258,7 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
   commission_database: [
     'company_name', 'salesperson', 'department', 'contract_amount',
   ],
+  payment_allocation: ['drawing_no'],
 }
 
 export default function ContractField({

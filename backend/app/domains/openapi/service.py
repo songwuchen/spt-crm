@@ -1448,6 +1448,13 @@ async def _resolve_customer_write_payload(db: AsyncSession, ctx, data) -> dict:
         else:
             payload.pop("customer_code", None)
 
+    if "external_key" in payload:
+        ext = (payload.get("external_key") or "").strip()
+        if ext:
+            payload["external_key"] = ext[:128]
+        else:
+            payload.pop("external_key", None)
+
     for key in (
         "is_smart_filing", "is_foreign_trade", "is_company_customer",
         "need_info_distribute", "as_draft",
@@ -1533,11 +1540,22 @@ async def _find_customer_by_code(db: AsyncSession, tenant_id: str, customer_code
     )).scalar_one_or_none()
 
 
+async def _find_customer_by_external_key(db: AsyncSession, tenant_id: str, external_key: str):
+    from app.domains.customer.models import Customer
+    return (await db.execute(
+        select(Customer).where(
+            Customer.tenant_id == tenant_id,
+            Customer.external_key == external_key,
+            Customer.is_deleted == False,  # noqa: E712
+        ).limit(1)
+    )).scalar_one_or_none()
+
+
 async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
     """Create or upsert a customer via the internal service.
 
-    When ``customer_code`` is non-empty and already exists for the tenant, update
-    that row instead of inserting a duplicate (简道云客户编号 sn).
+    Upsert：``external_key``（简道云 data_id）优先；否则 ``customer_code`` 非空时按编号。
+    无客户编号也可稳定 1:1，避免全量回填重复建档。
 
     默认 ``as_draft=True``：不启 CRM「客户信息审批」（简道云侧已审）；导入
     ``flow_history`` 后落成已结束流程并标 ``review_status=approved``。
@@ -1548,11 +1566,18 @@ async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
 
     payload = await _resolve_customer_write_payload(db, ctx, data)
     flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
-    code = (payload.get("customer_code") or "").strip()
-    if code:
-        existing = await _find_customer_by_code(db, ctx.tenant_id, code)
+    external_key = (payload.pop("external_key", None) or getattr(data, "external_key", None) or "").strip() or None
+
+    if external_key:
+        existing = await _find_customer_by_external_key(db, ctx.tenant_id, external_key)
         if existing:
             return await update_customer_from_openapi(db, ctx, existing.id, data)
+    else:
+        code = (payload.get("customer_code") or "").strip()
+        if code:
+            existing = await _find_customer_by_code(db, ctx.tenant_id, code)
+            if existing:
+                return await update_customer_from_openapi(db, ctx, existing.id, data)
 
     dept_id = payload.pop("_department_id", None)
     dept_name = payload.pop("_department_name", None)
@@ -1565,6 +1590,10 @@ async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
     customer = await create_customer(
         db, ctx.tenant_id, CustomerCreate(**payload), _pseudo_user(ctx),
     )
+    if external_key and not getattr(customer, "external_key", None):
+        customer.external_key = external_key
+        await db.commit()
+        await db.refresh(customer)
     if customer.owner_id == ctx.app_id:
         customer.owner_id = None
         customer.owner_name = "开放平台（待分配）"
@@ -1590,7 +1619,7 @@ async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
 
 
 async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, data) -> dict:
-    """Update an existing open-API customer (idempotent replay / code upsert)."""
+    """Update an existing open-API customer (idempotent replay / external_key|code upsert)."""
     from app.domains.customer.service import update_customer
     from app.domains.customer.schemas import CustomerUpdate
     from app.domains.openapi.dto import customer_to_dto
@@ -1598,6 +1627,7 @@ async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, 
     payload = await _resolve_customer_write_payload(db, ctx, data)
     flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
     payload.pop("as_draft", None)  # CustomerUpdate 无 as_draft
+    external_key = (payload.pop("external_key", None) or getattr(data, "external_key", None) or "").strip() or None
     dept_id = payload.pop("_department_id", None)
     dept_name = payload.pop("_department_name", None)
     pushed_ts = {
@@ -1609,6 +1639,10 @@ async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, 
     customer = await update_customer(
         db, ctx.tenant_id, customer_id, CustomerUpdate(**payload), _pseudo_user(ctx),
     )
+    if external_key and getattr(customer, "external_key", None) != external_key:
+        customer.external_key = external_key
+        await db.commit()
+        await db.refresh(customer)
     if dept_id or dept_name:
         if await _apply_customer_department(
             customer, {"_department_id": dept_id, "_department_name": dept_name},
@@ -1782,8 +1816,19 @@ async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contr
         contract.order_date = _to_date(data.order_date)
     if getattr(data, "card_date", None) is not None:
         contract.card_date = _to_date(data.card_date)
+    ext = (getattr(data, "external_key", None) or "").strip()
+    if ext:
+        contract.external_key = ext
     if getattr(data, "registration_json", None) is not None:
-        contract.registration_json = data.registration_json
+        reg = data.registration_json if isinstance(data.registration_json, dict) else {}
+        if ext:
+            reg = {**reg, "_external_key": ext, "_external_source": "jdy"}
+        contract.registration_json = reg
+    elif ext:
+        base = dict(contract.registration_json or {}) if isinstance(contract.registration_json, dict) else {}
+        base["_external_key"] = ext
+        base["_external_source"] = "jdy"
+        contract.registration_json = base
     if data.payment_terms_json is not None:
         contract.payment_terms_json = data.payment_terms_json
     if data.delivery_terms_json is not None:
@@ -1909,23 +1954,37 @@ async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract
 async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     """Create or update a contract pushed by an external integrator (e.g. crm-integration).
 
-    Customer-centric and project-optional. When ``contract_no`` already exists under
-    the tenant this becomes an **upsert**. Requires Idempotency-Key at the router layer.
+    Customer-centric and project-optional.
+    Upsert: ``external_key``（简道云 data_id）优先；否则回落 ``contract_no``.
+    Requires Idempotency-Key at the router layer.
     """
     from app.common.code_generator import generate_code
     from app.domains.audit.service import log_action
     from app.domains.openapi.dto import contract_to_dto
 
-    contract_no = data.contract_no or await generate_code(db, ctx.tenant_id, "contract")
-    if data.contract_no:
+    external_key = (getattr(data, "external_key", None) or "").strip() or None
+    if external_key:
         existing = (await db.execute(
             select(Contract).where(
                 Contract.tenant_id == ctx.tenant_id,
-                Contract.contract_no == data.contract_no,
+                Contract.external_key == external_key,
             ).limit(1)
         )).scalar_one_or_none()
         if existing:
             return await update_contract_from_openapi(db, ctx, existing, data)
+    else:
+        # 旧行为：无 external_key 时按合同号 upsert
+        if data.contract_no:
+            existing = (await db.execute(
+                select(Contract).where(
+                    Contract.tenant_id == ctx.tenant_id,
+                    Contract.contract_no == data.contract_no,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if existing:
+                return await update_contract_from_openapi(db, ctx, existing, data)
+
+    contract_no = data.contract_no or await generate_code(db, ctx.tenant_id, "contract")
 
     from app.domains.contract.service import (
         _resolve_create_drawing_no,
@@ -1935,14 +1994,17 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     reg = getattr(data, "registration_json", None) or {}
     if not isinstance(reg, dict):
         reg = {}
+    if external_key:
+        reg = {**reg, "_external_key": external_key, "_external_source": "jdy"}
     openapi_user = {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"}
     requested_dn = (getattr(data, "drawing_no", None) or "").strip() or None
     if requested_dn:
-        # 有传入号：直接采用并校验唯一（不强制对应表存在）
+        # 有传入号：直接采用；按 data_id 1:1 时允许同图纸号多行
         drawing_no = await _resolve_create_drawing_no(
             db, ctx.tenant_id, openapi_user, requested_dn,
             apply_date=drawing_no_apply_date_today(),
             trust_requested=True,
+            allow_taken=bool(external_key),
             map_contract_no=contract_no if data.contract_no else None,
         )
     else:
@@ -1965,6 +2027,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         project_id=data.project_id,
         customer_id=data.customer_id,
         contract_no=contract_no,
+        external_key=external_key,
         serial_no=serial_no,
         current_version_no=1,
         status=data.status or "draft",
@@ -2003,8 +2066,23 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     try:
         await db.commit()
     except IntegrityError:
-        # Race: another writer inserted the same contract_no — upsert into that row.
         await db.rollback()
+        if external_key:
+            existing = (await db.execute(
+                select(Contract).where(
+                    Contract.tenant_id == ctx.tenant_id,
+                    Contract.external_key == external_key,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if existing:
+                return await update_contract_from_openapi(db, ctx, existing, data)
+            raise OpenApiException(
+                CRM_DUPLICATE_ENTRY,
+                f"external_key {external_key} 冲突",
+                http_status=409,
+                details={"external_key": external_key},
+            )
+        # Race: another writer inserted the same contract_no — upsert into that row.
         existing = (await db.execute(
             select(Contract).where(
                 Contract.tenant_id == ctx.tenant_id,

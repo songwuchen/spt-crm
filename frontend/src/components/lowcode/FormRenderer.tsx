@@ -484,7 +484,7 @@ function FieldWidget({
     case 'contract': {
       const props = (field.props || {}) as {
         filter_by_department_field?: string
-        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'biz_bonus_transfer' | 'biz_bonus_biz_initiate' | 'commission_database'
+        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'biz_bonus_transfer' | 'biz_bonus_biz_initiate' | 'commission_database' | 'payment_allocation'
       }
       const deptField = props.filter_by_department_field
       let formDepartmentId: string | undefined
@@ -498,7 +498,7 @@ function FieldWidget({
       }
       const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
       const fillMode = props.contract_fill
-      const invoicePick = fillMode === 'invoice_application'
+      const invoicePick = fillMode === 'invoice_application' || fillMode === 'payment_allocation'
       return (
         <ContractField
           value={value}
@@ -986,6 +986,7 @@ function DetailTable({
   )
 
   const defaultColWidth = (c: FieldDefinition) => {
+    if (c.type === 'contract') return 220
     if (c.type === 'image' || c.type === 'file') return 200
     if (c.id === 'company_model' || (c.label || '').includes('公司型号')) return 320
     if ((c.label || '').includes('货物') || (c.label || '').includes('名称')) return 180

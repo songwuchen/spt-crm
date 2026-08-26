@@ -164,12 +164,13 @@ export default function MobileLowcodeApprovalDetail() {
       if (ct.opinion_required && !opinion.trim()) {
         message.error('请填写审批意见'); return
       }
-      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [])
+      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [], ct.node_name)
       const miss = missingRequiredFields(submitPerms, fieldUpdates, {
         rules: detail?.form_rules,
         formFields: fields,
         formData,
         fieldMeta: ct.field_meta,
+        nodeName: ct.node_name,
       })
       if (miss.length) {
         setFieldHighlight(true)
@@ -184,7 +185,7 @@ export default function MobileLowcodeApprovalDetail() {
           const nextData = { ...formData, ...fieldUpdates }
           await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
         } else {
-          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [], ct?.node_name)
           const updates = actPerms.length
             ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
             : undefined
@@ -203,7 +204,7 @@ export default function MobileLowcodeApprovalDetail() {
         message.success('已重新提交'); nav('/m/approvals')
         return
       }
-      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [], ct?.node_name)
       const updates = actPerms.length
         ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined

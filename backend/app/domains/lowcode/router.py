@@ -659,7 +659,7 @@ async def pickable_contract_prod_card_fill(
         "drawing_no_query",
         description=(
             "drawing_no_query / contract_no_select / invoice_application / shipment_notice / "
-            "biz_bonus_transfer / biz_bonus_biz_initiate / commission_database"
+            "biz_bonus_transfer / biz_bonus_biz_initiate / commission_database / payment_allocation"
         ),
     ),
     tenant_id: str = Depends(get_tenant_id),
@@ -676,6 +676,7 @@ async def pickable_contract_prod_card_fill(
     _MODES = (
         "drawing_no_query", "contract_no_select", "invoice_application", "shipment_notice",
         "biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database",
+        "payment_allocation",
     )
     if mode not in _MODES:
         mode = "drawing_no_query"
@@ -819,6 +820,9 @@ async def pickable_contract_prod_card_fill(
             key_clauses_json=ver.key_clauses_json if ver else None,
             form_key=mode,
         )
+    elif mode == "payment_allocation":
+        draw = (c.drawing_no or c.contract_no or "").strip()
+        fill = {"drawing_no": draw} if draw else {}
     else:
         fill = build_prod_card_fill_from_contract(
             contract_no=c.contract_no,

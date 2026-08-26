@@ -207,9 +207,9 @@ def test_apply_prod_card_design_assign_field_perms():
     assert apply_prod_card_design_assign_field_perms(nodes) is True
     fields = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
     assert "confirm_agreement" not in fields
-    assert fields["need_dispatch"] == "readonly"
-    assert fields["has_contract_tech_review"] == "readonly"
-    assert fields["select_contract_tech_review"] == "readonly"
+    assert "need_dispatch" not in fields
+    assert "has_contract_tech_review" not in fields
+    assert "select_contract_tech_review" not in fields
     assert fields["install_project_no"] == "readonly"
     assert fields["f_251128"] == "required"
     assert "f_0414" not in fields

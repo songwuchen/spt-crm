@@ -133,10 +133,16 @@ class OpenActivityCreate(BaseModel):
 class OpenCustomerCreate(BaseModel):
     """External customer-intake payload for POST /openapi/v1/customers.
 
-    对齐简道云「客户信息」主档；``customer_code`` 非空时按租户 upsert。
+    对齐简道云「客户信息」主档。
+    Upsert：有 ``external_key``（简道云 data_id）时按租户 + external_key；
+    否则 ``customer_code`` 非空时按客户编号。无编号也可稳定 1:1。
     布尔/数字可用字符串（中间件 flatten 后常见）。
     """
     name: str = Field(..., min_length=1, max_length=200)
+    external_key: Optional[str] = Field(
+        None, max_length=128,
+        description="外部唯一键（简道云 data_id）；优先于 customer_code 做 upsert",
+    )
     customer_code: Optional[str] = Field(None, max_length=100)
     short_name: Optional[str] = Field(None, max_length=100)
     industry: Optional[str] = Field(None, max_length=100)
@@ -242,10 +248,18 @@ class OpenContractCreate(BaseModel):
 
     供中间服务（如 crm-integration）从简道云等源系统拉取后推送。Customer-centric:
     ``customer_id`` is required (resolve via POST/GET /customers first). ``project_id``
-    is optional. Upsert key: tenant + ``contract_no``.
+    is optional.
+
+    Upsert key:
+    - 有 ``external_key``（简道云 data_id）时按 tenant + external_key（一条登记单 ↔ 一行）
+    - 否则回落 tenant + ``contract_no``（旧行为）
     """
     customer_id: str = Field(..., min_length=1, max_length=36)
     project_id: Optional[str] = Field(None, max_length=36)
+    external_key: Optional[str] = Field(
+        None, max_length=128,
+        description="外部幂等键（简道云 data_id）；有则按此 upsert，同合同号可多行",
+    )
     contract_no: Optional[str] = Field(None, max_length=64)
     title: Optional[str] = Field(None, max_length=300)
     # Allow negatives: 简道云「变动」合同登记常带负金额冲减。

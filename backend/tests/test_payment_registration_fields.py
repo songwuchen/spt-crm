@@ -24,7 +24,11 @@ def test_apply_payment_registration_fields():
                 {"id": "due_date", "type": "datetime", "label": "到期日"},
             ],
         },
-        {"id": "payment_allocation", "type": "detail_table", "label": "款项分配"},
+        {"id": "payment_allocation", "type": "detail_table", "label": "款项分配", "detail_table_columns": [
+            {"id": "drawing_no", "type": "text", "label": "图纸编号"},
+            {"id": "contract_no", "type": "text", "label": "合同号240222添加"},
+            {"id": "alloc_amount", "type": "number", "label": "分配金额"},
+        ]},
         {"id": "alloc_total", "type": "number", "label": "分配金额合计"},
         {"id": "remark_2", "type": "textarea", "label": "备注"},
     ]
@@ -44,7 +48,12 @@ def test_apply_payment_registration_fields():
     assert due_col["props"]["show_time"] is False
     assert defs[4]["available_on_create"] is False
     assert defs[4]["fill_stage"] == "approver"
+    alloc_cols = {c["id"]: c for c in defs[6]["detail_table_columns"]}
+    assert alloc_cols["contract_no"]["type"] == "contract"
+    assert alloc_cols["contract_no"]["label"] == "合同号"
+    assert alloc_cols["contract_no"]["props"]["contract_fill"] == "payment_allocation"
     assert defs[6]["available_on_create"] is False
+    assert defs[6]["fill_stage"] == "approver"
     assert defs[7]["type"] == "formula"
     assert defs[7]["available_on_create"] is False
     assert defs[8]["available_on_create"] is False

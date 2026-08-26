@@ -480,7 +480,8 @@ async def create_customer(
     Same key + same body → replay stored response.
     Same key + different body (e.g. 简道云回刷补字段) → update the original
     customer instead of ``409 CRM_IDEMPOTENCY_CONFLICT``.
-    When ``customer_code`` matches an existing tenant customer → update that row.
+    When ``external_key`` (简道云 data_id) matches → update that row;
+    else when ``customer_code`` matches → update that row.
     """
     import hashlib
     from app.domains.openapi.idempotency import _lookup, run_idempotent

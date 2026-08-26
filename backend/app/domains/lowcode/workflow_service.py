@@ -5125,7 +5125,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         if apply_prod_card_sales_confirm_field_perms(patched):
             tags.append("业务员确认可填协议确认")
         if apply_prod_card_design_assign_field_perms(patched):
-            tags.append("安排设计只读派人/技术协议评审+设计指派字段")
+            tags.append("安排设计剔除派人/技术协议评审+设计指派字段")
         if apply_prod_card_prune_legacy_field_perms(patched):
             tags.append("剔除废弃字段室主任0414")
         if apply_prod_card_sales_before_region(patched, patched_routes):

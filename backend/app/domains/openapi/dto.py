@@ -34,6 +34,7 @@ def customer_to_dto(c) -> dict:
     return {
         "id": c.id,
         "customer_code": c.customer_code,
+        "external_key": getattr(c, "external_key", None),
         "name": c.name,
         "short_name": c.short_name,
         "industry": c.industry,
@@ -128,6 +129,7 @@ def contract_to_dto(c) -> dict:
     return {
         "id": c.id,
         "contract_no": c.contract_no,
+        "external_key": getattr(c, "external_key", None),
         "serial_no": getattr(c, "serial_no", None),
         "project_id": c.project_id,
         "customer_id": getattr(c, "customer_id", None),

@@ -120,9 +120,10 @@ export function missingRequiredFields(
     formFields?: FieldDefinition[]
     formData?: Record<string, unknown>
     fieldMeta?: WfCurrentTask['field_meta']
+    nodeName?: string | null
   },
 ): string[] {
-  const perms = filterProdCardLegacyFieldPerms(fieldPerms || [])
+  const perms = filterProdCardLegacyFieldPerms(fieldPerms || [], opts?.nodeName)
   if (!perms.length) return []
   const fields = buildApproveFields(opts?.fieldMeta, perms, opts?.formFields)
   const merged = { ...(opts?.formData || {}), ...values }
@@ -195,7 +196,7 @@ export default function ApproveFieldForm({
 }) {
   const currentUser = useAuthStore((s) => s.user)
   const metaById = Object.fromEntries((currentTask.field_meta || []).map((m) => [m.id, m]))
-  const perms = filterProdCardLegacyFieldPerms(currentTask.field_perms || [])
+  const perms = filterProdCardLegacyFieldPerms(currentTask.field_perms || [], currentTask.node_name)
   const [localHighlight, setLocalHighlight] = useState(highlightMissing)
   useEffect(() => { setLocalHighlight(highlightMissing) }, [highlightMissing])
 
@@ -445,7 +446,7 @@ export default function ApproveFieldForm({
           }
 
           if (t === 'contract') {
-            const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' }).contract_fill
+            const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'payment_allocation' }).contract_fill
             const deptField = (fieldProps as { filter_by_department_field?: string }).filter_by_department_field
             let formDepartmentId: string | undefined
             if (deptField) {
@@ -457,7 +458,7 @@ export default function ApproveFieldForm({
               }
             }
             const pickDepts = contractPickDepartments(currentUser, formDepartmentId)
-            const invoicePick = fillMode === 'invoice_application'
+            const invoicePick = fillMode === 'invoice_application' || fillMode === 'payment_allocation'
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FieldLabel label={label} required={required} error={err} />

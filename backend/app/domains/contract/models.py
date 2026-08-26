@@ -14,6 +14,8 @@ class Contract(TenantScopedBase):
     # Direct customer link for externally-sourced contracts (no project chain).
     customer_id: Mapped[str | None] = mapped_column(String(36), index=True)
     contract_no: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 简道云 data_id 等外部幂等键：有值时 OpenAPI 按此 upsert，允许同 contract_no 多行
+    external_key: Mapped[str | None] = mapped_column(String(128), index=True)
     serial_no: Mapped[str | None] = mapped_column(String(64), index=True)
     from_quote_id: Mapped[str | None] = mapped_column(String(36), index=True)
     current_version_no: Mapped[int] = mapped_column(Integer, default=1)

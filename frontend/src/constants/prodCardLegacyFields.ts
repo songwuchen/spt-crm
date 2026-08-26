@@ -20,8 +20,23 @@ export function prodCardDetailShowsRowIndex(fieldId: string): boolean {
   return PROD_CARD_DETAIL_ROW_INDEX_FIELD_IDS.has(fieldId)
 }
 
-export function filterProdCardLegacyFieldPerms<T extends { field: string }>(perms: T[]): T[] {
-  return perms.filter((p) => !PROD_CARD_LEGACY_HIDDEN_FIELD_IDS.has(p.field))
+/** 安排设计节点：发起人已填，审批时不展示/不可改 */
+export const PROD_CARD_DESIGN_INITIATOR_ONLY_FIELD_IDS = new Set([
+  'need_dispatch',
+  'has_contract_tech_review',
+  'select_contract_tech_review',
+  'contract_tech_review_sn',
+])
+
+export function filterProdCardLegacyFieldPerms<T extends { field: string }>(
+  perms: T[],
+  nodeName?: string | null,
+): T[] {
+  let out = perms.filter((p) => !PROD_CARD_LEGACY_HIDDEN_FIELD_IDS.has(p.field))
+  if (nodeName?.includes('安排设计')) {
+    out = out.filter((p) => !PROD_CARD_DESIGN_INITIATOR_ONLY_FIELD_IDS.has(p.field))
+  }
+  return out
 }
 
 export function pruneProdCardDetailColumns<T extends { id?: string }>(

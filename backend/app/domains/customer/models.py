@@ -11,6 +11,8 @@ class Customer(TenantScopedBase):
     __tablename__ = "customers"
 
     customer_code: Mapped[str | None] = mapped_column(String(100))  # 可对接ERP编码
+    # 简道云 data_id：开放平台按此 1:1 upsert（无客户编号时也能防重复）
+    external_key: Mapped[str | None] = mapped_column(String(128), index=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     short_name: Mapped[str | None] = mapped_column(String(100))
     industry: Mapped[str | None] = mapped_column(String(100))  # industry_code

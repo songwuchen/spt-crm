@@ -383,12 +383,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     const ct = detail?.current_task
     if (action === 'approve' && ct && !isReviseTask) {
       if (ct.opinion_required && !opinion.trim()) return message.error('请填写审批意见')
-      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [])
+      const submitPerms = filterProdCardLegacyFieldPerms(ct.field_perms || [], ct.node_name)
       const miss = missingRequiredFields(submitPerms, fieldUpdates, {
         rules: detail?.form_rules,
         formFields: fields,
         formData,
         fieldMeta: ct.field_meta,
+        nodeName: ct.node_name,
       })
       if (miss.length) {
         setFieldHighlight(true)
@@ -403,7 +404,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           const nextData = { ...formData, ...fieldUpdates }
           await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
         } else {
-          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+          const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [], ct?.node_name)
           const updates = actPerms.length
             ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
             : undefined
@@ -423,7 +424,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         message.success('已重新提交'); onDone(); onClose()
         return
       }
-      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [])
+      const actPerms = filterProdCardLegacyFieldPerms(ct?.field_perms || [], ct?.node_name)
       const updates = actPerms.length
         ? Object.fromEntries(actPerms.map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
@@ -571,8 +572,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       <ApproveFieldForm
         currentTask={{
           ...detail.current_task,
-          field_perms: effectiveFieldPerms.filter(
-            (p) => p.field !== 'review_opinion',
+          field_perms: filterProdCardLegacyFieldPerms(
+            effectiveFieldPerms.filter((p) => p.field !== 'review_opinion'),
+            detail.current_task.node_name,
           ),
         }}
         values={fieldUpdates}

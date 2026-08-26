@@ -146,11 +146,13 @@ async def _resolve_create_drawing_no(
     number_attr: str | None = None,
     trust_requested: bool = False,
     allow_empty: bool = False,
+    allow_taken: bool = False,
     map_contract_no: str | None = None,
 ) -> str:
     """图纸编号：须从合同图纸对应表选用；不再按 WMGF/SY 规则自动生成。
 
     trust_requested=True（开放平台）：仍校验唯一，可不强制对应表存在。
+    allow_taken=True（开放平台按 external_key 1:1）：允许同图纸号多条合同登记。
     allow_empty=True（存草稿）：允许暂不选号。
     若传入的图纸号尚不在对应表，自动补种一条（便于测试与兼容直传编号）。
     """
@@ -190,7 +192,7 @@ async def _resolve_create_drawing_no(
                 code=BUSINESS_ERROR,
                 message=f"图纸编号「{no}」不在合同图纸对应表中，请从对应表选择",
             )
-    if await is_drawing_no_taken_by_contract(db, tenant_id, no):
+    if not allow_taken and await is_drawing_no_taken_by_contract(db, tenant_id, no):
         raise BusinessException(
             code=DUPLICATE_ENTRY,
             message=f"图纸编号「{no}」已用于其他合同登记，请更换",

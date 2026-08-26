@@ -542,12 +542,13 @@ _PROD_CARD_DESIGN_ASSIGN_PERMS: dict[str, str] = {
 }
 # 表单保留但简道云流程已废弃：全程隐藏（创建/审批/详情均不展示）
 PROD_CARD_LEGACY_HIDDEN_FIELDS: frozenset[str] = frozenset({"f_0414"})
-# 安排设计节点：发起人已填，审批人仅查看（对齐业务：不可改派人/技术协议评审选项）
-_PROD_CARD_DESIGN_READONLY_FIELDS: tuple[str, ...] = (
+# 安排设计节点：发起人已填，本节点不再展示/编辑（不沿用简道云 optAuth 的可编辑项）
+PROD_CARD_DESIGN_INITIATOR_ONLY_FIELDS: frozenset[str] = frozenset({
     "need_dispatch",
     "has_contract_tech_review",
     "select_contract_tech_review",
-)
+    "contract_tech_review_sn",
+})
 _PROD_CARD_APPROVER_ONLY: dict[str, str] = {
     **_PROD_CARD_SALES_CONFIRM_PERMS,
     **_PROD_CARD_DESIGN_ASSIGN_PERMS,
@@ -862,8 +863,21 @@ def apply_prod_card_sales_before_region(
     return changed
 
 
+def _prune_node_field_perms(node: dict, drop_fields: frozenset[str]) -> bool:
+    """从节点 field_perms 移除指定字段（发起人阶段已填，审批节点不再挂出）。"""
+    perms = list(node.get("field_perms") or [])
+    pruned = [
+        p for p in perms
+        if not (isinstance(p, dict) and p.get("field") in drop_fields)
+    ]
+    if len(pruned) == len(perms):
+        return False
+    node["field_perms"] = pruned
+    return True
+
+
 def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
-    """安排设计节点：设计指派可写；是否需要公司派人/技术协议评审仅只读。"""
+    """安排设计节点：设计指派可写；派人/技术协议评审由发起人填写，本节点不编辑。"""
     if not nodes:
         return False
     changed = False
@@ -873,9 +887,8 @@ def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
         name = str(n.get("name") or "")
         if "安排设计" not in name or n.get("type") != "approval":
             continue
-        for fid in _PROD_CARD_DESIGN_READONLY_FIELDS:
-            if _force_node_field_access(n, fid, "readonly"):
-                changed = True
+        if _prune_node_field_perms(n, PROD_CARD_DESIGN_INITIATOR_ONLY_FIELDS):
+            changed = True
         if _merge_node_field_perms(n, _PROD_CARD_DESIGN_ASSIGN_PERMS):
             changed = True
         # 协议确认已归业务员确认，从安排设计节点去掉避免重复必填
