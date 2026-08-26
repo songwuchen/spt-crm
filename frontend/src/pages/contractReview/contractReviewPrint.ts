@@ -278,7 +278,6 @@ function formatFieldValue(
       return ids.map((id) => labels[String(id)] || String(id)).filter(Boolean).join('、')
     }
     case 'date':
-    case 'datetime':
       return fmtDate(raw)
     case 'money':
       return fmtMoney(raw)
