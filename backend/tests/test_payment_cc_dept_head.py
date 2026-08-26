@@ -51,7 +51,42 @@ def test_payment_cc_patches_n24_n25_and_n27():
     })
 
     n27_rule = nodes[2]["approver_rule"]
-    assert _approver_rule_has_sub(n27_rule, {"type": "dept_head"})
+    assert _approver_rule_has_sub(n27_rule, {
+        "type": "form_field_person_dept_head",
+        "value": "sales_person",
+    })
+    assert not _approver_rule_has_sub(n27_rule, {"type": "dept_head"})
 
     assert not _flow_payment_cc_needs_dept_head(nodes)
     assert not apply_payment_registration_cc_dept_head(nodes)
+
+
+def test_payment_cc_n27_strips_wrong_dept_head():
+    nodes = [
+        {
+            "id": "n27",
+            "type": "cc",
+            "name": "迅焊抄送",
+            "approver_rule": {
+                "type": "mixed",
+                "value": [
+                    {"type": "specified_user", "value": ["u1"]},
+                    {"type": "dept_head", "exclude_initiator": True},
+                    {
+                        "type": "form_field_person_dept_head",
+                        "value": "sales_person",
+                        "exclude_initiator": True,
+                    },
+                ],
+            },
+        },
+    ]
+    assert _flow_payment_cc_needs_dept_head(nodes)
+    assert apply_payment_registration_cc_dept_head(nodes)
+    rule = nodes[0]["approver_rule"]
+    assert not _approver_rule_has_sub(rule, {"type": "dept_head"})
+    assert _approver_rule_has_sub(rule, {
+        "type": "form_field_person_dept_head",
+        "value": "sales_person",
+    })
+    assert not _flow_payment_cc_needs_dept_head(nodes)

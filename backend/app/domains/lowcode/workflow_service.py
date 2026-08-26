@@ -1349,15 +1349,10 @@ def _flow_is_jdy_payment(nodes: list | None) -> bool:
     return "内勤处理" in names and "采购" in names and len(nodes or []) >= 15
 
 
-_PAYMENT_CC_NODE_IDS_SALES_DEPT = frozenset({"n24", "n25"})
-_PAYMENT_CC_NODE_ID_XUNHAN = "n27"
+_PAYMENT_CC_NODE_IDS = frozenset({"n24", "n25", "n27"})
 _PAYMENT_CC_SALES_DEPT_HEAD = {
     "type": "form_field_person_dept_head",
     "value": "sales_person",
-    "exclude_initiator": True,
-}
-_PAYMENT_CC_FORM_DEPT_HEAD = {
-    "type": "dept_head",
     "exclude_initiator": True,
 }
 
@@ -1393,24 +1388,43 @@ def _ensure_mixed_sub(rule: dict | None, sub: dict) -> tuple[dict, bool]:
     return {"type": "mixed", "value": [dict(rule), dict(sub)]}, True
 
 
+def _remove_mixed_sub(rule: dict | None, sub_type: str) -> tuple[dict, bool]:
+    """从 mixed 规则中移除指定 type 的子规则（单条则降级为唯一子规则）。"""
+    rule = rule or {}
+    if rule.get("type") != "mixed":
+        if rule.get("type") == sub_type:
+            return {"type": "specified_user", "value": []}, True
+        return rule, False
+    value = [dict(x) for x in rule.get("value") or [] if isinstance(x, dict)]
+    new_value = [x for x in value if x.get("type") != sub_type]
+    if len(new_value) == len(value):
+        return rule, False
+    if len(new_value) == 1:
+        return new_value[0], True
+    if not new_value:
+        return {"type": "specified_user", "value": []}, True
+    return {"type": "mixed", "value": new_value}, True
+
+
 def _flow_payment_cc_needs_dept_head(nodes: list | None) -> bool:
-    """收款登记抄送缺少简道云 deptManager（业务人员/表单部门负责人）。"""
+    """收款登记抄送缺少简道云 deptManager（业务人员部门负责人）。"""
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("type") != "cc":
             continue
         nid = str(n.get("id") or "")
+        if nid not in _PAYMENT_CC_NODE_IDS:
+            continue
         rule = n.get("approver_rule") or {}
-        if nid in _PAYMENT_CC_NODE_IDS_SALES_DEPT:
-            if not _approver_rule_has_sub(rule, _PAYMENT_CC_SALES_DEPT_HEAD):
-                return True
-        elif nid == _PAYMENT_CC_NODE_ID_XUNHAN:
-            if not _approver_rule_has_sub(rule, _PAYMENT_CC_FORM_DEPT_HEAD):
-                return True
+        if not _approver_rule_has_sub(rule, _PAYMENT_CC_SALES_DEPT_HEAD):
+            return True
+        # n27 曾误用表单 dept_head，需升级移除
+        if nid == "n27" and _approver_rule_has_sub(rule, {"type": "dept_head"}):
+            return True
     return False
 
 
 def apply_payment_registration_cc_dept_head(nodes: list[dict] | None) -> bool:
-    """收款登记：抄送节点叠加部门负责人（n24/n25→业务人员部门负责人；n27→表单部门）。"""
+    """收款登记：抄送节点叠加业务人员部门负责人（n24/n25/n27，对齐简道云 deptManager）。"""
     if not nodes:
         return False
     changed = False
@@ -1418,16 +1432,17 @@ def apply_payment_registration_cc_dept_head(nodes: list[dict] | None) -> bool:
         if not isinstance(n, dict) or n.get("type") != "cc":
             continue
         nid = str(n.get("id") or "")
-        if nid in _PAYMENT_CC_NODE_IDS_SALES_DEPT:
-            new_rule, did = _ensure_mixed_sub(
-                n.get("approver_rule"), _PAYMENT_CC_SALES_DEPT_HEAD,
-            )
-        elif nid == _PAYMENT_CC_NODE_ID_XUNHAN:
-            new_rule, did = _ensure_mixed_sub(
-                n.get("approver_rule"), _PAYMENT_CC_FORM_DEPT_HEAD,
-            )
-        else:
+        if nid not in _PAYMENT_CC_NODE_IDS:
             continue
+        rule = n.get("approver_rule") or {}
+        if nid == "n27":
+            rule, stripped = _remove_mixed_sub(rule, "dept_head")
+            if stripped:
+                n["approver_rule"] = rule
+                changed = True
+        new_rule, did = _ensure_mixed_sub(
+            n.get("approver_rule"), _PAYMENT_CC_SALES_DEPT_HEAD,
+        )
         if did:
             n["approver_rule"] = new_rule
             changed = True
@@ -5234,7 +5249,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"抄送叠加部门负责人({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"抄送对齐简道云业务人员部门负责人({form_code})",
         )
         return
     if (

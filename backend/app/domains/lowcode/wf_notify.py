@@ -242,6 +242,12 @@ _CC_NOTIFY_FIELD_PREFS: dict[str, list[tuple[str, str]]] = {
         ("department", "所在部门"),
         ("__drawing_no_formula__", "图纸编号（筛选用）（公式的）"),
     ],
+    "payment_registration": [
+        ("payment_date", "来款日期"),
+        ("customer_name", "单位名称"),
+        ("department", "部门"),
+        ("payment_total", "来款合计"),
+    ],
 }
 
 
@@ -368,7 +374,7 @@ async def _cc_form_fields_from_prefs(
     for fid_k, label in prefs:
         if fid_k == "__drawing_no_formula__":
             val = _prod_card_drawing_no(data)
-        elif fid_k == "card_date":
+        elif fid_k in ("card_date", "payment_date"):
             raw = data.get(fid_k)
             val = _short_date_text(raw) or _format_cc_field_value(
                 types_by_id.get(fid_k), raw, label_maps,
