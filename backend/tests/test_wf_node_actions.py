@@ -40,3 +40,29 @@ def test_drawing_requisition_other_node_no_submit_print():
     node = {"name": "总工审批", "type": "approval"}
     acts = parse_node_actions(node, form_code="drawing_requisition")
     assert acts["submit_print"] is False
+
+
+def test_prod_card_material_code_no_transfer():
+    from app.domains.lowcode.wf_node_actions import (
+        apply_prod_card_material_code_node_actions,
+        is_prod_card_material_code_node,
+    )
+
+    assert is_prod_card_material_code_node("物料编码")
+    assert not is_prod_card_material_code_node("产线-物料编码")
+
+    node = {"name": "物料编码", "type": "approval"}
+    acts = parse_node_actions(node, biz_type="prod_card_supplement")
+    assert acts["transfer"] is False
+
+    other = {"name": "财务核价", "type": "approval"}
+    assert parse_node_actions(other, biz_type="prod_card_supplement")["transfer"] is True
+
+    nodes = [
+        {"id": "n5", "name": "物料编码", "type": "approval"},
+        {"id": "n6", "name": "财务核价", "type": "approval", "node_actions": {"transfer": True}},
+    ]
+    assert apply_prod_card_material_code_node_actions(nodes) is True
+    assert nodes[0]["node_actions"]["transfer"] is False
+    assert nodes[1]["node_actions"]["transfer"] is True
+    assert apply_prod_card_material_code_node_actions(nodes) is False

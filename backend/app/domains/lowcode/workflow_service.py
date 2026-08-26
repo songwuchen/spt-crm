@@ -805,6 +805,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_prod_card_finance_branch_parallel(nodes, routes)
         apply_prod_card_xiaomeng_yangshuang_cc(nodes, routes)
         fix_packaging_fork_serial_priority(nodes, routes)
+        from app.domains.lowcode.wf_node_actions import apply_prod_card_material_code_node_actions
+        apply_prod_card_material_code_node_actions(nodes)
     if form_code == "xunhan_contract_review":
         apply_xunhan_contract_review_approvers(nodes)
         patch_xunhan_contract_review_feedback_routes(routes)
@@ -5005,6 +5007,9 @@ async def _upgrade_drawing_form_flow_if_needed(
             tags.append("通知生产抄送吕英萍雷贤吴超")
         if apply_prod_card_xiaomeng_yangshuang_cc(patched, patched_routes):
             tags.append("小萌工厂杨霜审批+抄送∥结束")
+        from app.domains.lowcode.wf_node_actions import apply_prod_card_material_code_node_actions
+        if apply_prod_card_material_code_node_actions(patched):
+            tags.append("物料编码关闭转交")
         if tags:
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
@@ -5272,6 +5277,10 @@ async def _upgrade_drawing_form_flow_if_needed(
                 publish_nodes = patched_nodes
             if apply_prod_card_xiaomeng_yangshuang_cc(patched_nodes, patched_routes):
                 tags.append("小萌工厂杨霜审批+抄送∥结束")
+                publish_nodes = patched_nodes
+            from app.domains.lowcode.wf_node_actions import apply_prod_card_material_code_node_actions
+            if apply_prod_card_material_code_node_actions(patched_nodes):
+                tags.append("物料编码关闭转交")
                 publish_nodes = patched_nodes
             if fix_packaging_fork_serial_priority(publish_nodes, patched_routes):
                 tags.append("工艺包装分叉互斥优先")

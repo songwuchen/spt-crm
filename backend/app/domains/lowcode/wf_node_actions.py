@@ -28,10 +28,35 @@ _DRAWING_PRINT_NODE_NAMES = frozenset({
     "设计指派安排*",
 })
 
+# 生产卡补充：物料编码节点不允许转交（对齐简道云节点操作）
+_PROD_CARD_NO_TRANSFER_NODE_NAMES = frozenset({
+    "物料编码",
+})
+
 
 def is_drawing_approve_and_print_node(node_name: str | None) -> bool:
     name = (node_name or "").strip()
     return name in _DRAWING_PRINT_NODE_NAMES or name.startswith("部门指派")
+
+
+def is_prod_card_material_code_node(node_name: str | None) -> bool:
+    return (node_name or "").strip() in _PROD_CARD_NO_TRANSFER_NODE_NAMES
+
+
+def apply_prod_card_material_code_node_actions(nodes: list | None) -> bool:
+    """流程发布/兜底拓扑：生产卡「物料编码」节点关闭转交。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if not is_prod_card_material_code_node(n.get("name")):
+            continue
+        actions = dict(n.get("node_actions") or {})
+        if actions.get("transfer") is not False:
+            actions["transfer"] = False
+            n["node_actions"] = actions
+            changed = True
+    return changed
 
 
 def apply_drawing_print_node_actions(nodes: list | None) -> bool:
@@ -79,6 +104,9 @@ def parse_node_actions(
             out["reject"] = True
     if _implicit_submit_print(node, biz_type=biz_type, form_code=form_code):
         out["submit_print"] = True
+    code = form_code or biz_type or ""
+    if code == "prod_card_supplement" and is_prod_card_material_code_node((node or {}).get("name")):
+        out["transfer"] = False
     return out
 
 
