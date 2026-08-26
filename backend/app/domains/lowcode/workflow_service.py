@@ -2238,12 +2238,20 @@ _PROD_LEGAL_ROLE = {
     "exclude_initiator": True,
     "jdy_role_hint": "法务办理",
 }
+_PROD_ELEC_WORKSHOP_ROLE = {
+    "type": "specified_role",
+    "value": "prod_elec_workshop",
+    "exclude_initiator": True,
+    "jdy_role_hint": "1.2.8生产卡/补充流程-电气车间",
+}
 _PROD_CARD_APPROVER_BY_ID: dict[str, dict] = {
     "n5": _PROD_MATERIAL_ROLE,
+    "n10": _PROD_ELEC_WORKSHOP_ROLE,
     "n45": _PROD_LEGAL_ROLE,
 }
 _PROD_CARD_APPROVER_BY_NAME: dict[str, dict] = {
     "物料编码": _PROD_MATERIAL_ROLE,
+    "电气编码": _PROD_ELEC_WORKSHOP_ROLE,
     "法务审核": _PROD_LEGAL_ROLE,
 }
 
@@ -2263,7 +2271,7 @@ def _flow_prod_card_supplement_needs_approver_fix(nodes: list | None) -> bool:
 
 
 def apply_prod_card_supplement_approvers(nodes: list[dict]) -> bool:
-    """生产卡补充：物料编码→prod_material_code；法务审核→legal。"""
+    """生产卡补充：物料编码→prod_material_code；电气编码→prod_elec_workshop；法务审核→legal。"""
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
@@ -5098,16 +5106,18 @@ async def _upgrade_drawing_form_flow_if_needed(
         import copy
         from app.common.rbac_sync import (
             ensure_legal_role_members,
+            ensure_prod_elec_workshop_role_members,
             ensure_prod_material_code_role_members,
         )
         await ensure_prod_material_code_role_members(db, tenant_id)
+        await ensure_prod_elec_workshop_role_members(db, tenant_id)
         await ensure_legal_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
         apply_prod_card_supplement_approvers(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"生产卡物料编码/法务改为角色({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"生产卡物料编码/电气车间/法务改为角色({form_code})",
         )
         return
     # 生产卡：业务员确认可填协议确认；区域经理挂在业务员确认之后；通知生产抄送

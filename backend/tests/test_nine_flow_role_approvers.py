@@ -24,6 +24,8 @@ def test_jdy_role_crm_code_mapping():
     assert JDY_ROLE_TO_CRM_CODE["5f6c3e74bb221e00067d4f39"] == "cs_delay_approve"
     assert JDY_ROLE_TO_CRM_CODE["5f69a45077e34d0006f136dd"] == "legal"
     assert JDY_ROLE_TO_CRM_CODE["5f55d129a526650006b36c22"] == "prod_material_code"
+    assert JDY_ROLE_TO_CRM_CODE["5f55d115968dad000698ae27"] == "prod_elec_workshop"
+    assert JDY_ROLE_TO_CRM_CODE["60fe45b98db9d500080ea397"] == "prod_elec_workshop"
     assert JDY_ROLE_TO_CRM_CODE["5f69a976fbf7110006288375"] == "legal"
     assert JDY_ROLE_TO_CRM_CODE["63815e3a7fb607000acc9195"] == "room_leader"
 
@@ -38,6 +40,20 @@ def test_room_leader_member_roster():
     assert set(ROOM_LEADER_MEMBER_REAL_NAMES) == {
         "曹修国", "樊磊", "丰芊", "刘松潮", "李兴玉", "吕芹", "王东明", "周彦立", "赵小康",
     }
+
+
+def test_prod_elec_workshop_member_roster():
+    from app.common.rbac_catalog import STANDARD_ROLES
+    from app.common.rbac_sync import (
+        PROD_ELEC_WORKSHOP_MEMBER_REAL_NAMES,
+        PROD_ELEC_WORKSHOP_MEMBER_USERNAMES,
+    )
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "prod_elec_workshop")
+    assert role["name"] == "1.2.8生产卡/补充流程-电气车间"
+    assert (role.get("scope_by_resource") or {}).get("prod_card_supplement") == "all"
+    assert set(PROD_ELEC_WORKSHOP_MEMBER_REAL_NAMES) == {"李同民", "张雨辰"}
+    assert len(PROD_ELEC_WORKSHOP_MEMBER_USERNAMES) == 2
 
 
 def test_legal_member_roster():
@@ -58,6 +74,8 @@ def test_charger_rule_maps_new_roles():
         ("5f6c3e74bb221e00067d4f39", "7.5客户服务延期申请-客服审批", "cs_delay_approve"),
         ("5f69a45077e34d0006f136dd", "24.2.3合同/项目评审-法务审批多人", "legal"),
         ("5f55d129a526650006b36c22", "1.2.8生产卡/补充流程-物料编码", "prod_material_code"),
+        ("5f55d115968dad000698ae27", "1.2.8生产卡/补充流程-电气车间", "prod_elec_workshop"),
+        ("60fe45b98db9d500080ea397", "1.2.8生产卡/补充流程-电气编码", "prod_elec_workshop"),
     ]
     for rid, name, code in cases:
         rule = charger_rule({"roles": [{"_id": rid, "name": name}]}, {})
@@ -151,13 +169,15 @@ def test_apply_xunhan_and_prod_card_roles():
 
     pnodes = [
         {"id": "n5", "name": "物料编码", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},
+        {"id": "n10", "name": "电气编码", "approver_rule": {"type": "specified_user", "value": ["02364337364933"]}},
         {"id": "n45", "name": "法务审核", "approver_rule": {"type": "specified_role", "value": "sales_manager"}},
         {"id": "n4", "name": "通知生产", "type": "approval", "approver_rule": {"type": "specified_user", "value": "02425350081942"}},
     ]
     assert _flow_prod_card_supplement_needs_approver_fix(pnodes)
     assert apply_prod_card_supplement_approvers(pnodes)
     assert pnodes[0]["approver_rule"]["value"] == "prod_material_code"
-    assert pnodes[1]["approver_rule"]["value"] == "legal"
+    assert pnodes[1]["approver_rule"]["value"] == "prod_elec_workshop"
+    assert pnodes[2]["approver_rule"]["value"] == "legal"
     assert not apply_prod_card_supplement_approvers(pnodes)
 
     from app.domains.lowcode.workflow_service import (
@@ -166,7 +186,7 @@ def test_apply_xunhan_and_prod_card_roles():
     )
     assert _flow_prod_card_notify_cc_needs_fix(pnodes)
     assert apply_prod_card_notify_production_cc(pnodes)
-    assert set(pnodes[2]["cc_rule"]["value"]) == {
+    assert set(pnodes[3]["cc_rule"]["value"]) == {
         "02364437547295", "02362247571234189", "1739424832704465",
     }
     assert not apply_prod_card_notify_production_cc(pnodes)

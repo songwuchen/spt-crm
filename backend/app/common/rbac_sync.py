@@ -271,6 +271,7 @@ BUSINESS_ROLE_CODES = (
     "ship_sales_outbound",
     "gate_guard",
     "prod_material_code",
+    "prod_elec_workshop",
     "legal",
 )
 
@@ -880,6 +881,68 @@ async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
     return result
 
 
+# 简道云「1.2.8生产卡/补充流程-电气车间」：李同民、张雨辰
+PROD_ELEC_WORKSHOP_MEMBER_USERNAMES: tuple[str, ...] = (
+    "02364337364933",  # 李同民
+    "446440225824636648",  # 张雨辰
+)
+PROD_ELEC_WORKSHOP_MEMBER_REAL_NAMES: tuple[str, ...] = ("李同民", "张雨辰")
+
+
+async def ensure_prod_elec_workshop_role_members(db, tenant_id: str) -> dict:
+    """确保 prod_elec_workshop 成员仅为李同民、张雨辰。"""
+    from app.domains.auth.models import User, UserRole
+
+    result = await _ensure_role_members(
+        db,
+        tenant_id,
+        "prod_elec_workshop",
+        PROD_ELEC_WORKSHOP_MEMBER_USERNAMES,
+        PROD_ELEC_WORKSHOP_MEMBER_REAL_NAMES,
+    )
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "prod_elec_workshop")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return result
+
+    keep_users = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.username.in_(list(PROD_ELEC_WORKSHOP_MEMBER_USERNAMES)),
+            )
+        )
+    ).scalars().all()
+    keep_ids = set(keep_users)
+    by_real = (
+        await db.execute(
+            select(User.id).where(
+                User.tenant_id == tenant_id,
+                User.real_name.in_(list(PROD_ELEC_WORKSHOP_MEMBER_REAL_NAMES)),
+                User.is_active == True,  # noqa: E712
+            )
+        )
+    ).scalars().all()
+    keep_ids.update(by_real)
+
+    if keep_ids:
+        pruned = await db.execute(
+            sa_delete(UserRole).where(
+                UserRole.tenant_id == tenant_id,
+                UserRole.role_id == role.id,
+                UserRole.user_id.notin_(list(keep_ids)),
+            )
+        )
+        result["pruned"] = int(pruned.rowcount or 0)
+    else:
+        result["pruned"] = 0
+    result["role_name"] = role.name
+    return result
+
+
 # 简道云「24.2.3合同/项目评审-法务审批多人」：杜习慧、孔雪、张孟杰
 LEGAL_MEMBER_USERNAMES: tuple[str, ...] = (
     "543355140326074979",  # 杜习慧
@@ -957,6 +1020,7 @@ async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:
         "ship_sales_outbound": await ensure_ship_sales_outbound_role_members(db, tenant_id),
         "gate_guard": await ensure_gate_guard_role_members(db, tenant_id),
         "prod_material_code": await ensure_prod_material_code_role_members(db, tenant_id),
+        "prod_elec_workshop": await ensure_prod_elec_workshop_role_members(db, tenant_id),
         "legal": await ensure_legal_role_members(db, tenant_id),
     }
 

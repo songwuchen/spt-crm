@@ -480,6 +480,15 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "prod_elec_workshop", "name": "1.2.8生产卡/补充流程-电气车间", "scope": "dept",
+        "scope_by_resource": {"prod_card_supplement": "all"},
+        "desc": "简道云生产卡「电气车间」权限组：李同民、张雨辰；生产卡列表查看/编辑",
+        "perms": [
+            "order:view", "product:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
         "code": "procurement", "name": "采购专员", "scope": "dept",
         "desc": "采购部/外购:订单 + 产品;合同/交付只读",
         "perms": [

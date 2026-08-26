@@ -81,8 +81,10 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     # 法务（简道云「法务办理」/ 合同评审法务；CRM code=legal）
     "5f69a45077e34d0006f136dd": "legal",  # 24.2.3合同/项目评审-法务审批多人
     "5f69a976fbf7110006288375": "legal",  # 法务办理
-    # 生产卡物料编码
+    # 生产卡物料编码 / 电气车间 / 电气编码
     "5f55d129a526650006b36c22": "prod_material_code",
+    "5f55d115968dad000698ae27": "prod_elec_workshop",
+    "60fe45b98db9d500080ea397": "prod_elec_workshop",
     # 转新乡、工艺包装（方案/图纸/生产卡 transfer_packaging_users）
     "6942502ab4606b6b5375dc4f": "transfer_packaging",
 }
