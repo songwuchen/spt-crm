@@ -220,6 +220,8 @@ export interface WfApproverRule {
   node_id?: string
   include_sub?: boolean
   levels?: number
+  /** 解析时排除发起人（如部门负责人抄送时不重复通知本人） */
+  exclude_initiator?: boolean
 }
 
 export interface WfFieldPerm {
