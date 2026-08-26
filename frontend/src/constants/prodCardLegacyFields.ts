@@ -10,6 +10,16 @@ export const PROD_CARD_DROPPED_DETAIL_COLUMNS: Record<string, readonly string[]>
   elec_workshop_fill: ['theoretical_weight_2'],
 }
 
+/** 生产卡明细子表：左侧显示简道云同款「序号」列（仅 UI，不入库） */
+export const PROD_CARD_DETAIL_ROW_INDEX_FIELD_IDS = new Set([
+  'std_room_fill',
+  'elec_workshop_fill',
+])
+
+export function prodCardDetailShowsRowIndex(fieldId: string): boolean {
+  return PROD_CARD_DETAIL_ROW_INDEX_FIELD_IDS.has(fieldId)
+}
+
 export function filterProdCardLegacyFieldPerms<T extends { field: string }>(perms: T[]): T[] {
   return perms.filter((p) => !PROD_CARD_LEGACY_HIDDEN_FIELD_IDS.has(p.field))
 }

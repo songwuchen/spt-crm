@@ -771,6 +771,18 @@ function stepsThroughNode(
   return chrono.slice(0, cut + 1).reverse()
 }
 
+/** 领用单打印：审批意见至少到总工；走过研究院安排/部门指派时带上指派意见。 */
+function requisitionPrintApprovalSteps(steps?: WfFlowStep[] | null): WfFlowStep[] {
+  const list = steps || []
+  const assignMarkers = ['研究院安排', '设计指派安排', '部门指派']
+  for (const marker of assignMarkers) {
+    if (list.some((s) => (s.node_name || '').includes(marker))) {
+      return stepsThroughNode(list, marker)
+    }
+  }
+  return stepsThroughNode(list, '总工审批')
+}
+
 /** 表下审批意见区：左=标签+记录，右=打印时间/流水号（上下叠，对齐 Word） */
 function approvalFootHtml(
   steps: WfFlowStep[] | null | undefined,
@@ -821,9 +833,9 @@ function buildRequisitionHtml(ctx: {
   const designer = personName(form.designer, labels)
     || (form.designer_text != null ? String(form.designer_text).trim() : '')
   const attachName = attachmentLabel(form, 'attachment_name', 'attachments', 'images') || '无'
-  // 领用单：流水号在表头，页脚只留打印时间（对齐 Word 模板）
+  // 审批意见：至少到总工；若已有研究院安排（含通过并打印注入）则一并带上指派意见
   const approvalFoot = approvalFootHtml(
-    stepsThroughNode(steps, '总工审批'),
+    requisitionPrintApprovalSteps(steps),
     form,
     serial,
     { showSerial: false },

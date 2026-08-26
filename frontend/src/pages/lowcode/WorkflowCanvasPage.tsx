@@ -717,13 +717,13 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
             rule={node.approver_rule}
             formFields={formFields}
             roleLabel={node.type === 'approval' ? '审批人' : '抄送人'}
+            deptHeadAddon={node.type === 'cc'}
             onChange={onRule}
           />
           {node.type === 'cc' && (
             <Text type="secondary" style={{ fontSize: 11 }}>
-              抄送按部门圈人：「指定部门·全体成员」或「表单部门·全体成员」；
-              仅抄主管用「部门负责人」/「表单部门·负责人」。
-              勾选「含下级部门成员」可包含子部门。
+              指定人员可与「部门负责人」组合；也可选「组合选人」配多条规则。
+              按部门圈全员用「指定部门·全体成员」或「表单部门·全体成员」。
             </Text>
           )}
           {node.type === 'approval' && (
@@ -748,6 +748,7 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
                   rule={node.cc_rule}
                   formFields={formFields}
                   roleLabel="抄送人员"
+                  deptHeadAddon
                   onChange={(r) => onPatch({ cc_rule: r })}
                 />
               )}

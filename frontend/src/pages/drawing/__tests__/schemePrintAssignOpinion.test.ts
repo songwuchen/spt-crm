@@ -17,6 +17,36 @@ const assignStep: WfFlowStep = {
 }
 
 describe('drawing print includes research-assign opinion', () => {
+  it('requisition footer contains 研究院安排 opinion when chief steps also present', () => {
+    const html = buildRequisitionPrintDocument({
+      formData: { serial_no: '2026082601', transfer_channel: '邮件' },
+      flowSteps: [
+        assignStep,
+        {
+          node_instance_id: 'n-chief',
+          node_name: '总工审批',
+          status: 'completed',
+          action: 'approve',
+          opinion: '同意',
+          handler_name: '曹修国',
+          completed_at: '2026-08-26T08:25:00',
+        },
+        {
+          node_instance_id: 'n-dept',
+          node_name: '部门审批',
+          status: 'completed',
+          action: 'approve',
+          opinion: '同意',
+          handler_name: '张贺',
+          completed_at: '2026-08-26T08:07:00',
+        },
+      ],
+    })
+    expect(html).toContain('总工审批')
+    expect(html).toContain('研究院安排')
+    expect(html).toContain('请优先处理包装单')
+  })
+
   it('requisition footer contains 研究院安排 opinion', () => {
     const html = buildRequisitionPrintDocument({
       formData: { serial_no: '2026082001', transfer_channel: '邮件' },

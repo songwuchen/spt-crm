@@ -766,6 +766,12 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_chief_gm_flow_nodes(nodes)
     if form_code in ("install_drawing_notice", "scheme_management", "drawing_requisition"):
         apply_drawing_pre_chief_opinion_required(nodes)
+        from app.domains.lowcode.wf_node_actions import apply_drawing_print_node_actions
+        apply_drawing_print_node_actions(nodes)
+    if form_code == "cs_drawing_request":
+        apply_cs_drawing_approvers(nodes)
+        from app.domains.lowcode.wf_node_actions import apply_drawing_print_node_actions
+        apply_drawing_print_node_actions(nodes)
     if form_code == "invoice_application":
         apply_invoice_sales_cc(nodes, routes)
     if form_code in _CS_SALES_CC_FORM_CODES:
@@ -778,8 +784,6 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_cs_product_return_n20_countersign_routes(routes)
     if form_code == "cs_product_replace":
         apply_cs_product_replace_approvers(nodes)
-    if form_code == "cs_drawing_request":
-        apply_cs_drawing_approvers(nodes)
     if form_code == "shipment_notice":
         from app.domains.lowcode.shipment_notice_fields import (
             patch_shipment_notice_parallel_routes,
@@ -8861,7 +8865,11 @@ async def _resolve_current_task_for_viewer(
         "task_kind": "revise" if is_revise else "approve",
         "field_perms": field_perms,
         "opinion_required": False if is_revise else bool(node.get("opinion_required")),
-        "node_actions": parse_node_actions(node if not is_revise else None, biz_type=inst.biz_type),
+        "node_actions": parse_node_actions(
+            node if not is_revise else None,
+            biz_type=inst.biz_type,
+            form_code=form_tpl_code,
+        ),
         "field_meta": field_meta,
         "field_values": field_values,
     }

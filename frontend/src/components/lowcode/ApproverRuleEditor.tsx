@@ -7,6 +7,11 @@ import DeptField from '@/components/lowcode/fields/DeptField'
 import { pickableScopeApi } from '@/api/pickableScope'
 import { lowcodeApi } from '@/api/lowcode'
 import type { ApproverType, FieldDefinition, WfApproverRule } from '@/types/lowcode'
+import {
+  applyDeptHeadToApproverRule,
+  approverRuleHasDeptHead,
+  stripDeptHeadFromApproverRule,
+} from '@/utils/wfApproverRuleMix'
 
 const { Text } = Typography
 
@@ -347,18 +352,28 @@ export function ApproverRuleEditor({
   formFields,
   onChange,
   roleLabel = '审批人',
+  deptHeadAddon = false,
 }: {
   rule?: WfApproverRule
   formFields: FieldDefinition[]
   /** 整份规则变更（切换类型时会重置 value） */
   onChange: (next: WfApproverRule) => void
   roleLabel?: string
+  /** 抄送场景：勾选后额外抄送表单部门/发起人部门的部门负责人 */
+  deptHeadAddon?: boolean
 }) {
   const current = rule || { type: 'creator' as ApproverType }
-  const meta = APPROVER_TYPES.find((a) => a.value === current.type)
-  const typeValue = APPROVER_TYPES.some((t) => t.value === current.type)
-    ? current.type
-    : current.type
+  const mainRule = deptHeadAddon ? stripDeptHeadFromApproverRule(current) : current
+  const meta = APPROVER_TYPES.find((a) => a.value === mainRule.type)
+  const typeValue = APPROVER_TYPES.some((t) => t.value === mainRule.type)
+    ? mainRule.type
+    : mainRule.type
+
+  const emitMain = (nextMain: WfApproverRule) => {
+    onChange(deptHeadAddon && approverRuleHasDeptHead(current)
+      ? applyDeptHeadToApproverRule(nextMain, true)
+      : nextMain)
+  }
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
@@ -371,38 +386,54 @@ export function ApproverRuleEditor({
           options={APPROVER_TYPES.map((t) => ({ label: t.label, value: t.value }))}
           onChange={(t) => {
             if (t === 'mixed') {
-              onChange({ type: 'mixed', value: asSubRules(current.value).length
-                ? asSubRules(current.value)
-                : [{ type: 'creator' }] })
+              emitMain({
+                type: 'mixed',
+                value: asSubRules(mainRule.value).length
+                  ? asSubRules(mainRule.value)
+                  : [{ type: 'creator' }],
+              })
               return
             }
-            onChange({ type: t, value: undefined })
+            emitMain({ type: t, value: undefined })
           }}
         />
       </div>
       {meta?.needValue === 'mixed' ? (
         <MixedEditor
-          value={current.value}
+          value={mainRule.value}
           formFields={formFields}
-          onChange={(subs) => onChange({ type: 'mixed', value: subs })}
+          onChange={(subs) => emitMain({ type: 'mixed', value: subs })}
         />
       ) : meta?.needValue ? (
         <>
           <AtomicValueEditor
-            rule={current}
+            rule={mainRule}
             formFields={formFields}
-            onChange={(v) => onChange({ ...current, value: v })}
+            onChange={(v) => emitMain({ ...mainRule, value: v })}
           />
-          {(current.type === 'dept_members' || current.type === 'form_field_dept_members') && (
+          {(mainRule.type === 'dept_members' || mainRule.type === 'form_field_dept_members') && (
             <Checkbox
-              checked={!!current.include_sub}
-              onChange={(e) => onChange({ ...current, include_sub: e.target.checked })}
+              checked={!!mainRule.include_sub}
+              onChange={(e) => emitMain({ ...mainRule, include_sub: e.target.checked })}
             >
               含下级部门成员
             </Checkbox>
           )}
         </>
       ) : null}
+      {deptHeadAddon && mainRule.type !== 'mixed' && (
+        <Checkbox
+          checked={approverRuleHasDeptHead(current)}
+          onChange={(e) => onChange(applyDeptHeadToApproverRule(mainRule, e.target.checked))}
+        >
+          同时抄送部门负责人
+        </Checkbox>
+      )}
+      {deptHeadAddon && approverRuleHasDeptHead(current) && (
+        <Text type="secondary" style={{ fontSize: 11 }}>
+          部门负责人取自表单「部门/所在部门」；未填时取发起人所属部门。
+        </Text>
+      )}
     </Space>
   )
 }

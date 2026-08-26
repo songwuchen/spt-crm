@@ -265,7 +265,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail?.process_name)
   const canPrintQuote = isQuoteManagementForm(undefined, detail?.form_code)
   const canPrintBonus = isBizBonusForm(detail?.form_code, undefined, detail?.process_name)
-  const approveAndPrint = canAct && nodeActs.submit_print && nodeActs.submit && (
+  const approveAndPrint = canAct && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintBonus && (isBizBonusApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))

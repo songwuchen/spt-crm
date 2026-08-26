@@ -8,7 +8,7 @@ import {
 } from 'antd'
 import { PlusOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import DetailQuickFillModal from '@/components/DetailQuickFillModal'
-import { PROD_CARD_QUICK_FILL_FIELD_IDS, pruneProdCardDetailColumns } from '@/constants/prodCardLegacyFields'
+import { PROD_CARD_QUICK_FILL_FIELD_IDS, prodCardDetailShowsRowIndex, pruneProdCardDetailColumns } from '@/constants/prodCardLegacyFields'
 import { detailColumnsToQuickFillSpecs } from '@/utils/detailQuickFill'
 import { applyDetailRowDefaults, buildDetailRowDefaults } from '@/utils/lowcodeFormDefaults'
 import dayjs from 'dayjs'
@@ -906,6 +906,7 @@ function DetailTable({
     return true
   })
   const ensureMin = Math.max(0, Number(field.props?.ensure_min_rows ?? 0) || 0)
+  const showRowIndex = prodCardDetailShowsRowIndex(field.id)
   // 挂载时：配置了 ensure_min_rows 则补空行；否则清掉误灌的「默认空行」
   const didMountInit = useRef(false)
   useEffect(() => {
@@ -1010,7 +1011,7 @@ function DetailTable({
           return (
             <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-bold text-slate-600">第 {idx + 1} 行</span>
+                <span className="text-sm font-bold text-slate-600">{showRowIndex ? `序号 ${idx + 1}` : `第 ${idx + 1} 行`}</span>
                 {!readonly && (
                   <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(idx)}>
                     删除
@@ -1078,8 +1079,20 @@ function DetailTable({
     ),
   }]
 
+  const rowIndexColumn: ColumnType<Record<string, unknown>>[] = showRowIndex ? [{
+    title: '序号',
+    key: '__row_index',
+    width: 56,
+    fixed: 'left' as const,
+    align: 'center' as const,
+    render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
+      <span className="text-slate-600">{idx + 1}</span>
+    ),
+  }] : []
+
   const columns: ColumnType<Record<string, unknown>>[] = [
     ...opColumn,
+    ...rowIndexColumn,
     ...cols.map((c) => {
       const w = widthOf(c)
       const wrap = detailColWraps(c)
