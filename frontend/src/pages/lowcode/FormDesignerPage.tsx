@@ -500,9 +500,11 @@ function SortableFieldCard({ field, selected, onSelect, onDelete }: {
 }
 
 // ---- 明细子表列设计 ----
-function DetailColumnsEditor({ columns, onChange }: {
+function DetailColumnsEditor({ columns, onChange, personScopeOptions, deptScopeOptions }: {
   columns: FieldDefinition[]
   onChange: (cols: FieldDefinition[]) => void
+  personScopeOptions: { label: string; value: string }[]
+  deptScopeOptions: { label: string; value: string }[]
 }) {
   const patchCol = (i: number, p: Partial<FieldDefinition>) =>
     onChange(columns.map((c, k) => (k === i ? { ...c, ...p } : c)))
@@ -586,6 +588,33 @@ function DetailColumnsEditor({ columns, onChange }: {
                 <Input size="small" placeholder="公式，如 $qty# * $price#"
                   value={(col.props?.formula as string) || ''}
                   onChange={(e) => patchCol(i, { props: { ...col.props, formula: e.target.value } })} />
+              )}
+              {(col.type === 'person' || col.type === 'person_multi') && (
+                <PickableScopePropsEditor
+                  kind="person"
+                  value={(col.props?.pickable_scope as PickableScope | undefined) || null}
+                  scopeOptions={personScopeOptions}
+                  showDeptFilterSwitch
+                  onChange={(next) => {
+                    const props = { ...(col.props || {}) }
+                    if (next) props.pickable_scope = next
+                    else delete props.pickable_scope
+                    patchCol(i, { props })
+                  }}
+                />
+              )}
+              {(col.type === 'department' || col.type === 'department_multi') && (
+                <PickableScopePropsEditor
+                  kind="department"
+                  value={(col.props?.pickable_scope as PickableScope | undefined) || null}
+                  scopeOptions={deptScopeOptions}
+                  onChange={(next) => {
+                    const props = { ...(col.props || {}) }
+                    if (next) props.pickable_scope = next
+                    else delete props.pickable_scope
+                    patchCol(i, { props })
+                  }}
+                />
               )}
               <div>
                 <Text type="secondary" style={{ fontSize: 11 }}>行内显隐(依赖字段=值，逗号分隔多值)</Text>
@@ -865,6 +894,8 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
       {field.type === 'detail_table' && (
         <DetailColumnsEditor
           columns={field.detail_table_columns || []}
+          personScopeOptions={personScopeOptions}
+          deptScopeOptions={deptScopeOptions}
           onChange={(cols) => onPatch({ detail_table_columns: cols })}
         />
       )}
