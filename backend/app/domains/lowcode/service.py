@@ -548,6 +548,7 @@ def _field_defs_fingerprint(defs: list | None) -> str:
                 bool(c.get("available_on_create", True)),
                 str(c.get("fill_stage") or ""),
                 json.dumps(c.get("options") or [], sort_keys=True, ensure_ascii=False),
+                json.dumps(c.get("props") or {}, sort_keys=True, ensure_ascii=False),
             ))
         items.append((
             str(f.get("id")),
@@ -699,8 +700,10 @@ async def sync_builtin_form_fields(
         from app.domains.lowcode.prod_card_contract_fill import (
             apply_prod_card_contract_pick_fields,
             apply_prod_card_supplement_rules,
+            resolve_prod_card_std_room_designer_dept_id,
         )
-        apply_prod_card_contract_pick_fields(want)
+        research_dept_id = await resolve_prod_card_std_room_designer_dept_id(db, tenant_id)
+        apply_prod_card_contract_pick_fields(want, research_dept_id=research_dept_id)
         want_rules = apply_prod_card_supplement_rules(want_rules)
     if key == "payment_registration":
         from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields

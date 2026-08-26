@@ -5,6 +5,44 @@ from __future__ import annotations
 from typing import Any
 
 
+PROD_CARD_STD_ROOM_DESIGNER_JDY_DEPT = "56ca5b8af97e80434fc06122"
+PROD_CARD_STD_ROOM_DESIGNER_DEPT_NAME = "中央研究院"
+
+
+async def resolve_prod_card_std_room_designer_dept_id(
+    db, tenant_id: str,
+) -> str | None:
+    """简道云 limit.departs → CRM 中央研究院 UUID（含下级部门选人）。"""
+    from sqlalchemy import text
+    did = (await db.execute(text(
+        "SELECT id FROM departments WHERE tenant_id = :t AND name = :n "
+        "ORDER BY CASE WHEN path LIKE '%技术总工%' AND path LIKE '%中央研究院%' THEN 0 ELSE 1 END, path "
+        "LIMIT 1"
+    ), {"t": tenant_id, "n": PROD_CARD_STD_ROOM_DESIGNER_DEPT_NAME})).scalar_one_or_none()
+    return str(did) if did else None
+
+
+def apply_prod_card_std_room_designer_scope(
+    defs: list, *, research_dept_id: str | None = None,
+) -> bool:
+    """标准化室子表「设计人」：可选人员限定中央研究院（含下级），对齐简道云 limit.departs。"""
+    if not research_dept_id:
+        return False
+    scope = {"dept_ids": [research_dept_id], "include_children": True}
+    changed = False
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") != "std_room_fill":
+            continue
+        for col in f.get("detail_table_columns") or []:
+            if not isinstance(col, dict) or col.get("id") != "designer":
+                continue
+            props = dict(col.get("props") or {})
+            props["pickable_scope"] = dict(scope)
+            col["props"] = props
+            changed = True
+    return changed
+
+
 # 合同明细列 → 生产卡明细列
 _LINE_COL_MAP = {
     "product_type": "product_type_2",
@@ -419,7 +457,9 @@ def ensure_prod_card_contract_display_fields(defs: list) -> None:
         offset += 1
 
 
-def apply_prod_card_contract_pick_fields(defs: list) -> None:
+def apply_prod_card_contract_pick_fields(
+    defs: list, *, research_dept_id: str | None = None,
+) -> None:
     """把图纸编号查询/合同号选择改为 contract 类型，并挂部门过滤 + 带出模式。
 
     同时默认「是否为补充」=否：显隐规则在未选时会把两个选合同字段都藏掉，
@@ -524,6 +564,7 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
 
     apply_prod_card_std_room_detail_defaults(defs)
     apply_prod_card_prune_std_room_columns(defs)
+    apply_prod_card_std_room_designer_scope(defs, research_dept_id=research_dept_id)
     apply_prod_card_approver_only_fields(defs)
     apply_prod_card_legacy_hidden_fields(defs)
     apply_prod_card_detail_quick_fill_flags(defs)

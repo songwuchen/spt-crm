@@ -4,6 +4,9 @@ import sys
 
 sys.stdout.reconfigure(encoding="utf-8")
 
+import app.domains.auth.models  # noqa: F401
+import app.domains.organization.models  # noqa: F401
+
 from app.database import async_session_factory
 from app.domains.lowcode.service import ensure_builtin_form, get_published_version
 
@@ -23,6 +26,10 @@ async def main() -> None:
             print(fid, "type=", f.get("type"), "on_create=", f.get("available_on_create"),
                   "form_editable=", f.get("form_editable"),
                   "contract_fill=", (f.get("props") or {}).get("contract_fill"))
+        std = by.get("std_room_fill") or {}
+        for col in std.get("detail_table_columns") or []:
+            if col.get("id") == "designer":
+                print("designer_pickable_scope", (col.get("props") or {}).get("pickable_scope"))
 
 
 if __name__ == "__main__":

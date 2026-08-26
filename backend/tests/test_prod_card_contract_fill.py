@@ -83,6 +83,37 @@ def test_build_fill_contract_no_select():
     }
 
 
+def test_apply_prod_card_std_room_designer_scope():
+    from app.domains.lowcode.prod_card_contract_fill import (
+        apply_prod_card_std_room_designer_scope,
+        apply_prod_card_contract_pick_fields,
+    )
+
+    defs = [{
+        "id": "std_room_fill",
+        "type": "detail_table",
+        "label": "标准化室填写",
+        "detail_table_columns": [
+            {"id": "material_code", "type": "text", "label": "物料代码"},
+            {"id": "designer", "type": "person", "label": "设计人"},
+        ],
+    }]
+    assert not apply_prod_card_std_room_designer_scope(defs, research_dept_id=None)
+    assert apply_prod_card_std_room_designer_scope(defs, research_dept_id="dept-research-1")
+    designer = next(c for c in defs[0]["detail_table_columns"] if c["id"] == "designer")
+    assert designer["props"]["pickable_scope"] == {
+        "dept_ids": ["dept-research-1"],
+        "include_children": True,
+    }
+
+    defs2 = [{"id": "std_room_fill", "type": "detail_table", "detail_table_columns": [
+        {"id": "designer", "type": "person", "label": "设计人"},
+    ]}]
+    apply_prod_card_contract_pick_fields(defs2, research_dept_id="dept-x")
+    std = next(f for f in defs2 if f.get("id") == "std_room_fill")
+    assert std["detail_table_columns"][0]["props"]["pickable_scope"]["dept_ids"] == ["dept-x"]
+
+
 def test_apply_prod_card_contract_pick_fields():
     defs = [
         {"id": "is_supplement", "type": "radio", "label": "是否为补充"},
