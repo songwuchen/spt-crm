@@ -810,6 +810,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code == "xunhan_contract_review":
         apply_xunhan_contract_review_approvers(nodes)
         patch_xunhan_contract_review_feedback_routes(routes)
+    if form_code == "payment_registration":
+        apply_payment_registration_cc_dept_head(nodes)
     return nodes, routes
 
 
@@ -1345,6 +1347,91 @@ def _flow_is_jdy_payment(nodes: list | None) -> bool:
     """已对齐简道云收款登记：按部门分支的多路内勤处理。"""
     names = {n.get("name") for n in (nodes or [])}
     return "内勤处理" in names and "采购" in names and len(nodes or []) >= 15
+
+
+_PAYMENT_CC_NODE_IDS_SALES_DEPT = frozenset({"n24", "n25"})
+_PAYMENT_CC_NODE_ID_XUNHAN = "n27"
+_PAYMENT_CC_SALES_DEPT_HEAD = {
+    "type": "form_field_person_dept_head",
+    "value": "sales_person",
+    "exclude_initiator": True,
+}
+_PAYMENT_CC_FORM_DEPT_HEAD = {
+    "type": "dept_head",
+    "exclude_initiator": True,
+}
+
+
+def _approver_rule_has_sub(rule: dict | None, want: dict) -> bool:
+    """mixed 或单条规则是否已含指定子规则（type + value）。"""
+    rule = rule or {}
+    if rule.get("type") == want.get("type") and _approver_rule_value_equal(
+        rule.get("value"), want.get("value"),
+    ):
+        return True
+    if rule.get("type") != "mixed":
+        return False
+    for sub in rule.get("value") or []:
+        if not isinstance(sub, dict):
+            continue
+        if sub.get("type") == want.get("type") and _approver_rule_value_equal(
+            sub.get("value"), want.get("value"),
+        ):
+            return True
+    return False
+
+
+def _ensure_mixed_sub(rule: dict | None, sub: dict) -> tuple[dict, bool]:
+    """在主抄送规则上叠加子规则（保留原有指定人员等）。"""
+    rule = rule or {"type": "specified_user", "value": []}
+    if _approver_rule_has_sub(rule, sub):
+        return rule, False
+    if rule.get("type") == "mixed":
+        value = [dict(x) for x in rule.get("value") or [] if isinstance(x, dict)]
+        value.append(dict(sub))
+        return {"type": "mixed", "value": value}, True
+    return {"type": "mixed", "value": [dict(rule), dict(sub)]}, True
+
+
+def _flow_payment_cc_needs_dept_head(nodes: list | None) -> bool:
+    """收款登记抄送缺少简道云 deptManager（业务人员/表单部门负责人）。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "cc":
+            continue
+        nid = str(n.get("id") or "")
+        rule = n.get("approver_rule") or {}
+        if nid in _PAYMENT_CC_NODE_IDS_SALES_DEPT:
+            if not _approver_rule_has_sub(rule, _PAYMENT_CC_SALES_DEPT_HEAD):
+                return True
+        elif nid == _PAYMENT_CC_NODE_ID_XUNHAN:
+            if not _approver_rule_has_sub(rule, _PAYMENT_CC_FORM_DEPT_HEAD):
+                return True
+    return False
+
+
+def apply_payment_registration_cc_dept_head(nodes: list[dict] | None) -> bool:
+    """收款登记：抄送节点叠加部门负责人（n24/n25→业务人员部门负责人；n27→表单部门）。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "cc":
+            continue
+        nid = str(n.get("id") or "")
+        if nid in _PAYMENT_CC_NODE_IDS_SALES_DEPT:
+            new_rule, did = _ensure_mixed_sub(
+                n.get("approver_rule"), _PAYMENT_CC_SALES_DEPT_HEAD,
+            )
+        elif nid == _PAYMENT_CC_NODE_ID_XUNHAN:
+            new_rule, did = _ensure_mixed_sub(
+                n.get("approver_rule"), _PAYMENT_CC_FORM_DEPT_HEAD,
+            )
+        else:
+            continue
+        if did:
+            n["approver_rule"] = new_rule
+            changed = True
+    return changed
 
 
 def _flow_is_jdy_quote(nodes: list | None) -> bool:
@@ -5133,6 +5220,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             db, tenant_id, d, version,
             patched_nodes, patched_routes,
             DRAWING_FORM_FLOW_DESC, f"开票申请可下载改到发起人接收后({form_code})",
+        )
+        return
+    # 收款登记：抄送叠加业务人员/表单部门负责人（对齐简道云 deptManager）
+    if (
+        topology_ok
+        and form_code == "payment_registration"
+        and _flow_payment_cc_needs_dept_head(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_payment_registration_cc_dept_head(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"抄送叠加部门负责人({form_code})",
         )
         return
     if (
