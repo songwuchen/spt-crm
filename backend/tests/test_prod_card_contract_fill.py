@@ -349,6 +349,71 @@ def test_apply_prod_card_sales_before_region():
     assert apply_prod_card_sales_before_region(nodes, routes) is False
 
 
+def test_load_prod_card_fill_for_contract_merges_install_auto_fill(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.domains.lowcode.prod_card_contract_fill import load_prod_card_fill_for_contract
+
+    contract = SimpleNamespace(
+        id="cid-1",
+        contract_no="HT001",
+        drawing_no="D001",
+        assignee_id=None,
+        assignee_name=None,
+        delivery_date=None,
+        registration_json={},
+        project_id="proj-1",
+        customer_id=None,
+        current_version_no=1,
+    )
+    version = SimpleNamespace(key_clauses_json={})
+
+    async def fake_execute(stmt):
+        class R:
+            def scalar_one_or_none(self_inner):
+                s = str(stmt)
+                if "contract_versions" in s.lower() or "ContractVersion" in s:
+                    return version
+                if "contracts" in s.lower() or ".Contract" in s:
+                    return contract
+                return None
+
+        return R()
+
+    async def fake_enrich(_db, _tid, fill, _user):
+        return fill
+
+    async def fake_install(_db, _tid, *, project_id):
+        assert project_id == "proj-1"
+        return {
+            "has_install_project": "是",
+            "f_251128": [{"field_2": "inst-1"}],
+            "install_project_no": "AZ202608104",
+        }
+
+    monkeypatch.setattr(
+        "app.domains.lowcode.prod_card_contract_fill.enrich_prod_card_fill_with_region_manager",
+        fake_enrich,
+    )
+    monkeypatch.setattr(
+        "app.domains.lowcode.prod_card_contract_fill.build_prod_card_install_auto_fill_for_project",
+        fake_install,
+    )
+
+    class FakeDb:
+        async def execute(self, stmt):
+            return await fake_execute(stmt)
+
+    result = asyncio.run(load_prod_card_fill_for_contract(
+        FakeDb(), "00000000-0000-0000-0000-000000000001", "cid-1", "drawing_no_query", None,
+    ))
+    assert result["has_install_project"] == "是"
+    assert result["install_project_no"] == "AZ202608104"
+    assert result["f_251128"] == [{"field_2": "inst-1"}]
+    assert result["no_drawing_no"] == "D001"
+
+
 def test_strip_and_resolve_prod_card_contract_live():
     from app.domains.lowcode.prod_card_contract_fill import (
         strip_prod_card_contract_snapshot,

@@ -351,6 +351,7 @@ async def test_contract_update_project_id(client: AsyncClient, auth_headers: dic
     detail = (await client.get(f"/api/v1/contracts/{cid}", headers=h)).json()["data"]
     assert detail.get("project_id") == proj_a
     assert detail.get("project_name") == "合同商机A"
+    assert detail.get("linked_project_name") == "合同商机A"
 
     ok = await client.put(f"/api/v1/contracts/{cid}", json={
         "as_draft": True,
@@ -372,6 +373,48 @@ async def test_contract_update_project_id(client: AsyncClient, auth_headers: dic
     await client.delete(f"/api/v1/contracts/{cid}", headers=h)
     await client.delete(f"/api/v1/projects/{proj_a}", headers=h)
     await client.delete(f"/api/v1/projects/{proj_b}", headers=h)
+    await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
+
+
+async def test_contract_update_project_id_not_stripped_by_field_policy(client: AsyncClient, auth_headers: dict, monkeypatch):
+    """关联商机写入以请求体为准，不因原生字段策略只读而被静默还原。"""
+    async def _strip_project_id(db, tenant_id, entity_type, payload, prior, user_roles, **kw):
+        payload = dict(payload)
+        if entity_type == "contract" and "project_id" in payload:
+            payload["project_id"] = getattr(prior, "project_id", None)
+        return payload
+
+    monkeypatch.setattr(
+        "app.domains.lowcode.field_permission.enforce_native_field_policy",
+        _strip_project_id,
+    )
+
+    h = auth_headers
+    cust_id = (await client.post("/api/v1/customers", json={
+        "name": "策略还原测试客户", "industry": "IT", "level": "B",
+    }, headers=h)).json()["data"]["id"]
+    proj_id = (await client.post("/api/v1/projects", json={
+        "name": "策略还原测试商机", "customer_id": cust_id, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    cid = (await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "title": "无商机草稿",
+        "customer_id": cust_id,
+        "drawing_no": peek,
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    ok = await client.put(f"/api/v1/contracts/{cid}", json={
+        "as_draft": True,
+        "project_id": proj_id,
+    }, headers=h)
+    assert ok.json()["code"] == 0, ok.text
+    detail = (await client.get(f"/api/v1/contracts/{cid}", headers=h)).json()["data"]
+    assert detail.get("project_id") == proj_id
+    assert detail.get("project_name") == "策略还原测试商机"
+
+    await client.delete(f"/api/v1/contracts/{cid}", headers=h)
+    await client.delete(f"/api/v1/projects/{proj_id}", headers=h)
     await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
 
 

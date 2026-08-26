@@ -352,9 +352,10 @@ export default function ContractList() {
       { title: '单位名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
       {
         title: '关联商机', dataIndex: 'project_name', width: 180, ellipsis: true,
-        render: (v: string, r: ContractItem) => {
-          if (!r.project_id && !v) return '-'
-          const label = v || r.project_id || '-'
+        render: (_v: string, r: ContractItem) => {
+          const name = r.linked_project_name || r.project_name
+          if (!r.project_id && !name) return '-'
+          const label = name || r.project_id || '-'
           if (!r.project_id) return label
           return (
             <a

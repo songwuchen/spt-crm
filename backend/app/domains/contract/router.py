@@ -642,7 +642,8 @@ async def get_contract(
     from app.common.list_enrich import project_names_map, customer_names_map
     if contract.project_id:
         pinfo = (await project_names_map(db, tenant_id, [contract.project_id])).get(contract.project_id) or {}
-        contract_dict["project_name"] = pinfo.get("project_name")
+        contract_dict["linked_project_name"] = pinfo.get("linked_project_name") or pinfo.get("project_name")
+        contract_dict["project_name"] = contract_dict["linked_project_name"]
         if pinfo.get("customer_name") and not contract_dict.get("customer_name"):
             contract_dict["customer_name"] = pinfo.get("customer_name")
         from app.domains.project.models import OpportunityProject

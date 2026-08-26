@@ -668,7 +668,6 @@ async def pickable_contract_prod_card_fill(
 ):
     """选合同后带出字段（生产卡 / 开票申请 / 发货通知；不要求 contract:view）。"""
     from app.domains.contract.models import Contract, ContractVersion
-    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_contract
     from app.domains.lowcode.invoice_application_fields import build_invoice_fill_from_contract
     from app.domains.lowcode.shipment_notice_fields import build_shipment_fill_from_contract
     from app.domains.lowcode.bonus_contract_fill import build_bonus_fill_from_contract
@@ -824,19 +823,10 @@ async def pickable_contract_prod_card_fill(
         cn = (c.contract_no or "").strip()
         fill = {"contract_no": cn} if cn else {}
     else:
-        fill = build_prod_card_fill_from_contract(
-            contract_no=c.contract_no,
-            drawing_no=c.drawing_no,
-            assignee_id=c.assignee_id,
-            assignee_name=c.assignee_name,
-            customer_name=customer_name,
-            delivery_date=str(c.delivery_date) if c.delivery_date else None,
-            registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
-            key_clauses_json=ver.key_clauses_json if ver else None,
-            mode=mode,
+        from app.domains.lowcode.prod_card_contract_fill import load_prod_card_fill_for_contract
+        fill = await load_prod_card_fill_for_contract(
+            db, tenant_id, contract_id, mode, _user,
         )
-        from app.domains.lowcode.prod_card_contract_fill import enrich_prod_card_fill_with_region_manager
-        fill = await enrich_prod_card_fill_with_region_manager(db, tenant_id, fill, _user)
     return ok({
         "contract_id": c.id,
         "contract_no": c.contract_no,

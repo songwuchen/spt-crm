@@ -13,6 +13,8 @@ from app.domains.audit.service import log_action
 
 logger = logging.getLogger("spt_crm.contract")
 
+_UNSET = object()
+
 
 async def _alloc_draft_contract_no(db: AsyncSession, tenant_id: str) -> str:
     """生成唯一 DRAFT- 占位合同号。"""
@@ -563,6 +565,9 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
     as_draft = bool(getattr(data, "as_draft", False))
     payload = data.model_dump(exclude_unset=True)
     payload.pop("as_draft", None)
+    raw_unset = dict(payload)
+    requested_project_id = raw_unset["project_id"] if "project_id" in raw_unset else _UNSET
+    requested_customer_id = raw_unset["customer_id"] if "customer_id" in raw_unset else _UNSET
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
     )
@@ -654,18 +659,21 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
         db, tenant_id, "contract", payload, contract, user.get("roles"),
         required_scope="payload", skip_required=as_draft,
     )
+    # 关联商机/客户：字段策略若配只读，enforce 会静默还原旧值；此处以请求体为准重新落库。
+    if requested_project_id is not _UNSET:
+        new_pid = requested_project_id or None
+        if new_pid and new_pid != contract.project_id:
+            from app.domains.project.service import get_project
+            await get_project(db, tenant_id, new_pid, user)
+        payload["project_id"] = new_pid
+    if requested_customer_id is not _UNSET:
+        payload["customer_id"] = requested_customer_id or None
     if not as_draft:
         effective_customer_id = (
             payload.get("customer_id") if "customer_id" in payload else contract.customer_id
         )
         if not effective_customer_id:
             raise BusinessException(code=BUSINESS_ERROR, message="请选择关联客户")
-    if "project_id" in payload:
-        new_pid = payload.get("project_id") or None
-        if new_pid and new_pid != contract.project_id:
-            from app.domains.project.service import get_project
-            await get_project(db, tenant_id, new_pid, user)
-        payload["project_id"] = new_pid
     for field, val in payload.items():
         setattr(contract, field, val)
     await db.commit()

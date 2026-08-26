@@ -442,13 +442,26 @@ async def strip_entity_dicts(db, tenant_id: str, entity_type: str, dicts, user_r
             for fd in native_defs:
                 # companions = 该字段的派生显示键(owner_id → owner_name)。列表页渲染的
                 # 往往正是派生键，只裁主字段等于脱敏毫无效果，故一并处理。
+                storage = fd.get("json_storage")
                 keys = [fd.get("id"), *(fd.get("companions") or [])]
                 if not field_visible(fd, roles):
                     for k in keys:
-                        d.pop(k, None)
+                        if storage:
+                            blob = d.get(storage)
+                            if isinstance(blob, dict):
+                                blob.pop(k, None)
+                                d[storage] = blob
+                        else:
+                            d.pop(k, None)
                 elif field_masked(fd, roles):
                     for k in keys:
-                        if k in d:
+                        if storage:
+                            blob = d.get(storage)
+                            if isinstance(blob, dict) and k in blob:
+                                blob = dict(blob)
+                                blob[k] = MASK_VALUE
+                                d[storage] = blob
+                        elif k in d:
                             d[k] = MASK_VALUE
     return dicts
 

@@ -36,7 +36,11 @@ async def project_names_map(db, tenant_id: str, project_ids) -> dict:
         )).all()
         cust_names = {cid: name for cid, name in crows}
     return {
-        pid: {"project_name": name, "customer_name": cust_names.get(cid)}
+        pid: {
+            "linked_project_name": name,
+            "project_name": name,
+            "customer_name": cust_names.get(cid),
+        }
         for pid, name, cid in prows
     }
 

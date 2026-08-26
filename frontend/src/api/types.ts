@@ -470,6 +470,8 @@ export interface ContractItem {
   updated_at: string
   versions?: ContractVersion[]
   project_name?: string
+  /** 关联商机名称（project_id 回填；区别于 registration_json.project_name 项目名称） */
+  linked_project_name?: string
   project_code?: string
   customer_name?: string
 }

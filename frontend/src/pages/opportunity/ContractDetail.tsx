@@ -20,6 +20,16 @@ import {
 } from '@/components/ContractTerms'
 import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
+
+function linkedOpportunityName(c: ContractItem): string | undefined {
+  return c.linked_project_name || c.project_name
+}
+
+function linkedOpportunityLabel(c: ContractItem): string {
+  const name = linkedOpportunityName(c)
+  if (name) return c.project_code ? `${name}（${c.project_code}）` : name
+  return c.project_id || '-'
+}
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, isContractDraftDeletable, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
@@ -231,6 +241,9 @@ export default function ContractDetail() {
       const drawingNo = String(v.drawing_no || '').trim()
       // 合同号来自对应表「合同号」字段（选图纸号时已回填）
       const contractNo = String(v.contract_no || '').trim() || drawingNo
+      const linkedProjectId = editForm.getFieldValue('project_id') as string | undefined
+      const linkedCustomerId = editForm.getFieldValue('customer_id') as string | undefined
+      const formAll = editForm.getFieldsValue(true) as Record<string, unknown>
       if (andSubmit && !drawingNo) {
         message.warning('请从合同图纸对应表选择图纸编号')
         editForm.setFields([{ name: 'drawing_no', errors: ['请从合同图纸对应表选择图纸编号'] }])
@@ -246,8 +259,12 @@ export default function ContractDetail() {
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
-        project_id: v.project_id || null,
-        customer_id: v.customer_id || null,
+        ...(('project_id' in formAll || linkedProjectId !== undefined)
+          ? { project_id: linkedProjectId ?? v.project_id ?? null }
+          : {}),
+        ...(('customer_id' in formAll || linkedCustomerId !== undefined)
+          ? { customer_id: linkedCustomerId ?? v.customer_id ?? null }
+          : {}),
         assignee_id: v.assignee_id || null,
         assignee_name: v.assignee_name || null,
         department_id: v.department_id || null,
@@ -405,6 +422,7 @@ export default function ContractDetail() {
       const reg = { ...(editForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
       if (p.name) reg.project_name = p.name
       const patch: Record<string, unknown> = {
+        project_id: projectId,
         registration_json: reg,
         ...(p.owner_id ? { assignee_id: p.owner_id } : {}),
         ...(p.owner_name ? { assignee_name: p.owner_name } : {}),
@@ -601,12 +619,12 @@ export default function ContractDetail() {
 
   if (!contract) return <DetailSkeleton />
 
-  const projectInitialOption = contract.project_id && (contract.project_name || contract.project_code)
+  const projectInitialOption = contract.project_id && (linkedOpportunityName(contract) || contract.project_code)
     ? {
       value: contract.project_id,
       label: contract.project_code
-        ? `${contract.project_name || '商机'}（${contract.project_code}）`
-        : (contract.project_name || contract.project_id),
+        ? `${linkedOpportunityName(contract) || '商机'}（${contract.project_code}）`
+        : linkedOpportunityLabel(contract),
     }
     : undefined
 
@@ -653,9 +671,7 @@ export default function ContractDetail() {
               <>
                 关联商机：
                 <a className="text-primary" onClick={() => navigate(`/opportunities/${contract.project_id}`)}>
-                  {contract.project_name
-                    ? `${contract.project_name}${contract.project_code ? `（${contract.project_code}）` : ''}`
-                    : contract.project_id}
+                  {linkedOpportunityLabel(contract)}
                 </a>
                 {' · '}
               </>
@@ -927,10 +943,18 @@ export default function ContractDetail() {
           const resolve = (f: (typeof sec.fields)[0]) => {
             if (f.key === 'project_id') {
               const pid = contract.project_id
-              if (!pid) return '-'
-              const label = contract.project_name
-                ? `${contract.project_name}${contract.project_code ? `（${contract.project_code}）` : ''}`
-                : pid
+              if (!pid) {
+                const regName = String((contract.registration_json as Record<string, unknown> | undefined)?.project_name || '').trim()
+                if (regName) {
+                  return (
+                    <span className="text-amber-700">
+                      未绑定商机（登记项目名称：{regName}，请在编辑中选择「关联商机」）
+                    </span>
+                  )
+                }
+                return '-'
+              }
+              const label = linkedOpportunityLabel({ ...contract, project_id: pid })
               return (
                 <a className="text-primary" onClick={() => navigate(`/opportunities/${pid}`)}>{label}</a>
               )
