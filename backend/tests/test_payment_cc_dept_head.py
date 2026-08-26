@@ -42,8 +42,8 @@ def test_payment_cc_patches_n24_n25_and_n27():
     n24_rule = nodes[0]["approver_rule"]
     assert n24_rule["type"] == "mixed"
     assert _approver_rule_has_sub(n24_rule, {
-        "type": "form_field_person_dept_head",
-        "value": "sales_person",
+        "type": "form_field_dept",
+        "value": "department",
     })
     assert _approver_rule_has_sub(n24_rule, {
         "type": "specified_user",
@@ -52,16 +52,20 @@ def test_payment_cc_patches_n24_n25_and_n27():
 
     n27_rule = nodes[2]["approver_rule"]
     assert _approver_rule_has_sub(n27_rule, {
+        "type": "form_field_dept",
+        "value": "department",
+    })
+    assert not _approver_rule_has_sub(n27_rule, {"type": "dept_head"})
+    assert not _approver_rule_has_sub(n27_rule, {
         "type": "form_field_person_dept_head",
         "value": "sales_person",
     })
-    assert not _approver_rule_has_sub(n27_rule, {"type": "dept_head"})
 
     assert not _flow_payment_cc_needs_dept_head(nodes)
     assert not apply_payment_registration_cc_dept_head(nodes)
 
 
-def test_payment_cc_n27_strips_wrong_dept_head():
+def test_payment_cc_upgrades_wrong_person_dept_head():
     nodes = [
         {
             "id": "n27",
@@ -85,8 +89,12 @@ def test_payment_cc_n27_strips_wrong_dept_head():
     assert apply_payment_registration_cc_dept_head(nodes)
     rule = nodes[0]["approver_rule"]
     assert not _approver_rule_has_sub(rule, {"type": "dept_head"})
-    assert _approver_rule_has_sub(rule, {
+    assert not _approver_rule_has_sub(rule, {
         "type": "form_field_person_dept_head",
         "value": "sales_person",
+    })
+    assert _approver_rule_has_sub(rule, {
+        "type": "form_field_dept",
+        "value": "department",
     })
     assert not _flow_payment_cc_needs_dept_head(nodes)

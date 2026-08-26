@@ -44,10 +44,13 @@ export const APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'mixed', label: '组合选人', needValue: 'mixed' },
 ]
 
-function personFieldOptions(formFields: FieldDefinition[], currents: string[] = []) {
+function personFieldOptions(formFields: FieldDefinition[], currents: string[] = [], deptHead = false) {
   const opts = formFields
     .filter((f) => f.type === 'person' || f.type === 'person_multi')
-    .map((f) => ({ value: f.id, label: f.label || f.id }))
+    .map((f) => ({
+      value: f.id,
+      label: deptHead ? `${f.label || f.id}·部门负责人` : (f.label || f.id),
+    }))
   for (const current of currents) {
     if (current && !opts.some((o) => o.value === current)) {
       opts.unshift({ value: current, label: current })
@@ -215,15 +218,16 @@ function AtomicValueEditor({
   }
   if (meta.needValue === 'field_person') {
     const selected = asFieldIds(rule.value)
+    const isPersonDeptHead = rule.type === 'form_field_person_dept_head'
     return (
       <Select
         size="small"
         mode="multiple"
         allowClear
         style={{ width: '100%' }}
-        placeholder="选择人员字段（可多选，取并集）"
+        placeholder={isPersonDeptHead ? '选择人员字段（取其所属部门负责人）' : '选择人员字段（可多选，取并集）'}
         value={selected}
-        options={personFieldOptions(formFields, selected)}
+        options={personFieldOptions(formFields, selected, isPersonDeptHead)}
         optionFilterProp="label"
         showSearch
         onChange={(ids) => onChange(normalizeFieldIds(ids))}
