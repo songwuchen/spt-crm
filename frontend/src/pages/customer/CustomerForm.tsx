@@ -155,6 +155,9 @@ export default function CustomerForm() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const toPool = searchParams.get('pool') === '1'
+  const reviseTaskId = searchParams.get('task')
+  const reviseWfId = searchParams.get('wf')
+  const isWfRevise = !!(reviseTaskId && reviseWfId)
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
@@ -302,10 +305,16 @@ export default function CustomerForm() {
       let customerId = id
       if (isEdit) {
         await customerApi.update(id!, payload)
-        if (andSubmit && canSubmitApproval) {
+        if (andSubmit && (canSubmitApproval || isWfRevise)) {
           try {
-            await customerApi.submitReview(id!)
-            message.success('已提交审批，请在详情页查看流程动态')
+            if (isWfRevise && reviseTaskId) {
+              const { workflowApi } = await import('@/api/lowcodeWorkflow')
+              await workflowApi.act(reviseTaskId, { action: 'resubmit', opinion: '修改后重新提交' })
+              message.success('已重新提交审批，请在详情页查看流程动态')
+            } else {
+              await customerApi.submitReview(id!)
+              message.success('已提交审批，请在详情页查看流程动态')
+            }
           } catch (err: unknown) {
             const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
             message.warning(msg || '已保存，但提交审批失败，请到详情页重新提交')

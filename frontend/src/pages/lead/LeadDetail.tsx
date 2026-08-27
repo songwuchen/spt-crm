@@ -488,7 +488,7 @@ export default function LeadDetail() {
                     提交审批
                   </Button>
                 )}
-                {reviewApproved && (
+                {reviewApproved && !isOwnerConfirmTask && (
                   <Button
                     type="primary"
                     onClick={handleQualify}
@@ -653,7 +653,7 @@ export default function LeadDetail() {
       )}
 
       {/* 收录后引导负责人自行决定是否转化 */}
-      {reviewApproved && canOperate && (
+      {reviewApproved && canOperate && !isOwnerConfirmTask && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-6 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <Icon name="verified" className="text-emerald-600" />

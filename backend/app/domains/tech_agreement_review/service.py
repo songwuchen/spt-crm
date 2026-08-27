@@ -187,6 +187,8 @@ async def update_review(
     await assert_content_update_allowed(
         db, tenant_id, "tech_agreement_review", row.id, row.status, dump)
     await _resolve_names_into_dump(db, tenant_id, dump)
+    from app.common.audit_diff import compute_entity_changes
+    changes = compute_entity_changes(row, dump, json_fields={"form_json"})
     for field, val in dump.items():
         setattr(row, field, val)
     await db.commit()
@@ -196,6 +198,7 @@ async def update_review(
         user_name=user.get("real_name") or user.get("username"),
         action="update", resource_type="tech_agreement_review", resource_id=row.id,
         summary=f"更新技术协议评审: {row.review_code}",
+        detail={"changes": changes} if changes else None,
     )
     return row
 

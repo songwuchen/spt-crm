@@ -1020,3 +1020,48 @@ async def test_submit_reuses_running_process_for_same_form(db):
     assert len(rows) == 1
 
 
+@pytest.mark.asyncio
+async def test_qualify_syncs_owner_confirm_workflow(client, db, lead_intel_user):
+    """顶部「转商机」只调 qualify 时，应自动完结「业务员确认是否转商机」待办。"""
+    from app.domains.lead import service as lead_svc
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance, WfNodeInstance
+
+    _ = client
+    initiator = await _admin_user(db)
+    lead_id = await _create_pending_lead(db, "转化同步流程", initiator)
+    intel_task = await _pending_task_for_lead(db, lead_id, lead_intel_user)
+
+    await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": lead_intel_user, "real_name": "测试内勤", "username": "intel"},
+        decision="include", task_id=intel_task.id, customer_newness="new", opinion="可跟进",
+    )
+
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    assert inst.status == "running"
+
+    confirm_pending = (await db.execute(
+        select(WfTaskInstance.id).join(
+            WfNodeInstance, WfTaskInstance.node_instance_id == WfNodeInstance.id,
+        ).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status == "pending",
+            WfNodeInstance.node_def_id == "approval_owner_confirm",
+        )
+    )).scalar_one_or_none()
+    assert confirm_pending is not None
+
+    await lead_svc.qualify_lead(db, DEMO_TENANT, lead_id, initiator, create_opportunity=True)
+
+    await db.refresh(inst)
+    assert inst.status == "completed"
+    still_pending = (await db.execute(
+        select(WfTaskInstance.id).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status == "pending",
+        )
+    )).scalars().all()
+    assert still_pending == []
+

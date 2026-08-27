@@ -12,6 +12,7 @@ import {
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import { buildTechAgreementReviewFieldLabels } from '@/utils/dataLogLabels'
 
 const { Text } = Typography
 
@@ -57,6 +58,14 @@ export default function TechAgreementReviewViewBody({
   showFlowPane?: boolean
 }) {
   const fj = row.form_json || {}
+  const dataLog = {
+    resourceType: 'tech_agreement_review',
+    resourceId: row.id,
+    fieldLabels: buildTechAgreementReviewFieldLabels(),
+    alsoResources: wfInstance?.id
+      ? [{ resourceType: 'wf_process_instance', resourceId: wfInstance.id }]
+      : undefined,
+  }
 
   return (
     <div className="flex gap-0" style={{ minHeight: 480 }}>
@@ -96,6 +105,7 @@ export default function TechAgreementReviewViewBody({
               comments={wfInstance.comments || []}
               onSubmitComment={onSubmitComment}
               commenting={commenting}
+              dataLog={dataLog}
             />
           ) : (
             <div className="h-full flex flex-col bg-slate-50">

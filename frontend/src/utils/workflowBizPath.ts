@@ -116,6 +116,13 @@ export function resolveWorkflowBizPath(input: WorkflowBizPathInput): string | nu
     return leadReviseEditPath(input.bizId, input.taskId, mobile)
   }
 
+  if (revise && input.bizType === 'customer' && input.bizId && input.taskId) {
+    const p = mobile ? '/m' : ''
+    const q = new URLSearchParams()
+    if (input.taskId) q.set('task', input.taskId)
+    return `${p}/customers/${input.bizId}/edit?${q.toString()}`
+  }
+
   const entity = bizEntityPath(input.bizType, input.bizId, input.bizRefId, mobile)
   if (entity) return entity
 

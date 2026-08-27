@@ -36,6 +36,7 @@ import {
 } from '@/pages/techAgreementReview/tarFormUtils'
 import { loadTechAgreementWf } from '@/pages/techAgreementReview/TechAgreementReviewViewBody'
 import { printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
+import { buildTechAgreementReviewFieldLabels } from '@/utils/dataLogLabels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
@@ -616,6 +617,14 @@ export default function TechAgreementReviewList() {
                       comments={wfDetail.comments || []}
                       onSubmitComment={handleWfComment}
                       commenting={wfCommenting}
+                      dataLog={viewRec ? {
+                        resourceType: 'tech_agreement_review',
+                        resourceId: viewRec.row.id,
+                        fieldLabels: buildTechAgreementReviewFieldLabels(),
+                        alsoResources: wfDetail.id
+                          ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
+                          : undefined,
+                      } : undefined}
                     />
                   ) : (
                     <div className="h-full flex items-center justify-center bg-slate-50 px-4">

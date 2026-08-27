@@ -63,6 +63,18 @@ def _is_empty(v: Any) -> bool:
     return False
 
 
+def audit_labels_for_biz(
+    biz_type: str | None,
+    form_fields: list[dict] | None,
+) -> dict[str, str]:
+    """审批写回数据日志：业务模块字段 label。"""
+    from app.common.audit_diff import labels_from_field_defs
+    if biz_type == "tech_agreement_review":
+        from app.domains.tech_agreement_review.field_labels import tar_field_labels
+        return tar_field_labels()
+    return labels_from_field_defs(form_fields)
+
+
 def parse_field_perms(node: dict | None) -> list[dict[str, str]]:
     """规范化节点 field_perms → [{field, access}]，access in editable|required。"""
     out: list[dict[str, str]] = []
@@ -349,6 +361,26 @@ async def preview_field_update_changes(
                 old = rj.get(k)
                 if serialize_value(old) != serialize_value(v):
                     changes[f"review_json.{k}"] = {"old": serialize_value(old), "new": serialize_value(v)}
+        return changes
+
+    if biz_type == "tech_agreement_review" and biz_id:
+        from app.domains.tech_agreement_review.models import TechAgreementReview
+        row = (await db.execute(select(TechAgreementReview).where(
+            TechAgreementReview.id == biz_id, TechAgreementReview.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return {}
+        fj = dict(row.form_json) if isinstance(row.form_json, dict) else {}
+        changes: dict[str, dict[str, Any]] = {}
+        for k, v in updates.items():
+            if k in _TAR_NATIVE_KEYS:
+                old = getattr(row, k, None)
+                if serialize_value(old) != serialize_value(v):
+                    changes[k] = {"old": serialize_value(old), "new": serialize_value(v)}
+            elif k in _TAR_FORM_KEYS:
+                old = fj.get(k)
+                if serialize_value(old) != serialize_value(v):
+                    changes[f"form_json.{k}"] = {"old": serialize_value(old), "new": serialize_value(v)}
         return changes
 
     if biz_type in ("lead", "lead_reactivation") and biz_id:

@@ -1743,9 +1743,10 @@ class WorkflowEngine:
                         )
                     else:
                         from app.domains.audit.service import log_action
-                        from app.common.audit_diff import enrich_changes_with_labels, labels_from_field_defs
+                        from app.common.audit_diff import enrich_changes_with_labels
+                        from app.domains.lowcode.wf_field_writeback import audit_labels_for_biz
                         labeled = enrich_changes_with_labels(
-                            changes, labels_from_field_defs(form_fields),
+                            changes, audit_labels_for_biz(inst.biz_type, form_fields),
                         )
                         await log_action(
                             self.db, tenant_id=self.tenant_id,

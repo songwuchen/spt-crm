@@ -1564,6 +1564,12 @@ def _flow_shipment_logistics_needs_fix(nodes: list | None) -> bool:
     return False
 
 
+def _flow_shipment_parallel_fork_broken(routes: list | None) -> bool:
+    """发货通知：n3→生产领料/仓库判定误标互斥组 ex_n3（应对齐简道云并行）。"""
+    from app.domains.lowcode.shipment_notice_fields import shipment_parallel_fork_broken
+    return shipment_parallel_fork_broken(routes)
+
+
 def _flow_has_quote_need_purchase_required(nodes: list | None) -> bool:
     """报价管理：财务核价仍把「是否转采购」标成 required（应改为可填非必填）。"""
     for n in nodes or []:
@@ -4907,6 +4913,10 @@ async def _upgrade_drawing_form_flow_if_needed(
             != _flow_field_perms_sig(version.node_definitions)
         )
         and not _flow_exclusive_group_multi_blank(version.route_definitions)
+        and not (
+            form_code == "shipment_notice"
+            and _flow_shipment_parallel_fork_broken(version.route_definitions)
+        )
         # 报价：财务核价部门出边被 sanitize 删光后节点仍在，须整图重发
         and not (
             form_code == "quote_management"
@@ -5176,14 +5186,13 @@ async def _upgrade_drawing_form_flow_if_needed(
     if form_code == "shipment_notice":
         from app.domains.lowcode.shipment_notice_fields import (
             patch_shipment_notice_parallel_routes,
-            shipment_parallel_fork_broken,
             shipment_sales_accept_perms_ok,
         )
         need_nodes = (
             _flow_shipment_logistics_needs_fix(version.node_definitions)
             or not shipment_sales_accept_perms_ok(version.node_definitions)
         )
-        need_routes = shipment_parallel_fork_broken(version.route_definitions)
+        need_routes = _flow_shipment_parallel_fork_broken(version.route_definitions)
         if need_nodes or need_routes:
             import copy
             from app.common.rbac_sync import (

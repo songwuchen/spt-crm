@@ -243,6 +243,18 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     }
   }, [open, detail, navigate, onClose])
 
+  // 客户修订待办：跳到客户编辑页修改后再提（审批抽屉内无法编辑原生字段）
+  useEffect(() => {
+    if (!open || !detail) return
+    const ct = detail.current_task
+    const revise = ct?.task_kind === 'revise' || ct?.node_type === 'revise'
+    if (detail.biz_type === 'customer' && detail.biz_id && revise && ct?.task_id) {
+      onClose()
+      const q = new URLSearchParams({ wf: detail.id, task: ct.task_id })
+      navigate(`/customers/${detail.biz_id}/edit?${q.toString()}`)
+    }
+  }, [open, detail, navigate, onClose])
+
   // 180天激活待办：默认打开「本次激活内容」Tab（对齐简道云）
   useEffect(() => {
     if (!open || !detail || detail.biz_type !== 'lead_reactivation') return

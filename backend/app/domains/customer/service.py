@@ -68,33 +68,64 @@ async def resubmit_customer_review(
     customer.review_status = "pending"
     customer.reject_reason = None
     await db.commit()
-    # 驳回后若仍挂着「修改并重新提交」待办，新开审批前先清掉，避免双待办
-    if rs == "rejected":
+
+    from sqlalchemy import select
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfProcessInstance
+
+    eng = WorkflowEngine(db, tenant_id)
+    stale_statuses = ("rejected", "withdrawn", "returned")
+    stale_insts = (
+        await db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.tenant_id == tenant_id,
+                WfProcessInstance.biz_type == "customer",
+                WfProcessInstance.biz_id == customer_id,
+                WfProcessInstance.status.in_(stale_statuses),
+            ).order_by(WfProcessInstance.created_at.desc())
+        )
+    ).scalars().all()
+
+    # 优先复用最近一条已退回/驳回/撤回的流程实例，避免同一客户多条并行流程
+    reuse = stale_insts[0] if stale_insts else None
+    if reuse and reuse.initiator_id == user.get("sub"):
         try:
-            from sqlalchemy import select
-            from app.domains.lowcode.workflow_engine import WorkflowEngine
-            from app.domains.lowcode.workflow_models import WfProcessInstance
-            olds = (
-                await db.execute(
-                    select(WfProcessInstance).where(
-                        WfProcessInstance.tenant_id == tenant_id,
-                        WfProcessInstance.biz_type == "customer",
-                        WfProcessInstance.biz_id == customer_id,
-                        WfProcessInstance.status.in_(("rejected", "withdrawn")),
-                    )
-                )
-            ).scalars().all()
-            eng = WorkflowEngine(db, tenant_id)
-            for old in olds:
-                await eng._cancel_initiator_revise_todos(old.id)
-            if olds:
-                await db.commit()
+            inst = await eng.resubmit(reuse.id, user)
+            await _apply_customer_review_flow(db, tenant_id, customer, inst, user)
+            await db.refresh(customer)
+            await log_action(
+                db, tenant_id=tenant_id, user_id=user["sub"],
+                user_name=user.get("real_name") or user.get("username"),
+                action="submit_review", resource_type="customer", resource_id=customer.id,
+                summary=f"重新提交客户信息审批: {customer.name}",
+            )
+            return customer
+        except BusinessException:
+            await db.rollback()
+            customer = await get_customer(db, tenant_id, customer_id)
+            customer.review_status = "pending"
+            customer.reject_reason = None
+            await db.commit()
         except Exception:
             await db.rollback()
             customer = await get_customer(db, tenant_id, customer_id)
             customer.review_status = "pending"
             customer.reject_reason = None
             await db.commit()
+
+    # 退回/驳回后若仍挂着修订待办，新开审批前先清掉其它实例上的残留
+    try:
+        for old in stale_insts:
+            await eng._cancel_initiator_revise_todos(old.id)
+        if stale_insts:
+            await db.commit()
+    except Exception:
+        await db.rollback()
+        customer = await get_customer(db, tenant_id, customer_id)
+        customer.review_status = "pending"
+        customer.reject_reason = None
+        await db.commit()
+
     try:
         inst = await submit_customer_review(db, tenant_id, customer, user)
     except Exception as e:

@@ -594,6 +594,11 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
     except Exception as e:
         logger.warning("Auto-activity record for lead qualification failed: %s", e)
 
+    try:
+        await _sync_lead_workflow_after_qualify(db, tenant_id, lead.id, user)
+    except Exception as e:
+        logger.warning("Sync lead owner-confirm workflow after qualify failed: %s", e)
+
     result = {"lead_id": lead.id}
     if customer_id:
         result["customer_id"] = customer_id
@@ -603,6 +608,18 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         result["project_id"] = project.id
         result["project_code"] = project.project_code
     return result
+
+
+async def _sync_lead_workflow_after_qualify(
+    db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
+) -> None:
+    """qualify 成功后，自动通过「业务员确认是否转商机」流程节点。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    engine = WorkflowEngine(db, tenant_id)
+    synced = await engine.sync_lead_owner_confirm_after_qualify(lead_id, user)
+    if synced:
+        logger.info("lead %s owner-confirm workflow synced after qualify", lead_id)
 
 
 async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict):

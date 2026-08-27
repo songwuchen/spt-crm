@@ -763,6 +763,13 @@ def _route_is_jdy_always_parallel(route: dict) -> bool:
     return _is_jdy_always_parallel_condition(route.get("condition"))
 
 
+def _route_has_branch_condition(route: dict) -> bool:
+    """连线是否有可参与 if/else 分支判断的条件（简道云 cond=[] / __always 不算）。"""
+    if route.get("always") or _route_is_jdy_always_parallel(route):
+        return False
+    return bool(route.get("condition"))
+
+
 def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list, list[str]]:
     """Build nodes/routes from JDY workflow_config. Returns notes about degradations."""
     notes: list[str] = []
@@ -910,6 +917,13 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         by_src.setdefault(r["source"], []).append(r)
     for src, outs in by_src.items():
         if len(outs) < 2:
+            continue
+        # 简道云：同源多条均无条件出边（parents 上 condition 为 {}）= 并行，不标互斥。
+        # 发货通知「开具提货单→生产领料/仓库判定」即此类；误标 ex_n3 会吞仓库支路。
+        if all(not _route_has_branch_condition(r) for r in outs):
+            notes.append(
+                f"节点「{src}」{len(outs)} 条无条件出边保持并行（对齐简道云）"
+            )
             continue
         gid = f"ex_{src}"
         for r in outs:

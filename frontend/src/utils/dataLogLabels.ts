@@ -4,6 +4,11 @@ import {
   reviewSectionAllFields,
   type ReviewFieldDef,
 } from '@/constants/contractReview'
+import {
+  TECH_AGREEMENT_SECTIONS,
+  tarSectionAllFields,
+  type TarFieldDef,
+} from '@/constants/techAgreementReview'
 
 function addField(map: Record<string, string>, f: ReviewFieldDef) {
   map[f.key] = f.label
@@ -21,6 +26,26 @@ export function buildContractReviewFieldLabels(): Record<string, string> {
   for (const sec of CONTRACT_REVIEW_SECTIONS) {
     for (const f of reviewSectionAllFields(sec)) {
       addField(map, f)
+    }
+  }
+  return map
+}
+
+function addTarField(map: Record<string, string>, f: TarFieldDef) {
+  map[f.key] = f.label
+  if (f.source === 'form') {
+    map[`form_json.${f.key}`] = f.label
+  }
+}
+
+export function buildTechAgreementReviewFieldLabels(): Record<string, string> {
+  const map: Record<string, string> = {
+    status: '流程状态',
+    review_code: '流水号',
+  }
+  for (const sec of TECH_AGREEMENT_SECTIONS) {
+    for (const f of tarSectionAllFields(sec)) {
+      addTarField(map, f)
     }
   }
   return map
@@ -58,10 +83,19 @@ export function dataLogFromWfDetail(
   const fields = detail.form_fields
   const labels = detail.biz_type === 'contract_review'
     ? buildContractReviewFieldLabels()
-    : buildFormFieldLabels(fields)
+    : detail.biz_type === 'tech_agreement_review'
+      ? buildTechAgreementReviewFieldLabels()
+      : buildFormFieldLabels(fields)
 
   if (detail.biz_type && detail.biz_id) {
-    return { resourceType: detail.biz_type, resourceId: detail.biz_id, fieldLabels: labels }
+    return {
+      resourceType: detail.biz_type,
+      resourceId: detail.biz_id,
+      fieldLabels: labels,
+      alsoResources: detail.id
+        ? [{ resourceType: 'wf_process_instance', resourceId: detail.id }]
+        : undefined,
+    }
   }
   if (detail.form_instance_id) {
     return {
