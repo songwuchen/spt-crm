@@ -189,6 +189,23 @@ class WorkflowEngine:
         for pid in ids:
             await self._cancel_initiator_revise_todos(pid)
 
+    async def _cancel_biz_stale_revise(
+        self, biz_type: str, biz_id: str, *, keep_process_id: str | None,
+    ) -> None:
+        """新业务流发起时，作废同 biz 其它实例上残留的「修改并重新提交」待办。"""
+        if not biz_type or not biz_id:
+            return
+        q = select(WfProcessInstance.id).where(
+            WfProcessInstance.tenant_id == self.tenant_id,
+            WfProcessInstance.biz_type == biz_type,
+            WfProcessInstance.biz_id == biz_id,
+        )
+        if keep_process_id:
+            q = q.where(WfProcessInstance.id != keep_process_id)
+        ids = [r[0] for r in (await self.db.execute(q)).all()]
+        for pid in ids:
+            await self._cancel_initiator_revise_todos(pid)
+
     async def _cancel_initiator_revise_todos(self, process_instance_id: str) -> None:
         tasks = (await self.db.execute(
             select(WfTaskInstance).where(
@@ -656,6 +673,8 @@ class WorkflowEngine:
         self._log(inst.id, None, None, initiator, "submit", None)
         if form_instance_id:
             await self._cancel_form_stale_revise(form_instance_id, keep_process_id=inst.id)
+        if biz_type and biz_id:
+            await self._cancel_biz_stale_revise(biz_type, biz_id, keep_process_id=inst.id)
 
         ctx = ApprovalContext(initiator_id=initiator.get("sub"), form_data=form_data or {}, nominated=nominated or {})
         # 生命周期事件必须按发生顺序入队: submitted 要早于 _advance 可能产生的
@@ -848,6 +867,38 @@ class WorkflowEngine:
         except Exception:
             pass
 
+    def _has_reenter_session(self, inst: WfProcessInstance) -> bool:
+        """退回/重提/激活后跨请求推进：允许重入已完成节点直至流程终态。"""
+        raw = getattr(inst, "pending_joins", None)
+        if not isinstance(raw, list):
+            return False
+        return any(isinstance(x, dict) and x.get("reenter_session") for x in raw)
+
+    def _mark_reenter_session(self, inst: WfProcessInstance) -> None:
+        raw = getattr(inst, "pending_joins", None)
+        items: list = list(raw) if isinstance(raw, list) else ([] if raw is None else [raw])
+        if any(isinstance(x, dict) and x.get("reenter_session") for x in items):
+            return
+        items.append({"reenter_session": True})
+        inst.pending_joins = items
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
+    def _clear_reenter_session(self, inst: WfProcessInstance) -> None:
+        raw = getattr(inst, "pending_joins", None)
+        if not isinstance(raw, list):
+            return
+        nxt = [x for x in raw if not (isinstance(x, dict) and x.get("reenter_session"))]
+        if len(nxt) == len(raw):
+            return
+        inst.pending_joins = nxt or None
+        try:
+            flag_modified(inst, "pending_joins")
+        except Exception:
+            pass
+
     async def _try_finish_await_end(
         self, inst: WfProcessInstance, version: WfProcessDefinitionVersion, ctx: ApprovalContext,
     ) -> None:
@@ -878,7 +929,7 @@ class WorkflowEngine:
         self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
         from_node_id: str, ctx: ApprovalContext, *, force_reenter: bool = False,
     ) -> None:
-        force_reenter = force_reenter or self._resubmit_reenter
+        force_reenter = force_reenter or self._resubmit_reenter or self._has_reenter_session(inst)
         targets = self._next_targets(version, from_node_id, ctx.form_data)
         nodes = self._nodes_by_id(version)
         # 报价「采购→财务核价」等回路：连线标 reenter 时允许再次激活已完成节点
@@ -1344,6 +1395,17 @@ class WorkflowEngine:
         if is_revise:
             if inst.status not in ("withdrawn", "rejected", "returned"):
                 raise BusinessException(code=BUSINESS_ERROR, message="当前状态不可重新提交")
+            # 客户已审批通过但旧实例修订待办未清：直接作废，避免「待我修改」悬挂
+            if inst.biz_type == "customer" and inst.biz_id:
+                from app.domains.customer.models import Customer
+                cu = await self.db.get(Customer, inst.biz_id)
+                if cu and getattr(cu, "review_status", None) == "approved":
+                    await self._cancel_initiator_revise_todos(inst.id)
+                    task.status = "cancelled"
+                    task.action_at = _now()
+                    self._log(inst.id, task.node_instance_id, task.id, actor, "cancel", "客户已审批通过，关闭残留修订待办")
+                    await self.db.commit()
+                    return
             if action not in ("approve", "resubmit"):
                 raise BusinessException(code=VALIDATION_ERROR, message="修订待办请修改后重新提交")
             task.status = "approved"
@@ -1508,6 +1570,67 @@ class WorkflowEngine:
         await self.db.commit()
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "approve")
+
+    async def sync_lead_owner_confirm_after_qualify(
+        self, lead_id: str, actor: dict, *, opinion: str | None = None,
+    ) -> bool:
+        """线索已通过 qualify 转化后，自动完结「业务员确认是否转商机」在途待办。
+
+        顶部「转商机」按钮只调 qualify、不走流程审批时，用此方法消除流程/业务不同步。
+        """
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.tenant_id == self.tenant_id,
+                WfProcessInstance.biz_type == "lead",
+                WfProcessInstance.biz_id == lead_id,
+                WfProcessInstance.status == "running",
+            ).order_by(WfProcessInstance.created_at.desc()).limit(1)
+        )).scalar_one_or_none()
+        if not inst:
+            return False
+
+        rows = (await self.db.execute(
+            select(WfTaskInstance, WfNodeInstance).join(
+                WfNodeInstance, WfTaskInstance.node_instance_id == WfNodeInstance.id,
+            ).where(
+                WfTaskInstance.tenant_id == self.tenant_id,
+                WfTaskInstance.process_instance_id == inst.id,
+                WfTaskInstance.status == "pending",
+            )
+        )).all()
+
+        target_task = None
+        for task, ni in rows:
+            if self._is_lead_owner_confirm_node({"id": ni.node_def_id, "name": ni.node_name}):
+                target_task = task
+                break
+        if not target_task:
+            return False
+
+        op = (opinion or "").strip() or "确认转商机"
+        target_task.status = "approved"
+        target_task.opinion = op
+        target_task.action_at = _now()
+        target_task.version += 1
+        self._log(inst.id, target_task.node_instance_id, target_task.id, actor, "approve", op)
+        self._queue("todo_done_explicit", target_task.assignee_id, getattr(target_task, "dingtalk_todo_id", None))
+
+        version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
+        ctx = ApprovalContext(
+            initiator_id=inst.initiator_id,
+            form_data=await self._form_data(inst),
+            nominated=inst.nominated_approvers or {},
+        )
+        await self._on_task_approved(inst, version, target_task, ctx)
+        from app.domains.lowcode import shipment_notice_events as sne
+        await sne.emit_from_process(
+            self.db, self.tenant_id, sne.EVENT_ACTED, inst,
+            {"action": "approve", "opinion": op, "sync_after_qualify": True},
+        )
+        await self.db.commit()
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "approve")
+        return True
 
     async def _apply_node_field_updates(
         self, inst, version, task, field_updates: dict | None, *,
@@ -2075,6 +2198,7 @@ class WorkflowEngine:
         for ni in nis:
             ni.status = "cancelled"
         await self.db.flush()
+        self._mark_reenter_session(inst)
         # 重新激活目标节点（会重新解析审批人并建待办；允许越过「已完成」去重）
         await self._activate_node(inst, version, target, ctx, allow_reenter=True)
 
@@ -2172,6 +2296,7 @@ class WorkflowEngine:
         await self._commit_complete_instance(inst, status, reason)
 
     async def _commit_complete_instance(self, inst, status: str, reason: str | None = None) -> None:
+        self._clear_reenter_session(inst)
         inst.status = status
         inst.completed_at = _now()
         # 收尾时关掉残留 running 节点 / pending 待办，避免流程动态长期「处理中」
@@ -2415,6 +2540,7 @@ class WorkflowEngine:
             if inst.biz_type and inst.biz_id:
                 from app.domains.lowcode.wf_biz_writeback import writeback
                 await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "submitted")
+            self._mark_reenter_session(inst)
             await self.db.flush()
             await self._activate_node(inst, version, target, ctx, allow_reenter=True)
             if inst.form_instance_id:
@@ -2665,6 +2791,7 @@ class WorkflowEngine:
             flag_modified(inst, "pending_joins")
         except Exception:
             pass
+        self._mark_reenter_session(inst)
 
         if version.id != inst.process_version_id:
             inst.process_version_id = version.id

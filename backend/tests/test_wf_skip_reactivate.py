@@ -278,3 +278,29 @@ async def test_advance_without_resubmit_session_still_skips_completed():
 
     eng._activate_node.assert_awaited_once()
     assert eng._activate_node.call_args.kwargs.get("allow_reenter") is False
+
+
+@pytest.mark.asyncio
+async def test_advance_reenter_session_persists_across_requests():
+    """持久 reenter_session：模拟激活后另一次请求里 _advance 仍 allow_reenter。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=AsyncMock(), tenant_id="t")
+    eng._activate_node = AsyncMock()
+    eng._has_live_work = AsyncMock(return_value=False)
+    eng._try_finish_await_end = AsyncMock()
+    eng._flush_deferred_complete = AsyncMock()
+
+    routes = [{"id": "r_cs", "source": "n4", "target": "n11"}]
+    nodes = [
+        {"id": "n4", "type": "approval", "name": "客服会签"},
+        {"id": "n11", "type": "approval", "name": "会签"},
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=nodes)
+    inst = SimpleNamespace(id="pi-1", status="running", pending_joins=[{"reenter_session": True}])
+    ctx = SimpleNamespace(form_data={"field_25": "是"})
+
+    await eng._advance(inst, version, "n4", ctx)
+
+    eng._activate_node.assert_awaited_once()
+    assert eng._activate_node.call_args.kwargs.get("allow_reenter") is True
