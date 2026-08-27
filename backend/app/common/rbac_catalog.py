@@ -361,9 +361,11 @@ STANDARD_ROLES = [
     },
     {
         "code": "finance", "name": "财务专员", "scope": "all",
-        "desc": "全公司回款/清欠/发票/提成/保函;合同等只读",
+        "desc": "全公司回款/清欠/发票/提成/保函;客户主数据可维护;合同等只读",
         "perms": [
-            "customer:view", "project:view", "quote:view", "contract:view", "order:view",
+            "customer:view", "customer:edit",
+            "contact:view", "contact:edit",
+            "project:view", "quote:view", "contract:view", "order:view",
             "contract_review:view",
             "tech_agreement_review:view",
             "payment:view", "payment:edit",
