@@ -72,6 +72,45 @@ def _collect_ids(val: Any) -> list[str]:
     return [s] if s else []
 
 
+def _collect_attachment_ids(val: Any) -> list[str]:
+    return [i for i in _collect_ids(val) if _UUID_RE.match(i)]
+
+
+def _file_names_from_value(val: Any) -> list[str]:
+    """file/image 字段若已带 name 则直接用（无需查 attachments 表）。"""
+    names: list[str] = []
+    if isinstance(val, list):
+        for item in val:
+            if isinstance(item, dict):
+                n = item.get("name") or item.get("fileName") or item.get("filename")
+                if n:
+                    names.append(str(n).strip())
+            elif isinstance(item, str):
+                s = item.strip()
+                if s and not _UUID_RE.match(s):
+                    names.append(s)
+    elif isinstance(val, dict):
+        n = val.get("name") or val.get("fileName") or val.get("filename")
+        if n:
+            names.append(str(n).strip())
+    return [n for n in names if n]
+
+
+def _format_file_display_value(val: Any, labels: dict[str, str]) -> str | None:
+    if _is_empty(val):
+        return None
+    embedded = _file_names_from_value(val)
+    if embedded:
+        return "、".join(embedded)
+    ids = _collect_attachment_ids(val)
+    if ids:
+        parts = [labels.get(i) or i for i in ids]
+        return "、".join(p for p in parts if p)
+    if isinstance(val, str) and val.strip() and not _UUID_RE.match(val.strip()):
+        return val.strip()
+    return None
+
+
 def _is_empty(val: Any) -> bool:
     return val is None or val == "" or val == [] or val == {}
 
@@ -267,6 +306,8 @@ def _collect_ids_from_detail_table(val: Any, field_def: dict[str, Any] | None) -
                     person_ids.add(i)
                 elif ctype in ("department", "department_multi"):
                     dept_ids.add(i)
+                elif ctype in ("file", "image"):
+                    pass
                 else:
                     person_ids.add(i)
     return person_ids, dept_ids
@@ -385,6 +426,7 @@ async def enrich_form_changes_for_display(
     person_ids: set[str] = set()
     dept_ids: set[str] = set()
     contract_ids: set[str] = set()
+    attachment_ids: set[str] = set()
 
     for key, diff in changes.items():
         fid = key.split(".")[-1]
@@ -402,12 +444,24 @@ async def enrich_form_changes_for_display(
                     dept_ids.add(i)
                 elif ftype == "contract":
                     contract_ids.add(i)
+                elif ftype in ("file", "image"):
+                    attachment_ids.add(i)
                 elif isinstance(val, list) or ftype == "":
                     person_ids.add(i)
             if ftype in ("detail_table", "sub_table_data"):
                 p2, d2 = _collect_ids_from_detail_table(val, fdef)
                 person_ids |= p2
                 dept_ids |= d2
+                for col in (fdef.get("detail_table_columns") or []):
+                    if not isinstance(col, dict):
+                        continue
+                    if str(col.get("type") or "") in ("file", "image"):
+                        cell = None
+                        if isinstance(val, list):
+                            for row in val:
+                                if isinstance(row, dict):
+                                    cell = row.get(str(col.get("id") or ""))
+                                    attachment_ids.update(_collect_attachment_ids(cell))
 
     labels: dict[str, str] = {}
     if person_ids:
@@ -443,6 +497,18 @@ async def enrich_form_changes_for_display(
         )).all()
         for cid, cno, dno in rows:
             labels[str(cid)] = (str(dno or cno or cid)).strip()
+
+    if attachment_ids:
+        from app.domains.attachment.models import Attachment
+        rows = (await db.execute(
+            select(Attachment.id, Attachment.original_name).where(
+                Attachment.tenant_id == tenant_id,
+                Attachment.id.in_(attachment_ids),
+            )
+        )).all()
+        for aid, oname in rows:
+            if oname:
+                labels[str(aid)] = str(oname).strip()
 
     enriched: dict[str, dict[str, Any]] = {}
     for key, diff in changes.items():
@@ -502,6 +568,10 @@ def _format_display_value(
         if ids and _UUID_RE.match(ids[0]):
             return labels.get(ids[0]) or ids[0]
         return str(val)
+    if ftype in ("file", "image"):
+        out = _format_file_display_value(val, labels)
+        if out:
+            return out
     if ftype in ("select", "radio", "checkbox") and opts:
         if isinstance(val, list):
             return "、".join(opts.get(str(v), str(v)) for v in val)

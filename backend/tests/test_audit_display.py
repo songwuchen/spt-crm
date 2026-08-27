@@ -114,3 +114,46 @@ def test_enrich_detail_table_json_legacy_display():
     assert ch.get("detail_table_diff")
     assert "对应的合同明细" in (ch.get("display_new") or "")
     assert "[object Object]" not in (ch.get("display_new") or "")
+
+
+def test_format_file_display_resolves_attachment_ids():
+    uid1 = "abfa136c-3b1c-4d42-8dda-d1bd9e9d873c"
+    uid2 = "0b5378f3-cf8b-4a41-82fb-ea8318d090c2"
+    labels = {uid1: "方案图.pdf", uid2: "补充说明.docx"}
+    out = _format_display_value([uid1, uid2], "file", labels, {})
+    assert out == "方案图.pdf、补充说明.docx"
+
+
+def test_format_file_display_uses_embedded_names():
+    val = [{"id": "uuid-1", "name": "合同附件.pdf"}, {"id": "uuid-2", "name": "现场照片.jpg"}]
+    out = _format_display_value(val, "file", {}, {})
+    assert out == "合同附件.pdf、现场照片.jpg"
+
+
+def test_enrich_file_field_looks_up_attachment_names():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.common.audit_display import enrich_form_changes_for_display
+
+    uid1 = "abfa136c-3b1c-4d42-8dda-d1bd9e9d873c"
+    uid2 = "0b5378f3-cf8b-4a41-82fb-ea8318d090c2"
+    field_def = {"id": "attachments", "type": "file", "label": "附件 (不能放图片)"}
+    changes = {
+        "attachments": {
+            "old": [uid1],
+            "new": [uid1, uid2],
+        }
+    }
+    db = AsyncMock()
+    att_result = MagicMock()
+    att_result.all.return_value = [
+        (uid1, "方案图.pdf"),
+        (uid2, "补充说明.docx"),
+    ]
+    user_result = MagicMock()
+    user_result.all.return_value = []
+    db.execute = AsyncMock(side_effect=[att_result, user_result])
+    out = asyncio.run(enrich_form_changes_for_display(db, "tid", changes, [field_def]))
+    ch = out["attachments"]
+    assert ch["display_old"] == "方案图.pdf"
+    assert ch["display_new"] == "方案图.pdf、补充说明.docx"
