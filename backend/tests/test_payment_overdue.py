@@ -1,7 +1,13 @@
 """Payment overdue check + notification tests."""
 
 import datetime
+import uuid
+
 from httpx import AsyncClient
+
+
+def _uniq(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
 async def _setup(client: AsyncClient, h: dict) -> tuple[str, str]:
@@ -31,7 +37,7 @@ async def test_check_overdue_endpoint(client: AsyncClient, auth_headers: dict):
     # Create a payment plan with past due date
     past_date = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
     await client.post(f"/api/v1/projects/{proj_id}/payment_plans", json={
-        "plan_no": "PP-OVERDUE-001", "amount": 100000, "due_date": past_date,
+        "plan_no": _uniq("PP-OVERDUE"), "amount": 100000, "due_date": past_date,
     }, headers=h)
 
     # Trigger overdue check
@@ -51,7 +57,7 @@ async def test_payment_reconciliation(client: AsyncClient, auth_headers: dict):
 
     # Create plan
     plan_resp = await client.post(f"/api/v1/projects/{proj_id}/payment_plans", json={
-        "plan_no": "PP-REC-001", "amount": 50000, "due_date": "2026-12-31",
+        "plan_no": _uniq("PP-REC"), "amount": 50000, "due_date": "2026-12-31",
     }, headers=h)
     plan_id = plan_resp.json()["data"]["id"]
 

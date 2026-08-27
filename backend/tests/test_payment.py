@@ -1,7 +1,14 @@
 """Payment domain tests — invoices, payment plans, payment records."""
 
 import datetime
+import uuid
+
 from httpx import AsyncClient
+
+
+def _uniq(prefix: str) -> str:
+    """租户级唯一编号：删除商机仅 void/cancel 行，固定编号重跑会撞 uq_*。"""
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
 async def _setup_project(client: AsyncClient, h: dict) -> tuple[str, str]:
@@ -32,7 +39,7 @@ async def test_invoice_crud(client: AsyncClient, auth_headers: dict):
 
     # Create invoice
     resp = await client.post(f"/api/v1/projects/{proj_id}/invoices", json={
-        "invoice_no": "INV-TEST-001", "amount": 50000, "invoice_date": today,
+        "invoice_no": _uniq("INV-TEST"), "amount": 50000, "invoice_date": today,
     }, headers=h)
     data = resp.json()
     assert data["code"] == 0, f"Create invoice failed: {data}"
@@ -59,7 +66,7 @@ async def test_payment_plan_crud(client: AsyncClient, auth_headers: dict):
 
     # Create payment plan
     resp = await client.post(f"/api/v1/projects/{proj_id}/payment_plans", json={
-        "plan_no": "PP-TEST-001", "amount": 30000, "due_date": "2026-06-30",
+        "plan_no": _uniq("PP-TEST"), "amount": 30000, "due_date": "2026-06-30",
     }, headers=h)
     data = resp.json()
     assert data["code"] == 0, f"Create plan failed: {data}"
@@ -114,8 +121,9 @@ async def test_payment_plan_bulk_source_and_replace(client: AsyncClient, auth_he
     cust_id, proj_id = await _setup_project(client, h)
 
     # A manually-created plan (no source) must survive any regeneration
+    manual_no = _uniq("PP-MANUAL")
     await client.post(f"/api/v1/projects/{proj_id}/payment_plans", json={
-        "plan_no": "PP-MANUAL", "amount": 5000, "due_date": "2026-12-31",
+        "plan_no": manual_no, "amount": 5000, "due_date": "2026-12-31",
     }, headers=h)
 
     # First generation from contract CT-1 (2 plans, one tied to a milestone)
@@ -147,7 +155,7 @@ async def test_payment_plan_bulk_source_and_replace(client: AsyncClient, auth_he
     assert len(lst2) == 2
     manual = [p for p in lst2 if p["source_contract_id"] is None]
     ct1 = [p for p in lst2 if p["source_contract_id"] == "CT-1"]
-    assert len(manual) == 1 and manual[0]["plan_no"] == "PP-MANUAL"
+    assert len(manual) == 1 and manual[0]["plan_no"] == manual_no
     assert len(ct1) == 1 and float(ct1[0]["amount"]) == 100000
 
     await _cleanup(client, h, proj_id, cust_id)
