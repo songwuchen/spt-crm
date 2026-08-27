@@ -153,6 +153,8 @@ class WorkflowEngine:
         self._skipped_reactivate_this_batch = False
         # 本批是否因多入边汇聚延后激活（不得据此发明 end / 补收尾）
         self._deferred_convergence_this_batch = False
+        # 退回后 resubmit 整轮：后续 _advance 链也要允许重入已完成节点（如发货通知财务→物流）
+        self._resubmit_reenter = False
 
     async def _has_downstream_approval(self, process_instance_id: str) -> bool:
         """下一节点（或任一审批节点）已有人审批通过 → 不可撤回。"""
@@ -876,6 +878,7 @@ class WorkflowEngine:
         self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
         from_node_id: str, ctx: ApprovalContext, *, force_reenter: bool = False,
     ) -> None:
+        force_reenter = force_reenter or self._resubmit_reenter
         targets = self._next_targets(version, from_node_id, ctx.form_data)
         nodes = self._nodes_by_id(version)
         # 报价「采购→财务核价」等回路：连线标 reenter 时允许再次激活已完成节点
@@ -2676,7 +2679,12 @@ class WorkflowEngine:
         start = self._start_node(version)
         if not start:
             raise BusinessException(code=VALIDATION_ERROR, message="流程缺少开始节点")
-        await self._advance(inst, version, start["id"], ctx, force_reenter=True)
+        prev_resubmit_reenter = self._resubmit_reenter
+        self._resubmit_reenter = True
+        try:
+            await self._advance(inst, version, start["id"], ctx, force_reenter=True)
+        finally:
+            self._resubmit_reenter = prev_resubmit_reenter
 
         await self.db.commit()
         await self.db.refresh(inst)

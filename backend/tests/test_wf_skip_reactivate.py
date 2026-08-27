@@ -225,3 +225,56 @@ async def test_activate_approval_reopens_auto_approved_when_approver_now_resolve
     eng._resolve_approvers.assert_awaited()
     eng.db.add.assert_called()
     assert not any(c[0][4] == "skip_reactivate" for c in eng._log.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_advance_resubmit_session_reenters_downstream_completed():
+    """退回重提：start 之后财务通过再进物流时，仍应 allow_reenter（发货通知类流程）。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=AsyncMock(), tenant_id="t")
+    eng._resubmit_reenter = True
+    eng._activate_node = AsyncMock()
+    eng._has_live_work = AsyncMock(return_value=False)
+    eng._try_finish_await_end = AsyncMock()
+    eng._flush_deferred_complete = AsyncMock()
+
+    routes = [{"id": "r_fin_log", "source": "n2", "target": "n1"}]
+    nodes = [
+        {"id": "n2", "type": "approval", "name": "财务查款"},
+        {"id": "n1", "type": "approval", "name": "物流审批"},
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=nodes)
+    inst = SimpleNamespace(id="pi-1", status="running")
+    ctx = SimpleNamespace(form_data={})
+
+    await eng._advance(inst, version, "n2", ctx)
+
+    eng._activate_node.assert_awaited_once()
+    assert eng._activate_node.call_args.kwargs.get("allow_reenter") is True
+
+
+@pytest.mark.asyncio
+async def test_advance_without_resubmit_session_still_skips_completed():
+    """非 resubmit 会话：已完成节点仍 skip_reactivate（总工晚到汇入保护）。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=AsyncMock(), tenant_id="t")
+    eng._activate_node = AsyncMock()
+    eng._has_live_work = AsyncMock(return_value=False)
+    eng._try_finish_await_end = AsyncMock()
+    eng._flush_deferred_complete = AsyncMock()
+
+    routes = [{"id": "r_a", "source": "n11", "target": "n7"}]
+    nodes = [
+        {"id": "n11", "type": "approval", "name": "市场支持"},
+        {"id": "n7", "type": "approval", "name": "总工审批"},
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=nodes)
+    inst = SimpleNamespace(id="pi-1", status="running")
+    ctx = SimpleNamespace(form_data={})
+
+    await eng._advance(inst, version, "n11", ctx)
+
+    eng._activate_node.assert_awaited_once()
+    assert eng._activate_node.call_args.kwargs.get("allow_reenter") is False
