@@ -2417,6 +2417,14 @@ class WorkflowEngine:
                 await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "submitted")
             await self.db.flush()
             await self._activate_node(inst, version, target, ctx, allow_reenter=True)
+            if inst.form_instance_id:
+                from app.domains.lowcode import shipment_notice_events as sne
+                fi = await self.db.get(FormInstance, inst.form_instance_id)
+                if fi:
+                    await sne.emit_submitted(
+                        self.db, self.tenant_id, fi,
+                        extra={"reactivated": True, "node_id": to_node_id},
+                    )
 
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.activated", inst)
@@ -2685,6 +2693,13 @@ class WorkflowEngine:
             await self._advance(inst, version, start["id"], ctx, force_reenter=True)
         finally:
             self._resubmit_reenter = prev_resubmit_reenter
+
+        # 发货通知等表单流：重新提交后通知 TMS 继续同步（同一 form_instance）
+        if inst.form_instance_id:
+            from app.domains.lowcode import shipment_notice_events as sne
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi:
+                await sne.emit_submitted(self.db, self.tenant_id, fi, extra={"resubmit": True})
 
         await self.db.commit()
         await self.db.refresh(inst)

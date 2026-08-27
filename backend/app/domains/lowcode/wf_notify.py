@@ -706,6 +706,7 @@ async def enqueue_wf_event(
         from app.domains.outbox.schemas import OutboxEventCreate
         payload = {
             "process_instance_id": inst.id,
+            "form_instance_id": inst.form_instance_id,
             "biz_type": inst.biz_type,
             "biz_id": inst.biz_id,
             "title": inst.title,

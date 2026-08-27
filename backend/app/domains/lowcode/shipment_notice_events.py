@@ -62,7 +62,8 @@ async def emit_for_form(
         logger.warning("shipment_notice emit %s failed: %s", event_type, e)
 
 
-async def emit_submitted(db, tenant_id: str, form_instance, template_code: str | None = None) -> None:
+async def emit_submitted(db, tenant_id: str, form_instance, template_code: str | None = None,
+                       extra: dict | None = None) -> None:
     code = template_code
     if code is None:
         code = await _template_code(db, tenant_id, getattr(form_instance, "id", None))
@@ -70,7 +71,7 @@ async def emit_submitted(db, tenant_id: str, form_instance, template_code: str |
         return
     if getattr(form_instance, "status", None) == "draft":
         return
-    await emit_for_form(db, tenant_id, EVENT_SUBMITTED, form_instance)
+    await emit_for_form(db, tenant_id, EVENT_SUBMITTED, form_instance, extra)
 
 
 async def emit_from_process(
