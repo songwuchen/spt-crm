@@ -9,6 +9,8 @@ class OpportunityProject(TenantScopedBase):
 
     project_code: Mapped[str] = mapped_column(String(64), nullable=False)
     customer_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    # 线索转化绑客户：matched=匹配已有 / unmatched=未匹配 / ambiguous=重名待人工
+    customer_link_source: Mapped[str | None] = mapped_column(String(32))
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     stage_code: Mapped[str] = mapped_column(String(16), default="S1")
     amount_expect: Mapped[float | None] = mapped_column(Numeric(18, 2))

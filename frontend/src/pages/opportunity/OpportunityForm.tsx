@@ -15,6 +15,7 @@ import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolic
 import dayjs from 'dayjs'
 import { usePermission } from '@/hooks/usePermission'
 import NoPermission from '@/pages/NoPermission'
+import { CUSTOMER_LINK_META } from '@/constants/customerLinkSource'
 
 const defaultRiskOptions = [
   { label: '低', value: 'L' }, { label: '中', value: 'M' }, { label: '高', value: 'H' },
@@ -57,6 +58,8 @@ export default function OpportunityForm() {
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [customerLinkSource, setCustomerLinkSource] = useState<string | null>(null)
+  const [stageCode, setStageCode] = useState<string>('S1')
   const isEdit = !!id
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('project:create')
@@ -85,6 +88,8 @@ export default function OpportunityForm() {
           key_requirements_json: normalizeRequirements(d.key_requirements_json),
         })
         setCustomFields((d.custom_fields_json as Record<string, unknown>) || {})
+        setCustomerLinkSource(d.customer_link_source || null)
+        setStageCode(d.stage_code || 'S1')
         // Seed display names for Select components
         if (d.owner_id && d.owner_name) {
           userSelect.setInitialOption({ label: d.owner_name, value: d.owner_id })
@@ -157,16 +162,33 @@ export default function OpportunityForm() {
     }
   }
 
+  const customerLinkMeta = customerLinkSource
+    ? CUSTOMER_LINK_META[customerLinkSource as keyof typeof CUSTOMER_LINK_META]
+    : null
+  const customerOptional = isEdit
+    && (customerLinkSource === 'unmatched' || customerLinkSource === 'ambiguous')
+    && stageCode === 'S1'
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑商机' : '新建商机'}</h2>
       <Card>
        <FieldPolicyProvider entityType="project" form={form} customFieldValues={customFields}>
+        {customerLinkMeta && (
+          <Alert
+            type={customerLinkMeta.alertType}
+            showIcon
+            className="mb-4"
+            message={customerLinkMeta.label}
+            description={customerLinkMeta.hint}
+          />
+        )}
         <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={markDirty} className="max-w-2xl">
           <PolicyItem name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="请输入项目名称" />
           </PolicyItem>
-          <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择关联客户' }]}>
+          <Form.Item name="customer_id" label="关联客户"
+            rules={customerOptional ? [] : [{ required: true, message: '请选择关联客户' }]}>
             <Select placeholder="请选择客户" showSearch filterOption={false}
               loading={customerSelect.loading}
               options={customerSelect.options}

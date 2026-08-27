@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
+import { Button, Input, Select, Space, Modal, Form, Progress, message, Tag } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { t } from '@/locales'
@@ -19,6 +19,7 @@ import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import ListToolbar from '@/components/list/ListToolbar'
 import { isMasked, MASK_VALUE } from '@/utils/mask'
 import { usePermission } from '@/hooks/usePermission'
+import { customerLinkTag } from '@/constants/customerLinkSource'
 
 import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
@@ -151,10 +152,30 @@ export default function OpportunityList() {
         </div>
       ),
     },
-    { title: t('opportunity.customer'), key: 'customer', width: 140,
-      render: (_, r) => r.customer_id ? (
-        <span className="text-sm text-slate-700">{r.customer_name || '-'}</span>
-      ) : <span className="text-slate-300">-</span>,
+    { title: t('opportunity.customer'), key: 'customer', width: 180,
+      render: (_, r) => {
+        const linkMeta = customerLinkTag(r.customer_link_source)
+        if (r.customer_id) {
+          return (
+            <div className="space-y-1">
+              <span className="text-sm text-slate-700">{r.customer_name || '-'}</span>
+              {linkMeta && (
+                <Tag color={linkMeta.color} className="mr-0 text-[11px] leading-4">
+                  {linkMeta.label}
+                </Tag>
+              )}
+            </div>
+          )
+        }
+        if (linkMeta) {
+          return (
+            <Tag color={linkMeta.color} className="mr-0">
+              {linkMeta.label}
+            </Tag>
+          )
+        }
+        return <span className="text-slate-300">-</span>
+      },
     },
     { title: t('opportunity.stage'), key: 'stage', width: 110,
       render: (_, r) => (

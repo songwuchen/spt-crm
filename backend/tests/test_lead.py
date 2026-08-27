@@ -183,13 +183,17 @@ async def test_qualify_marks_lead_without_opportunity_when_disabled(
 async def test_qualify_creates_opportunity_by_default(
     client: AsyncClient, auth_headers: dict, db, lead_intel_user,
 ):
+    from app.database import generate_uuid
+
     h = auth_headers
+    company = f"默认商机公司-{generate_uuid()[:8]}"
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "默认转商机线索", "company_name": "默认商机公司", "source": "website",
+        "title": "默认转商机线索", "company_name": company, "source": "website",
     })).json()["data"]["id"]
     await approve_lead_intel_include(db, lid, lead_intel_user)
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
     assert res["code"] == 0
+    assert res["data"].get("customer_link_source") == "unmatched"
     assert res["data"].get("customer_id") is None
     pid = res["data"].get("project_id")
     assert pid, "默认应创建商机"
@@ -197,6 +201,7 @@ async def test_qualify_creates_opportunity_by_default(
 
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
     assert proj["customer_id"] is None
+    assert proj.get("customer_link_source") == "unmatched"
     assert proj.get("lead_id") == lid
 
     await client.delete(f"/api/v1/projects/{pid}", headers=h)
@@ -205,9 +210,12 @@ async def test_qualify_creates_opportunity_by_default(
 async def test_qualify_with_create_opportunity_carries_context(
     client: AsyncClient, auth_headers: dict, db, lead_intel_user,
 ):
+    from app.database import generate_uuid
+
     h = auth_headers
+    company = f"矿业集团-{generate_uuid()[:8]}"
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "大型振动筛采购", "company_name": "矿业集团",
+        "title": "大型振动筛采购", "company_name": company,
         "source": "expo", "demand_summary": "需要 3 台大型直线振动筛，含保函",
         "budget_range": "200-300万",
     })).json()["data"]["id"]
@@ -216,6 +224,7 @@ async def test_qualify_with_create_opportunity_carries_context(
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h,
                              json={"create_opportunity": True})).json()
     assert res["code"] == 0
+    assert res["data"].get("customer_link_source") == "unmatched"
     assert res["data"].get("customer_id") is None
     pid = res["data"].get("project_id")
     assert pid, "勾选后应创建商机"
@@ -224,9 +233,9 @@ async def test_qualify_with_create_opportunity_carries_context(
     lead = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
     lead_code = lead["lead_code"]
 
-    # 商机不自动建档客户，并带入需求摘要；编号走商机规则，同时保留来源线索号
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
     assert proj["customer_id"] is None
+    assert proj.get("customer_link_source") == "unmatched"
     assert proj["stage_code"] == "S1"
     assert (proj.get("key_requirements_json") or {}).get("summary") == "需要 3 台大型直线振动筛，含保函"
     assert proj["project_code"] != f"PRJ{lead_code}"
@@ -236,3 +245,69 @@ async def test_qualify_with_create_opportunity_carries_context(
     assert proj.get("lead_code") == lead_code
 
     await client.delete(f"/api/v1/projects/{pid}", headers=h)
+
+
+async def test_qualify_matches_existing_customer(
+    client: AsyncClient, auth_headers: dict, db, lead_intel_user,
+):
+    from app.domains.customer.models import Customer
+    from app.database import generate_uuid
+    from tests.lead_intel_helpers import DEMO_TENANT
+
+    h = auth_headers
+    uniq = f"已有客户匹配测试-{generate_uuid()[:8]}"
+    existing = Customer(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, name=uniq,
+        customer_code=f"C-MATCH-{generate_uuid()[:8]}", review_status="approved",
+    )
+    db.add(existing)
+    await db.commit()
+
+    lid = (await client.post("/api/v1/leads", headers=h, json={
+        "title": "匹配已有客户", "company_name": uniq, "source": "website",
+    })).json()["data"]["id"]
+    await approve_lead_intel_include(db, lid, lead_intel_user)
+
+    res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
+    assert res["code"] == 0
+    assert res["data"].get("customer_link_source") == "matched"
+    assert res["data"].get("customer_id") == existing.id
+
+    proj = (await client.get(f"/api/v1/projects/{res['data']['project_id']}", headers=h)).json()["data"]
+    assert proj["customer_id"] == existing.id
+    assert proj.get("customer_link_source") == "matched"
+
+    await client.delete(f"/api/v1/projects/{res['data']['project_id']}", headers=h)
+
+
+async def test_qualify_ambiguous_customer_name(
+    client: AsyncClient, auth_headers: dict, db, lead_intel_user,
+):
+    from app.domains.customer.models import Customer
+    from app.database import generate_uuid
+    from tests.lead_intel_helpers import DEMO_TENANT
+
+    h = auth_headers
+    dup_name = f"重名客户公司-{generate_uuid()[:8]}"
+    for i in range(2):
+        db.add(Customer(
+            id=generate_uuid(), tenant_id=DEMO_TENANT, name=dup_name,
+            customer_code=f"C-AMB-{generate_uuid()[:8]}", review_status="approved",
+        ))
+    await db.commit()
+
+    lid = (await client.post("/api/v1/leads", headers=h, json={
+        "title": "重名客户", "company_name": dup_name, "source": "website",
+    })).json()["data"]["id"]
+    await approve_lead_intel_include(db, lid, lead_intel_user)
+
+    res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
+    assert res["code"] == 0
+    assert res["data"].get("customer_link_source") == "ambiguous"
+    assert res["data"].get("customer_id") is None
+
+    proj = (await client.get(f"/api/v1/projects/{res['data']['project_id']}", headers=h)).json()["data"]
+    assert proj["customer_id"] is None
+    assert proj.get("customer_link_source") == "ambiguous"
+
+    await client.delete(f"/api/v1/projects/{res['data']['project_id']}", headers=h)

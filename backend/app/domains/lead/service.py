@@ -467,8 +467,10 @@ async def converted_projects_by_lead_ids(
 async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
                        create_opportunity: bool = True) -> dict:
     """Mark a lead as qualified. Optionally spin up an opportunity (商机) carrying
-    the lead's demand/budget context — **does not** create a customer record; sales
-    associates an existing customer later in opportunity management.
+    the lead's demand/budget context.
+
+    创建商机时会按线索 company_name 匹配客户管理：唯一完全一致则绑定已有客户；
+    未找到则不绑定并标记 unmatched；客户重名则标记 ambiguous，由人工在商机详情选择。
 
     这里刻意不把 user 传进 get_lead 做范围校验：开放平台(app_key 鉴权)也调本函数，传的是
     伪用户，按它的 owner 范围判定会把租户内非本 app 创建的线索一律 403，等于静默改坏集成。
@@ -488,7 +490,21 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
 
     lead.status = "qualified"
-    lead.converted_customer_id = None
+
+    customer_id = None
+    customer_link_source = None
+    linked_customer = None
+    if create_opportunity:
+        from app.domains.lead.customer_link import resolve_customer_for_lead_convert
+        customer_id, customer_link_source, linked_customer = await resolve_customer_for_lead_convert(
+            db, tenant_id, lead, user,
+        )
+        if linked_customer is not None:
+            lead.converted_customer_id = linked_customer.id
+        else:
+            lead.converted_customer_id = None
+    else:
+        lead.converted_customer_id = None
 
     project = None
     if create_opportunity:
@@ -521,7 +537,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             id=generate_uuid(), tenant_id=tenant_id,
             project_code=project_code,
             name=lead.title or lead.company_name or "新商机",
-            customer_id=None,
+            customer_id=customer_id,
+            customer_link_source=customer_link_source,
             stage_code="S1",
             lead_id=lead.id,
             lead_code=lead.lead_code,
@@ -563,7 +580,14 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         from app.common.auto_activity import record_activity
         act_msg = "线索已转化"
         if project is not None:
-            act_msg += f"，并创建商机 {project.project_code}（请在商机管理中关联客户）"
+            if customer_link_source == "matched":
+                act_msg += f"，并创建商机 {project.project_code}（已匹配已有客户）"
+            elif customer_link_source == "unmatched":
+                act_msg += f"，并创建商机 {project.project_code}（未匹配到客户，请手工关联）"
+            elif customer_link_source == "ambiguous":
+                act_msg += f"，并创建商机 {project.project_code}（客户名称重复，请手工选择关联客户）"
+            else:
+                act_msg += f"，并创建商机 {project.project_code}"
         await record_activity(db, tenant_id, "lead", lead.id, "system",
                               act_msg, None,
                               user["sub"], user.get("real_name") or user.get("username"))
@@ -571,6 +595,10 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         logger.warning("Auto-activity record for lead qualification failed: %s", e)
 
     result = {"lead_id": lead.id}
+    if customer_id:
+        result["customer_id"] = customer_id
+    if customer_link_source:
+        result["customer_link_source"] = customer_link_source
     if project is not None:
         result["project_id"] = project.id
         result["project_code"] = project.project_code

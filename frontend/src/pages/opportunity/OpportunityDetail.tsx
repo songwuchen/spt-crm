@@ -29,6 +29,7 @@ import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractDis
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useSiblingRecordNav } from '@/hooks/useSiblingRecordNav'
+import { CUSTOMER_LINK_META, customerLinkTag } from '@/constants/customerLinkSource'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
@@ -183,6 +184,8 @@ export default function OpportunityDetail() {
       setProject(pRes.data)
       if (pRes.data.customer_id) {
         customerApi.get(pRes.data.customer_id).then((r) => { if (!signal?.aborted) setCustomer(r.data) }).catch(() => {})
+      } else {
+        setCustomer(null)
       }
     } catch {
       if (!signal?.aborted) message.error('加载商机数据失败')
@@ -614,8 +617,27 @@ export default function OpportunityDetail() {
                 )}
                 {customer && (
                   <span className="flex items-center gap-1">
-                    <Icon name="business" className="text-sm" /> {customer.name}
+                    <Icon name="business" className="text-sm" />
+                    {project.customer_id ? (
+                      <button
+                        type="button"
+                        className="text-blue-600 hover:underline"
+                        onClick={() => navigate(`/customers/${project.customer_id}`)}
+                      >
+                        {customer.name}
+                      </button>
+                    ) : customer.name}
+                    {project.customer_link_source && CUSTOMER_LINK_META[project.customer_link_source] && (
+                      <Tag color={CUSTOMER_LINK_META[project.customer_link_source].color} className="ml-1">
+                        {CUSTOMER_LINK_META[project.customer_link_source].label}
+                      </Tag>
+                    )}
                   </span>
+                )}
+                {!customer && customerLinkTag(project.customer_link_source) && (
+                  <Tag color={customerLinkTag(project.customer_link_source)!.color}>
+                    {customerLinkTag(project.customer_link_source)!.label}
+                  </Tag>
                 )}
                 {project.owner_name && (
                   <span className="flex items-center gap-1">
@@ -694,6 +716,29 @@ export default function OpportunityDetail() {
         <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">项目画像</h3>
+            {project.customer_link_source && CUSTOMER_LINK_META[project.customer_link_source as keyof typeof CUSTOMER_LINK_META] && (
+              <Alert
+                type={CUSTOMER_LINK_META[project.customer_link_source as keyof typeof CUSTOMER_LINK_META].alertType}
+                showIcon
+                className="mb-3"
+                message={CUSTOMER_LINK_META[project.customer_link_source as keyof typeof CUSTOMER_LINK_META].label}
+                description={
+                  <div className="space-y-2">
+                    <div>{CUSTOMER_LINK_META[project.customer_link_source as keyof typeof CUSTOMER_LINK_META].hint}</div>
+                    {project.customer_id && (
+                      <Button size="small" type="link" className="px-0" onClick={() => navigate(`/customers/${project.customer_id}`)}>
+                        查看客户信息
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button size="small" type="link" className="px-0" onClick={() => navigate(`/opportunities/${id}/edit`)}>
+                        编辑商机关联客户
+                      </Button>
+                    )}
+                  </div>
+                }
+              />
+            )}
             <InfoField label="负责人" value={project.owner_name} />
             <InfoField label="录入人" value={project.created_by_name} />
             <InfoField label="预期金额" value={project.amount_expect != null ? `¥${Number(project.amount_expect).toLocaleString()}` : undefined} />

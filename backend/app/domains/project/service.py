@@ -321,6 +321,10 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
     update_data = await enforce_native_field_policy(
         db, tenant_id, "project", update_data, project, user.get("roles"), required_scope="payload")
 
+    # 人工在商机编辑页更换/补关联客户后，清除线索转化时的自动绑定标识
+    if "customer_id" in update_data and update_data["customer_id"] != project.customer_id:
+        update_data["customer_link_source"] = None
+
     # Validate won/lost transition
     new_status = update_data.get("status")
     if new_status and new_status != project.status:
