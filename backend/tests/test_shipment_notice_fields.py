@@ -149,17 +149,37 @@ def test_shipment_notice_flow_topology():
 
 def test_shipment_notice_parallel_fork_after_pick():
     from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
-    from app.domains.lowcode.shipment_notice_fields import (
-        patch_shipment_notice_parallel_routes,
-        shipment_parallel_fork_broken,
-    )
+    from app.domains.lowcode.shipment_notice_fields import shipment_parallel_fork_broken
     routes = [dict(r) for r in SHIPMENT_NOTICE_JDY["shipment_notice"]["flow_routes"]]
-    # 生成器补丁后应已并行；若仍互斥则补丁可修
-    if shipment_parallel_fork_broken(routes):
-        assert patch_shipment_notice_parallel_routes(routes)
     pick_routes = [r for r in routes if r.get("source") == "n3" and r.get("target") in ("n9", "n10")]
     assert len(pick_routes) == 2
+    assert not shipment_parallel_fork_broken(routes)
     assert all(not r.get("exclusive_group") for r in pick_routes)
+
+
+def test_shipment_notice_build_flow_n3_parallel_from_jdy():
+    """对照简道云：开具提货单后生产领料与仓库判定均为无条件并行，不应标 ex_n3。"""
+    import json
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    sys.path.insert(0, str(scripts))
+    from _gen_drawing_jdy import build_flow  # noqa: E402
+    from _gen_shipment_notice_jdy import unwrap_wf  # noqa: E402
+
+    from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
+
+    wf_raw = unwrap_wf(
+        json.loads((root / "docs/product/_jdy_shipment_notice_workflows_raw.json").read_text(encoding="utf-8"))
+    )
+    fields = SHIPMENT_NOTICE_JDY["shipment_notice"]["field_definitions"]
+    _nodes, routes, notes = build_flow(wf_raw, fields, "发货通知")
+    pick = [r for r in routes if r.get("source") == "n3" and r.get("target") in ("n9", "n10")]
+    assert len(pick) == 2
+    assert all(not r.get("exclusive_group") for r in pick)
+    assert any("无条件出边保持并行" in n for n in notes)
 
 
 def test_shipment_notice_sales_accept_field_perms():
