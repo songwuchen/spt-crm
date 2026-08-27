@@ -154,7 +154,7 @@ class WebhookCreate(BaseModel):
 
 # ---- File Storage ----
 class StorageProviderConfig(BaseModel):
-    """单个存储后端的连接配置（minio / oss）"""
+    """单个存储后端的连接配置（minio / oss / jdy_oss）"""
     endpoint: Optional[str] = None
     access_key: Optional[str] = None
     secret_key: Optional[str] = None
@@ -162,11 +162,22 @@ class StorageProviderConfig(BaseModel):
     region: Optional[str] = None
     secure: Optional[bool] = None  # MinIO 是否启用 https
     public_base_url: Optional[str] = None  # 可选：直链下载基址
+    key_prefix: Optional[str] = None  # 简道云 OSS：对象 key 前缀（如 datahub，仅说明用）
+
+
+class StorageImmConfig(BaseModel):
+    enabled: Optional[bool] = None
+    project: Optional[str] = None
+    region: Optional[str] = None
+    endpoint: Optional[str] = None
+
 
 class StorageConfigUpdate(BaseModel):
     storage_type: str  # local / minio / oss
     minio: Optional[StorageProviderConfig] = None
     oss: Optional[StorageProviderConfig] = None
+    jdy_oss: Optional[StorageProviderConfig] = None
+    imm: Optional[StorageImmConfig] = None
 
 
 # ---- AI 模型接入 ----

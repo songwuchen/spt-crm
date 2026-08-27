@@ -42,28 +42,30 @@ export default defineConfig({
     port: 5175,
     proxy: {
       // 默认 8002：与本地 uvicorn 常用端口一致；可用 VITE_API_PROXY 覆盖
+      // 必须用 127.0.0.1 而非 localhost：Windows 上 localhost 可能走 IPv6 [::1]，
+      // 会命中 Docker 旧 backend（无 jdy_oss），而 uvicorn --reload 在 IPv4。
       '/api': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8002',
+        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
         changeOrigin: true,
         secure: false,
       },
       '/docs': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8002',
+        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
         changeOrigin: true,
         secure: false,
       },
       '/redoc': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8002',
+        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
         changeOrigin: true,
         secure: false,
       },
       '/openapi.json': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8002',
+        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
         changeOrigin: true,
         secure: false,
       },
       '/ws': {
-        target: process.env.VITE_WS_PROXY || 'ws://localhost:8002',
+        target: process.env.VITE_WS_PROXY || 'ws://127.0.0.1:8002',
         ws: true,
       },
     },

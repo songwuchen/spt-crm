@@ -36,7 +36,7 @@ export function useAttachmentPreview() {
 
   const openPreview = useCallback(async (item: AttachmentFileRow) => {
     if (item.metaOnly || isMetaOnlyAttachmentId(item.id)) {
-      message.info('暂无文件实体，仅同步了简道云文件名')
+      message.info('暂无文件实体，仅同步了简道云文件名（缺少 OSS 对象 key）')
       return
     }
     if (!canOpenAttachmentPreview(item.name, item.content_type)) {

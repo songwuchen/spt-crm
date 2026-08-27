@@ -579,7 +579,7 @@ async def get_file_storage(tenant_id: str = Depends(get_tenant_id), db: AsyncSes
 async def update_file_storage(body: StorageConfigUpdate, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
     data = body.model_dump(exclude_unset=True)
     # Normalise the provider sub-objects to plain dicts
-    for provider in ("minio", "oss"):
+    for provider in ("minio", "oss", "jdy_oss"):
         if data.get(provider) is not None and not isinstance(data[provider], dict):
             data[provider] = data[provider].model_dump(exclude_unset=True)
     await service.upsert_storage_config(db, tenant_id, data)
@@ -588,7 +588,7 @@ async def update_file_storage(body: StorageConfigUpdate, tenant_id: str = Depend
 
 @router.post("/api/admin/v1/tenant/file-storage/test")
 async def test_file_storage(storage_type: str = Query(...), tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
-    if storage_type not in ("local", "minio", "oss"):
+    if storage_type not in ("local", "minio", "oss", "jdy_oss"):
         raise BusinessException(message="不支持的存储类型")
     connected, err = await service.test_storage_connection(db, tenant_id, storage_type)
     return ok({"connected": connected, "error": err})

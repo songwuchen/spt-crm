@@ -17,6 +17,7 @@ import type { ContractItem, ContractVersion } from '@/api/types'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
+import { evaluateSubmitValidations } from '@/utils/submitValidations'
 import { filterProdCardLegacyFieldPerms } from '@/constants/prodCardLegacyFields'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrationReadonly'
@@ -408,6 +409,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         const labels = miss.map((id) => ct.field_meta?.find((m) => m.id === id)?.label || id)
         return message.error(`请填写必填项: ${labels.join('、')}`)
       }
+      const mergedForValidate = { ...formData, ...fieldUpdates }
+      const submitErr = evaluateSubmitValidations(
+        ct.submit_validations,
+        fields,
+        mergedForValidate,
+      )
+      if (submitErr) return message.error(submitErr)
     }
     setBusy(true)
     try {
@@ -667,11 +675,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           <ContractAttachmentSlots
             slot="contract_files"
             contractId={contract?.id || detail.biz_ref_id || undefined}
+            registrationJson={contract?.registration_json as Record<string, unknown> | undefined}
             readonly
           />
           <ContractAttachmentSlots
             slot="accept_files"
             contractId={contract?.id || detail.biz_ref_id || undefined}
+            registrationJson={contract?.registration_json as Record<string, unknown> | undefined}
             readonly
           />
         </div>

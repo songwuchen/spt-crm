@@ -279,6 +279,8 @@ export interface WfCurrentTask {
   opinion_required?: boolean
   /** 本节点允许的操作（来自流程设计器 node_actions） */
   node_actions?: WfNodeActions
+  /** 节点提交校验（简道云 validator）：公式为真才允许通过 */
+  submit_validations?: { formula: string; message?: string }[]
   field_meta: {
     id: string
     label: string

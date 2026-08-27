@@ -1,9 +1,10 @@
 """Pluggable file storage backends.
 
-Supports three backends, selectable per-tenant from 系统设置 → 文件存储:
-- local : local filesystem under settings.UPLOAD_DIR (default, no config needed)
-- minio : MinIO / any S3-compatible object storage
-- oss   : Aliyun OSS
+Supports four backends, selectable per-tenant from 系统设置 → 文件存储:
+- local   : local filesystem under settings.UPLOAD_DIR (default, no config needed)
+- minio   : MinIO / any S3-compatible object storage
+- oss     : Aliyun OSS (CRM 新上传默认桶)
+- jdy_oss : Aliyun OSS — 简道云迁移历史附件只读桶（与 CRM 生产桶分离）
 
 Each :class:`StorageBackend` works on an opaque ``key`` (the value stored in
 ``attachments.stored_path``, e.g. ``"<tenant>/<YYYY-MM>/<uuid>.ext"``). The same
@@ -25,7 +26,7 @@ import aiofiles
 
 from app.config import settings
 
-STORAGE_TYPES = ("local", "minio", "oss")
+STORAGE_TYPES = ("local", "minio", "oss", "jdy_oss")
 
 
 def build_object_key(tenant_id: str, filename: str) -> str:
@@ -250,6 +251,8 @@ def get_backend(storage_type: str | None, config: dict | None = None) -> Storage
     if storage_type == "minio":
         return MinioBackend(config or {})
     if storage_type == "oss":
+        return OssBackend(config or {})
+    if storage_type == "jdy_oss":
         return OssBackend(config or {})
     return LocalBackend()
 

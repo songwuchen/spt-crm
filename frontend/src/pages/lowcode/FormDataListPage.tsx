@@ -58,6 +58,7 @@ import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 import { getContractLabelMap } from '@/components/lowcode/fields/ContractField'
 import { getCustomerLabelMap } from '@/components/lowcode/fields/CustomerField'
 import { printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { resolveExpandDetailTablePageSize } from '@/utils/listDetailExpandPagination'
 import { printQuoteInstance, isQuoteManagementForm } from '@/pages/quote/quotePrint'
 import {
   defaultProdCardPrintMode,
@@ -270,6 +271,9 @@ function flattenInstancesByDetails(
   }
   return out
 }
+
+/** 列表 API 每页主记录数（明细展开时表格 pageSize 可能临时抬高以展示全部 flat 行） */
+const LIST_PAGE_SIZE = 20
 
 type NameMaps = {
   users: Record<string, string>
@@ -694,6 +698,14 @@ export default function FormDataListPage({
       : null),
     [expandDetails, items],
   )
+  /** 明细展开时抬高 Ant Table pageSize，避免同一 API 页明细被误切成 20 行 */
+  const tablePageSize = useMemo(
+    () => resolveExpandDetailTablePageSize(
+      LIST_PAGE_SIZE,
+      expandDetails.length ? (flatRows?.length ?? 0) : null,
+    ),
+    [expandDetails.length, flatRows?.length],
+  )
 
   // 切换模板时重载列配置与筛选记忆
   useEffect(() => {
@@ -740,8 +752,6 @@ export default function FormDataListPage({
     })),
     [allColFields, defaultColIdSet, listColLabels],
   )
-
-  const LIST_PAGE_SIZE = 20
 
   const buildQueryParams = useCallback((pageOverride?: number) => {
     const params: Record<string, unknown> = {
@@ -1628,7 +1638,7 @@ export default function FormDataListPage({
           pagination={{
             current: pageNo,
             total,
-            pageSize: LIST_PAGE_SIZE,
+            pageSize: tablePageSize,
             onChange: setPageNo,
             showSizeChanger: false,
             showTotal: (t) => `共 ${t} 条`,

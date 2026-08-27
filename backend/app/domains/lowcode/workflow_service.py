@@ -812,6 +812,10 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         patch_xunhan_contract_review_feedback_routes(routes)
     if form_code == "payment_registration":
         apply_payment_registration_cc_dept_head(nodes)
+        from app.domains.lowcode.payment_registration_fields import (
+            apply_payment_registration_submit_validations,
+        )
+        apply_payment_registration_submit_validations(nodes)
     return nodes, routes
 
 
@@ -5313,6 +5317,25 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"抄送叠加部门负责人与业务人员({form_code})",
         )
         return
+    # 收款登记：内勤处理节点分款合计须等于来款合计
+    if (
+        topology_ok
+        and form_code == "payment_registration"
+    ):
+        from app.domains.lowcode.payment_registration_fields import (
+            apply_payment_registration_submit_validations,
+            flow_payment_needs_submit_validations,
+        )
+        if flow_payment_needs_submit_validations(version.node_definitions):
+            import copy
+            patched = copy.deepcopy(version.node_definitions or [])
+            apply_payment_registration_submit_validations(patched)
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched, version.route_definitions,
+                DRAWING_FORM_FLOW_DESC, f"内勤处理分款合计校验({form_code})",
+            )
+            return
     if (
         form_code in _CS_SALES_CC_FORM_CODES
         and _flow_missing_cs_sales_cc_on_start(
@@ -9092,6 +9115,7 @@ async def _resolve_current_task_for_viewer(
 
     nodes = {n.get("id"): n for n in (version.node_definitions if version else [])}
     node = nodes.get(node_def_id or "") or {}
+    effective_node = node
     if is_revise:
         node = {"name": (node_inst.node_name if node_inst else None) or "修改并重新提交"}
         field_perms: list = []
@@ -9113,6 +9137,7 @@ async def _resolve_current_task_for_viewer(
                     # 在途单冻结旧版 field_perms 时，以最新发布版本节点可填区为准
                     # （否则物流等节点仍会带上已下线的明细可填/误强制列）
                     field_perms = parse_field_perms(latest_node)
+                    effective_node = latest_node
         except Exception:
             pass
     from app.domains.lowcode.prod_card_contract_fill import (
@@ -9241,6 +9266,10 @@ async def _resolve_current_task_for_viewer(
             node if not is_revise else None,
             biz_type=inst.biz_type,
             form_code=form_tpl_code,
+        ),
+        "submit_validations": (
+            list(effective_node.get("submit_validations") or [])
+            if not is_revise else []
         ),
         "field_meta": field_meta,
         "field_values": field_values,

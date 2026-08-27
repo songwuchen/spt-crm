@@ -29,6 +29,8 @@ interface Props {
   /** 新建态暂存文件（无 bizId 时） */
   pendingFiles?: File[]
   onPendingChange?: (files: File[]) => void
+  /** 简道云同步的附件引用（registration_json._attachments） */
+  importedItems?: AttachmentFileRow[]
 }
 
 function formatSize(bytes: number) {
@@ -113,7 +115,7 @@ function PendingDropZone({
 
 export default function AttachmentPanel({
   bizType, bizId, title = '附件', accept, compact, readonly,
-  pendingFiles, onPendingChange,
+  pendingFiles, onPendingChange, importedItems,
 }: Props) {
   const [list, setList] = useState<AttachmentItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -148,6 +150,7 @@ export default function AttachmentPanel({
       accept={accept}
       compact={compact}
       readonly={!!readonly}
+      importedItems={importedItems}
       list={list}
       setList={setList}
       loading={loading}
@@ -160,9 +163,29 @@ export default function AttachmentPanel({
   )
 }
 
+function mergeImportedItems(
+  fetched: AttachmentItem[],
+  imported: AttachmentFileRow[] | undefined,
+): AttachmentItem[] {
+  const extra = imported || []
+  if (!extra.length) return fetched
+  const seen = new Set(fetched.map((i) => i.id))
+  const merged = [...fetched]
+  for (const row of extra) {
+    if (!row.id || seen.has(row.id)) continue
+    seen.add(row.id)
+    merged.push({
+      ...row,
+      file_size: row.file_size ?? 0,
+      created_at: row.created_at ?? '',
+    })
+  }
+  return merged
+}
+
 /** 有 bizId 时的列表面板（hooks 须在条件分支外的稳定组件里） */
 function AttachmentPanelBound({
-  bizType, bizId, title, accept, compact, readonly,
+  bizType, bizId, title, accept, compact, readonly, importedItems,
   list, setList, loading, setLoading, uploading, setUploading,
   loadError, setLoadError,
 }: {
@@ -172,6 +195,7 @@ function AttachmentPanelBound({
   accept?: string
   compact?: boolean
   readonly?: boolean
+  importedItems?: AttachmentFileRow[]
   list: AttachmentItem[]
   setList: (v: AttachmentItem[]) => void
   loading: boolean
@@ -200,16 +224,16 @@ function AttachmentPanelBound({
         // 只读审批态需要看到失败原因；编辑紧凑态仍静默
         headers: compact && !readonly ? { 'X-Silent-Error': '1' } : undefined,
       })
-      setList((res.data || []).map((a) => ({
+      setList(mergeImportedItems((res.data || []).map((a) => ({
         id: a.id,
         name: a.original_name,
         content_type: a.content_type,
         file_size: a.file_size,
         uploader_name: a.uploader_name,
         created_at: a.created_at,
-      })))
+      })), importedItems))
     } catch {
-      setList([])
+      setList(mergeImportedItems([], importedItems))
       setLoadError('附件加载失败（可能无权限），请刷新或联系管理员')
       if (!compact) message.error('附件列表加载失败，请刷新重试')
     } finally {
@@ -217,7 +241,7 @@ function AttachmentPanelBound({
     }
   }
 
-  useEffect(() => { fetchList() }, [bizType, bizId])
+  useEffect(() => { fetchList() }, [bizType, bizId, importedItems?.map((i) => i.id).join('|')])
 
   const handleUploadMany = async (files: File[]) => {
     setUploading(true)

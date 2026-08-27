@@ -10,6 +10,7 @@ import { lowcodeApi } from '@/api/lowcode'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
+import { evaluateSubmitValidations } from '@/utils/submitValidations'
 import { filterProdCardLegacyFieldPerms } from '@/constants/prodCardLegacyFields'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
@@ -176,6 +177,14 @@ export default function MobileLowcodeApprovalDetail() {
         setFieldHighlight(true)
         const labels = miss.map((fid) => ct.field_meta?.find((m) => m.id === fid)?.label || fid)
         message.error(`请填写必填项: ${labels.join('、')}`); return
+      }
+      const submitErr = evaluateSubmitValidations(
+        ct.submit_validations,
+        fields,
+        { ...formData, ...fieldUpdates },
+      )
+      if (submitErr) {
+        message.error(submitErr); return
       }
     }
     setBusy(true)

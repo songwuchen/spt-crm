@@ -295,6 +295,8 @@ class OpenContractCreate(BaseModel):
     flow_history: Optional[List[OpenFlowHistoryStep]] = None
     # 简道云流程是否已结束；False=进行中（实例 status=running）。缺省按步骤推断为已结束。
     flow_finished: Optional[bool] = None
+    # 合同附件槽位：biz_type → 文件名列表或 [{name, ossKey?}]；CRM 转为 jdy-meta/jdy-oss 引用存 registration_json._attachments
+    attachments_json: Optional[dict[str, Any]] = None
 
     @field_validator("status")
     @classmethod

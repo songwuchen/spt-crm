@@ -60,9 +60,10 @@ async function upload(file: File, bizType?: string, bizId?: string) {
 }
 
 /** Resolve a directly-usable URL for preview (download=false) or download (download=true). */
-async function getUrl(id: string, download = false): Promise<string> {
+async function getUrl(id: string, download = false, filename?: string): Promise<string> {
   const res = await client.get<unknown, ApiResponse<{ url: string }>>(
-    `/api/v1/attachments/${id}/url`, { params: { download: download ? 1 : 0 } },
+    `/api/v1/attachments/${encodeURIComponent(id)}/url`,
+    { params: { download: download ? 1 : 0, ...(filename ? { filename } : {}) } },
   )
   return res.data.url
 }
@@ -75,10 +76,10 @@ export type WebOfficeToken = {
   refresh_token?: string
 }
 
-async function getWebOfficeToken(id: string, noDownload = false): Promise<WebOfficeToken> {
+async function getWebOfficeToken(id: string, noDownload = false, filename?: string): Promise<WebOfficeToken> {
   const res = await client.get<unknown, ApiResponse<WebOfficeToken>>(
-    `/api/v1/attachments/${id}/weboffice`,
-    { params: { no_download: noDownload ? 1 : 0 } },
+    `/api/v1/attachments/${encodeURIComponent(id)}/weboffice`,
+    { params: { no_download: noDownload ? 1 : 0, ...(filename ? { filename } : {}) } },
   )
   return res.data
 }

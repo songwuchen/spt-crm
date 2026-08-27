@@ -28,11 +28,11 @@ export function formatAttachmentTime(v?: string): string {
 
 export async function downloadAttachmentFile(id: string, filename?: string): Promise<void> {
   if (isMetaOnlyAttachmentId(id)) {
-    message.info('暂无文件实体，仅同步了简道云文件名')
+    message.info('暂无文件实体，仅同步了简道云文件名（缺少 OSS 对象 key）')
     return
   }
   try {
-    const url = await attachmentApi.getUrl(id, true)
+    const url = await attachmentApi.getUrl(id, true, filename)
     const a = document.createElement('a')
     a.href = resolveAttachmentUrl(url)
     a.target = '_blank'
@@ -61,13 +61,22 @@ export function resolveAttachmentUrl(url: string): string {
  * 预签名地址跨域，且常见 OSS CORS 为 `ACAO:*`，与 `credentials: include` 不兼容，
  * 会导致「无法加载预览」（图片用 img、下载用 a 标签不受 CORS 限制）。
  */
-export async function fetchAttachmentBlob(id: string): Promise<Blob> {
+/** 简道云历史 OSS 虚拟附件（jdy-oss:）或 CRM 正式附件 */
+export function isResolvableAttachmentId(id: string | undefined | null): boolean {
+  return !!id && !isMetaOnlyAttachmentId(id)
+}
+
+export async function fetchAttachmentBlob(id: string, filename?: string): Promise<Blob> {
   const token = localStorage.getItem('access_token')
   const qs = new URLSearchParams({ inline: '1', proxy: '1' })
-  const res = await fetch(`/api/v1/attachments/${encodeURIComponent(id)}/download?${qs}`, {
-    credentials: 'omit',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
+  if (filename) qs.set('filename', filename)
+  const res = await fetch(
+    `/api/v1/attachments/${encodeURIComponent(id)}/download?${qs}`,
+    {
+      credentials: 'omit',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  )
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const ct = (res.headers.get('content-type') || '').toLowerCase()
   if (ct.includes('application/json')) {

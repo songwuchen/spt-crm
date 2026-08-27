@@ -1820,16 +1820,21 @@ async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contr
     ext = (getattr(data, "external_key", None) or "").strip()
     if ext:
         contract.external_key = ext
+    reg = None
     if getattr(data, "registration_json", None) is not None:
         reg = data.registration_json if isinstance(data.registration_json, dict) else {}
         if ext:
             reg = {**reg, "_external_key": ext, "_external_source": "jdy"}
-        contract.registration_json = reg
     elif ext:
-        base = dict(contract.registration_json or {}) if isinstance(contract.registration_json, dict) else {}
-        base["_external_key"] = ext
-        base["_external_source"] = "jdy"
-        contract.registration_json = base
+        reg = dict(contract.registration_json or {}) if isinstance(contract.registration_json, dict) else {}
+        reg["_external_key"] = ext
+        reg["_external_source"] = "jdy"
+    att_json = getattr(data, "attachments_json", None)
+    if att_json is not None or reg is not None:
+        base = reg if reg is not None else (
+            dict(contract.registration_json or {}) if isinstance(contract.registration_json, dict) else {}
+        )
+        contract.registration_json = _merge_contract_attachments_into_reg(base, att_json)
     if data.payment_terms_json is not None:
         contract.payment_terms_json = data.payment_terms_json
     if data.delivery_terms_json is not None:
@@ -1997,6 +2002,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         reg = {}
     if external_key:
         reg = {**reg, "_external_key": external_key, "_external_source": "jdy"}
+    reg = _merge_contract_attachments_into_reg(reg, getattr(data, "attachments_json", None))
     openapi_user = {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"}
     requested_dn = (getattr(data, "drawing_no", None) or "").strip() or None
     if requested_dn:
@@ -2119,50 +2125,102 @@ _OPENAPI_FORM_CODES = frozenset({
 _FILE_FIELD_TYPES = frozenset({"file", "image"})
 
 
-def _file_field_to_att_refs(val) -> list[dict]:
-    """JianDaoYun file/image → CRM [{id,name}] refs until binary sync exists.
+def _merge_contract_attachments_into_reg(reg: dict | None, attachments_json) -> dict:
+    """Merge OpenAPI attachments_json into registration_json._attachments as jdy refs."""
+    base = dict(reg or {})
+    if not attachments_json or not isinstance(attachments_json, dict):
+        return base
+    att_out = dict(base.get("_attachments") or {})
+    for biz_type, val in attachments_json.items():
+        slot = (biz_type or "").strip()
+        if not slot:
+            continue
+        refs = _file_field_to_att_refs(val)
+        if refs:
+            att_out[slot] = refs
+    if att_out:
+        base["_attachments"] = att_out
+    return base
 
-    Frontend FileField / list cells require {id, name}. Plain name strings are
-    invisible (filtered by missing id). Use jdy-meta: prefix for name-only refs.
+
+def _file_field_to_att_refs(val) -> list[dict]:
+    """JianDaoYun file/image → CRM [{id,name}] refs.
+
+    - 含 ``ossKey``（数据中台归档）→ ``jdy-oss:`` 虚拟 id，走简道云历史 OSS 桶预览
+    - 仅文件名 → ``jdy-meta:`` 占位（无法定位对象）
     """
+    from app.domains.attachment.jdy_storage import (
+        JDY_META_PREFIX,
+        jdy_attachment_id_from_key,
+        filename_from_oss_key,
+    )
+
+    def _ref_from_oss_key(oss_key: str, name: str) -> dict:
+        key = (oss_key or "").strip().lstrip("/")
+        display = (name or "").strip() or filename_from_oss_key(key)
+        return {"id": jdy_attachment_id_from_key(key), "name": display}
+
     if val in (None, "", [], {}):
         return []
     if isinstance(val, str):
         s = val.strip()
-        # JSON-encoded list from middleware as=json
         if s.startswith("[") or s.startswith("{"):
             try:
                 import json as _json
                 return _file_field_to_att_refs(_json.loads(s))
             except Exception:
                 pass
-        return [{"id": f"jdy-meta:{s}", "name": s, "metaOnly": True}] if s else []
+        return [{"id": f"{JDY_META_PREFIX}{s}", "name": s, "metaOnly": True}] if s else []
     items = val if isinstance(val, list) else [val]
     refs: list[dict] = []
     seen: set[str] = set()
     for it in items:
-        name = ""
         if isinstance(it, str):
             name = it.strip()
-        elif isinstance(it, dict):
-            # already normalized
-            existing_id = it.get("id")
-            existing_name = it.get("name") or it.get("fileName") or it.get("filename")
-            if existing_id and existing_name and str(existing_id).startswith("jdy-meta:"):
-                key = str(existing_name)
-                if key not in seen:
-                    seen.add(key)
-                    refs.append({
-                        "id": str(existing_id),
-                        "name": str(existing_name),
-                        "metaOnly": True,
-                    })
+            if not name or name in seen:
                 continue
-            name = str(existing_name or "").strip()
+            seen.add(name)
+            refs.append({"id": f"{JDY_META_PREFIX}{name}", "name": name, "metaOnly": True})
+            continue
+        if not isinstance(it, dict):
+            continue
+        existing_id = it.get("id")
+        existing_name = it.get("name") or it.get("fileName") or it.get("filename")
+        oss_key = it.get("ossKey") or it.get("oss_key")
+        if oss_key:
+            key = str(oss_key).strip().lstrip("/")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            refs.append(_ref_from_oss_key(key, str(existing_name or "")))
+            continue
+        if existing_id and str(existing_id).startswith("jdy-oss:"):
+            vid = str(existing_id)
+            if vid in seen:
+                continue
+            seen.add(vid)
+            from app.domains.attachment.jdy_storage import parse_jdy_attachment_id
+            parsed_key = parse_jdy_attachment_id(vid) or vid
+            refs.append({
+                "id": vid,
+                "name": str(existing_name or filename_from_oss_key(parsed_key)),
+            })
+            continue
+        name = str(existing_name or "").strip()
+        if existing_id and existing_name and str(existing_id).startswith(JDY_META_PREFIX):
+            key = str(existing_name)
+            if key not in seen:
+                seen.add(key)
+                refs.append({
+                    "id": str(existing_id),
+                    "name": str(existing_name),
+                    "metaOnly": True,
+                })
+            continue
         if not name or name in seen:
             continue
         seen.add(name)
-        refs.append({"id": f"jdy-meta:{name}", "name": name, "metaOnly": True})
+        refs.append({"id": f"{JDY_META_PREFIX}{name}", "name": name, "metaOnly": True})
     return refs
 
 

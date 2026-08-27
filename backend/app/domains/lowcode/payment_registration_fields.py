@@ -118,3 +118,53 @@ def apply_payment_registration_fields(defs: list) -> None:
             f["fill_stage"] = "approver"
             if fid != "alloc_total":
                 f["required"] = False
+
+
+# 简道云内勤处理节点 validator：分配金额合计须等于来款合计
+PAYMENT_ALLOC_TOTAL_SUBMIT_RULES: list[dict[str, str]] = [
+    {
+        "formula": "$alloc_total#-$payment_total#==0",
+        "message": "请确保「来款合计」与「分配金额合计」相等！",
+    },
+]
+
+_PAYMENT_OFFICE_NODE_NAME = "内勤处理"
+
+
+def apply_payment_registration_submit_validations(nodes: list[dict] | None) -> bool:
+    """收款登记：内勤处理节点挂分款合计校验（对齐简道云 validator）。"""
+    if not nodes:
+        return False
+    want = PAYMENT_ALLOC_TOTAL_SUBMIT_RULES
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != _PAYMENT_OFFICE_NODE_NAME:
+            continue
+        cur = n.get("submit_validations") or []
+        if cur != want:
+            n["submit_validations"] = [dict(r) for r in want]
+            changed = True
+    return changed
+
+
+def flow_payment_needs_submit_validations(nodes: list | None) -> bool:
+    """内勤处理节点缺少分款合计校验 → 需升级流程。"""
+    found = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != _PAYMENT_OFFICE_NODE_NAME:
+            continue
+        found = True
+        if not (n.get("submit_validations") or []):
+            return True
+    return not found and _flow_has_payment_office_node(nodes)
+
+
+def _flow_has_payment_office_node(nodes: list | None) -> bool:
+    return any(
+        isinstance(n, dict) and n.get("type") == "approval" and n.get("name") == _PAYMENT_OFFICE_NODE_NAME
+        for n in (nodes or [])
+    )

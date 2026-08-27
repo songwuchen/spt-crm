@@ -785,8 +785,8 @@ export default function ContractDetail() {
                   </Form.Item>
                 </div>
               ),
-              contract_files: <ContractAttachmentSlots slot="contract_files" contractId={cid} />,
-              accept_files: <ContractAttachmentSlots slot="accept_files" contractId={cid} />,
+              contract_files: <ContractAttachmentSlots slot="contract_files" contractId={cid} registrationJson={contract.registration_json as Record<string, unknown>} />,
+              accept_files: <ContractAttachmentSlots slot="accept_files" contractId={cid} registrationJson={contract.registration_json as Record<string, unknown>} />,
             }}
           />
           <div className="text-[12px] text-slate-400">
@@ -1055,12 +1055,12 @@ export default function ContractDetail() {
               )}
               {sec.afterSlot === 'contract_files' && (
                 <div className="mb-4">
-                  <ContractAttachmentSlots slot="contract_files" contractId={cid} />
+                  <ContractAttachmentSlots slot="contract_files" contractId={cid} registrationJson={contract.registration_json as Record<string, unknown>} />
                 </div>
               )}
               {sec.afterSlot === 'accept_files' && (
                 <div className="mb-4">
-                  <ContractAttachmentSlots slot="accept_files" contractId={cid} />
+                  <ContractAttachmentSlots slot="accept_files" contractId={cid} registrationJson={contract.registration_json as Record<string, unknown>} />
                 </div>
               )}
               {sec.fieldsAfterSlot?.length ? renderDesc(sec.fieldsAfterSlot) : null}
@@ -1132,8 +1132,8 @@ export default function ContractDetail() {
             label: <span className="font-semibold">合同附件</span>,
             children: (
               <div className="pb-6 space-y-4">
-                <ContractAttachmentSlots slot="contract_files" contractId={cid!} />
-                <ContractAttachmentSlots slot="accept_files" contractId={cid!} />
+                <ContractAttachmentSlots slot="contract_files" contractId={cid!} registrationJson={contract.registration_json as Record<string, unknown>} />
+                <ContractAttachmentSlots slot="accept_files" contractId={cid!} registrationJson={contract.registration_json as Record<string, unknown>} />
                 <AttachmentPanel bizType="contract" bizId={cid!} title="其它附件（历史）" compact />
               </div>
             ),

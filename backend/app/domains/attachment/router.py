@@ -552,6 +552,46 @@ async def get_print_preview(token: str, filename: str):
 
 
 # ---------------------------------------------------------------------------
+# 简道云历史附件（独立 OSS 桶，只读；与 CRM 默认上传 OSS 分离）
+# ---------------------------------------------------------------------------
+
+async def _require_jdy_oss_read(current_user: dict) -> None:
+    perms = current_user.get("permissions") or []
+    if "attachment:download" in perms or "form_data:view" in perms:
+        return
+    raise BusinessException(code=FORBIDDEN, message="缺少权限: attachment:download 或 form_data:view")
+
+
+async def _jdy_oss_presign(
+    db: AsyncSession,
+    tenant_id: str,
+    attachment_id: str,
+    *,
+    filename_hint: str | None = None,
+    inline: bool,
+):
+    from app.domains.admin.service import jdy_oss_configured, resolve_storage_backend
+    from app.domains.attachment.jdy_storage import filename_from_oss_key, parse_jdy_attachment_id
+
+    oss_key = parse_jdy_attachment_id(attachment_id)
+    if not oss_key:
+        return None
+    if not await jdy_oss_configured(db, tenant_id):
+        raise BusinessException(message="未配置简道云历史 OSS，请在系统管理 → 文件存储中填写")
+    backend, _ = await resolve_storage_backend(db, tenant_id, "jdy_oss")
+    fname = (filename_hint or "").strip() or filename_from_oss_key(oss_key)
+    try:
+        url = backend.presign_get(
+            oss_key, expires=PRESIGN_EXPIRES, filename=fname, inline=inline,
+        )
+    except StorageError as e:
+        raise BusinessException(message=f"简道云 OSS 链接生成失败：{e}") from e
+    if not url:
+        raise BusinessException(message="简道云 OSS 链接生成失败")
+    return url, fname
+
+
+# ---------------------------------------------------------------------------
 # Download / preview
 # ---------------------------------------------------------------------------
 @router.get("/{attachment_id}/url")
@@ -559,6 +599,7 @@ async def get_download_url(
     attachment_id: str,
     request: Request,
     download: int = Query(0, description="1=下载(attachment) 0=预览(inline)"),
+    filename: str | None = Query(None, description="简道云虚拟附件展示文件名"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -567,7 +608,18 @@ async def get_download_url(
 
     Object storage → a presigned URL (browser fetches OSS/MinIO directly).
     Local storage  → a short token-bearing URL back to this API.
+    ``jdy-oss:`` 虚拟 id → 简道云历史 OSS 桶（只读，不走 CRM 默认上传桶）。
     """
+    from app.domains.attachment.jdy_storage import is_jdy_oss_attachment_id
+
+    inline = not download
+    if is_jdy_oss_attachment_id(attachment_id):
+        await _require_jdy_oss_read(current_user)
+        url, _ = await _jdy_oss_presign(
+            db, tenant_id, attachment_id, filename_hint=filename, inline=inline,
+        )
+        return ok({"url": url, "direct": True, "expires_in": PRESIGN_EXPIRES, "jdy_legacy": True})
+
     via_wf = await _require_attachment_download_or_wf(
         db, tenant_id, current_user, attachment_id=attachment_id,
     )
@@ -614,6 +666,32 @@ async def download(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise BusinessException(code=UNAUTHORIZED, message="租户信息缺失")
+
+    from app.domains.attachment.jdy_storage import is_jdy_oss_attachment_id
+
+    if is_jdy_oss_attachment_id(attachment_id):
+        await _require_jdy_oss_read(current_user)
+        url, fname = await _jdy_oss_presign(
+            db, tenant_id, attachment_id,
+            filename_hint=request.query_params.get("filename"),
+            inline=bool(inline),
+        )
+        if proxy:
+            from app.domains.admin.service import resolve_storage_backend
+            from app.domains.attachment.jdy_storage import parse_jdy_attachment_id
+            from app.domains.attachment.storage import _content_disposition
+            oss_key = parse_jdy_attachment_id(attachment_id)
+            backend, _ = await resolve_storage_backend(db, tenant_id, "jdy_oss")
+            content = await backend.read(oss_key or "")
+            import mimetypes
+            media_type = mimetypes.guess_type(fname)[0] or "application/octet-stream"
+            return Response(
+                content=content,
+                media_type=media_type,
+                headers={"Content-Disposition": _content_disposition(fname, bool(inline))},
+            )
+        return RedirectResponse(url)
+
     via_wf = await _require_attachment_download_or_wf(
         db, tenant_id, current_user, attachment_id=attachment_id,
     )
@@ -665,8 +743,8 @@ async def download(
     return RedirectResponse(url)
 
 
-async def _oss_creds_for_imm(db: AsyncSession, tenant_id: str) -> dict | None:
-    """取出租户 OSS 明文凭证，供 IMM WebOffice 签发。"""
+async def _oss_creds_for_imm(db: AsyncSession, tenant_id: str, provider: str = "oss") -> dict | None:
+    """取出租户 OSS 明文凭证，供 IMM WebOffice 签发。provider: oss | jdy_oss"""
     from sqlalchemy import select
     from app.common.crypto import decrypt_config_json
     from app.domains.admin.models import TenantStorageConfig
@@ -674,7 +752,7 @@ async def _oss_creds_for_imm(db: AsyncSession, tenant_id: str) -> dict | None:
     row = (await db.execute(
         select(TenantStorageConfig).where(TenantStorageConfig.tenant_id == tenant_id)
     )).scalar_one_or_none()
-    cfg = decrypt_config_json(((row.config_json if row else None) or {}).get("oss")) or {}
+    cfg = decrypt_config_json(((row.config_json if row else None) or {}).get(provider)) or {}
     ak = (cfg.get("access_key") or "").strip()
     sk = (cfg.get("secret_key") or "").strip()
     bucket = (cfg.get("bucket") or "").strip()
@@ -736,6 +814,35 @@ async def get_attachment_weboffice(
     """
     from app.domains.admin.service import get_imm_config
     from app.domains.attachment import weboffice_service as wos
+    from app.domains.attachment.jdy_storage import is_jdy_oss_attachment_id, parse_jdy_attachment_id
+
+    if is_jdy_oss_attachment_id(attachment_id):
+        await _require_jdy_oss_read(current_user)
+        oss_key = parse_jdy_attachment_id(attachment_id)
+        from app.domains.attachment.jdy_storage import filename_from_oss_key
+        name = filename_from_oss_key(oss_key or "")
+        if not wos.needs_weboffice(name):
+            return ok({"enabled": False, "reason": "unsupported"})
+        imm = await get_imm_config(db, tenant_id)
+        if not wos.is_imm_configured(imm):
+            return ok({"enabled": False, "reason": "not_configured"})
+        creds = await _oss_creds_for_imm(db, tenant_id, "jdy_oss")
+        if not creds:
+            return ok({"enabled": False, "reason": "not_configured"})
+        data = await asyncio.to_thread(
+            wos.generate,
+            imm=imm,
+            access_key=creds["access_key"],
+            secret_key=creds["secret_key"],
+            bucket=creds["bucket"],
+            endpoint=creds["endpoint"],
+            storage_key=oss_key,
+            filename=name,
+            user_id=str(current_user.get("sub") or ""),
+            user_name=str(current_user.get("real_name") or current_user.get("username") or ""),
+            allow_download=not bool(no_download),
+        )
+        return ok({"enabled": True, **data})
 
     via_wf = await _require_attachment_download_or_wf(
         db, tenant_id, current_user, attachment_id=attachment_id,

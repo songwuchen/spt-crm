@@ -1701,6 +1701,16 @@ class WorkflowEngine:
             opinion_required=opinion_required, action=action,
             form_fields=form_fields, form_rules=form_rules, form_data=form_data,
         )
+        if action == "approve":
+            from app.domains.lowcode.wf_submit_validation import assert_node_submit_validations
+            assert_node_submit_validations(
+                node,
+                form_data=form_data,
+                field_updates=filtered,
+                form_fields=form_fields,
+                action=action,
+                current_user_name=actor.get("real_name") or actor.get("username") or "",
+            )
         if action in ("approve", "save") and filtered:
             await self._assert_person_field_values(inst.biz_type, filtered)
             if action == "approve":

@@ -4,6 +4,8 @@ import { UploadOutlined, DeleteOutlined, PaperClipOutlined } from '@ant-design/i
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { attachmentApi } from '@/api/attachment'
 import { CONTRACT_ATTACHMENT_SLOTS, type RegAfterSlot } from '@/constants/contractRegistration'
+import { normalizeFileFieldValue } from '@/utils/fileFieldValue'
+import type { AttachmentFileRow } from '@/utils/attachmentDisplay'
 
 /** bizType → 待上传文件（新建合同尚无 id 时用） */
 export type PendingAttachments = Record<string, File[]>
@@ -77,16 +79,33 @@ function PendingPanel({
   )
 }
 
+/** 从 registration_json._attachments 读取简道云同步的附件引用 */
+export function importedAttachmentsForSlot(
+  registrationJson: Record<string, unknown> | undefined,
+  bizType: string,
+): AttachmentFileRow[] {
+  const att = registrationJson?._attachments as Record<string, unknown> | undefined
+  if (!att) return []
+  return normalizeFileFieldValue(att[bizType]).map((a) => ({
+    id: a.id,
+    name: a.name,
+    metaOnly: a.metaOnly,
+  }))
+}
+
 /** 按简道云槽位渲染合同分类附件：有合同 id 直传；否则先暂存文件 */
 export default function ContractAttachmentSlots({
   slot,
   contractId,
+  registrationJson,
   pending,
   onPendingChange,
   readonly,
 }: {
   slot: RegAfterSlot
   contractId?: string
+  /** 合同 registration_json；含 _attachments 时展示简道云同步文件名 */
+  registrationJson?: Record<string, unknown>
   pending?: PendingAttachments
   onPendingChange?: (next: PendingAttachments) => void
   /** 审批只读：仅预览/下载 */
@@ -107,6 +126,7 @@ export default function ContractAttachmentSlots({
             accept={p.accept}
             compact
             readonly={readonly}
+            importedItems={importedAttachmentsForSlot(registrationJson, p.bizType)}
           />
         ))}
       </div>

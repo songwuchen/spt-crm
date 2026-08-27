@@ -4,9 +4,14 @@
 export type FileFieldAtt = { id: string; name: string; metaOnly?: boolean }
 
 const META_PREFIX = 'jdy-meta:'
+export const JDY_OSS_PREFIX = 'jdy-oss:'
 
 export function isMetaOnlyAttachmentId(id: string | undefined | null): boolean {
   return !!id && id.startsWith(META_PREFIX)
+}
+
+export function isJdyOssAttachmentId(id: string | undefined | null): boolean {
+  return !!id && id.startsWith(JDY_OSS_PREFIX)
 }
 
 export function normalizeFileFieldValue(value: unknown): FileFieldAtt[] {
@@ -27,7 +32,7 @@ export function normalizeFileFieldValue(value: unknown): FileFieldAtt[] {
       out.push({
         id,
         name,
-        metaOnly: isMetaOnlyAttachmentId(id) || o.metaOnly === true,
+        metaOnly: isMetaOnlyAttachmentId(id) || (o.metaOnly === true && !isJdyOssAttachmentId(id)),
       })
     } else if (name) {
       out.push({ id: `${META_PREFIX}${name}`, name, metaOnly: true })

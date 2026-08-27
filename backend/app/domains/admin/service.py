@@ -396,7 +396,7 @@ async def delete_integration(db: AsyncSession, tenant_id: str, ep_id: str):
 
 # ==================== Tenant: File Storage ====================
 
-_STORAGE_PROVIDERS = ("minio", "oss")
+_STORAGE_PROVIDERS = ("minio", "oss", "jdy_oss")
 # 在线文档预览（IMM），无密钥字段，与 OSS 配套
 _IMM_CONFIG_KEYS = ("enabled", "project", "region", "endpoint")
 
@@ -437,6 +437,7 @@ async def get_storage_config_masked(db: AsyncSession, tenant_id: str) -> dict:
         "storage_type": row.storage_type if row else "local",
         "minio": mask_config_json(cfg.get("minio")) or {},
         "oss": mask_config_json(cfg.get("oss")) or {},
+        "jdy_oss": mask_config_json(cfg.get("jdy_oss")) or {},
         "imm": imm,
     }
 
@@ -531,6 +532,19 @@ async def test_storage_connection(db: AsyncSession, tenant_id: str, storage_type
     except StorageError as e:
         return False, str(e)
     return await asyncio.to_thread(backend.test_connection)
+
+
+async def jdy_oss_configured(db: AsyncSession, tenant_id: str) -> bool:
+    """租户是否已配置简道云历史 OSS（endpoint + bucket + AK/SK）。"""
+    from app.common.crypto import decrypt_config_json
+    row = await _get_storage_row(db, tenant_id)
+    cfg = decrypt_config_json(((row.config_json if row else None) or {}).get("jdy_oss")) or {}
+    return bool(
+        (cfg.get("endpoint") or "").strip()
+        and (cfg.get("bucket") or "").strip()
+        and (cfg.get("access_key") or "").strip()
+        and (cfg.get("secret_key") or "").strip()
+    )
 
 
 # ==================== Tenant: AI 模型接入 ====================

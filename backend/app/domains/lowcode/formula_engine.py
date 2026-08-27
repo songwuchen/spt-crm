@@ -1341,7 +1341,13 @@ def evaluate_submit_validations(
     """
     if not rules:
         return None
-    context = build_formula_context(form_data, field_definitions, current_user_name, extras)
+    computed = compute_formula_fields(
+        dict(form_data or {}),
+        field_definitions,
+        current_user_name=current_user_name,
+        extras=extras,
+    )
+    context = build_formula_context(computed, field_definitions, current_user_name, extras)
     for rule in rules:
         formula = (rule or {}).get("formula")
         if not formula or not isinstance(formula, str):
