@@ -174,8 +174,8 @@ export default function OpportunityForm() {
               onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </Form.Item>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <PolicyItem name="amount_expect" label="预期金额" rules={[{ required: true, message: '请输入预期金额' }]}>
-              <InputNumber className="w-full" placeholder="请输入预期金额" min={0} precision={2} />
+            <PolicyItem name="amount_expect" label="预期金额">
+              <InputNumber className="w-full" placeholder="请输入预期金额（选填）" min={0} precision={2} />
             </PolicyItem>
             <PolicyItem name="probability" label="成交概率 (%)" rules={[{ type: 'number', min: 0, max: 100, message: '概率范围 0-100' }]}>
               <InputNumber className="w-full" placeholder="0-100" min={0} max={100} />

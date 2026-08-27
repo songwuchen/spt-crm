@@ -34,6 +34,23 @@ async def test_project_crud(client: AsyncClient, auth_headers: dict):
     await client.delete(f"/api/v1/customers/{cust_id}", headers=auth_headers)
 
 
+async def test_project_create_without_amount_expect(client: AsyncClient, auth_headers: dict):
+    """预期金额非必填，创建时可不填。"""
+    resp = await client.post("/api/v1/customers", headers=auth_headers, json={"name": "无金额商机客户"})
+    cust_id = resp.json()["data"]["id"]
+
+    resp = await client.post("/api/v1/projects", headers=auth_headers, json={
+        "name": "无预期金额商机", "customer_id": cust_id,
+    })
+    assert resp.json()["code"] == 0, resp.text
+    pid = resp.json()["data"]["id"]
+    detail = (await client.get(f"/api/v1/projects/{pid}", headers=auth_headers)).json()["data"]
+    assert detail.get("amount_expect") is None
+
+    await client.delete(f"/api/v1/projects/{pid}", headers=auth_headers)
+    await client.delete(f"/api/v1/customers/{cust_id}", headers=auth_headers)
+
+
 async def test_project_export(client: AsyncClient, auth_headers: dict):
     resp = await client.get("/api/v1/projects/export/excel", headers=auth_headers)
     assert resp.status_code == 200
