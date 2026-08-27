@@ -54,6 +54,17 @@ function isCcStep(step: WfFlowStep) {
   return step.node_type === 'cc' || step.action === 'cc'
 }
 
+function isProcessEndStep(step: WfFlowStep) {
+  return step.is_process_end || step.node_type === 'end'
+}
+
+function processEndDotColor(step: WfFlowStep) {
+  if (step.status === 'rejected') return '#ef4444'
+  if (step.status === 'returned') return '#f97316'
+  if (step.status === 'withdrawn') return '#94a3b8'
+  return '#64748b'
+}
+
 function avatarLetter(name: string) {
   const t = (name || '').trim()
   return t ? t.slice(0, 1) : '?'
@@ -124,6 +135,30 @@ export default function WfFlowDynamics({
             )}
             {(steps || []).map((s, idx) => {
               const isCc = isCcStep(s)
+              if (isProcessEndStep(s)) {
+                return (
+                  <div key={s.step_key || `end:${idx}`} className="relative mb-4 pl-4">
+                    <span
+                      className="absolute left-[-9px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm"
+                      style={{ background: processEndDotColor(s) }}
+                    />
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-semibold text-slate-800 text-sm">流程结束</span>
+                        {s.status !== 'completed' && s.status_text && (
+                          <Tag color={stepTagColor(s)} className="m-0">{s.status_text}</Tag>
+                        )}
+                      </div>
+                      {s.duration && (
+                        <div className="text-sm text-slate-600">累计耗时：{s.duration}</div>
+                      )}
+                      {s.completed_at && (
+                        <div className="text-xs text-slate-400 mt-1.5">{fmtTime(s.completed_at)}</div>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div key={s.step_key || `${s.node_instance_id}:${idx}`} className="relative mb-4 pl-4">
                   <span

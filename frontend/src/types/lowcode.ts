@@ -386,6 +386,8 @@ export interface WfFlowStep {
   completed_at?: string | null
   duration?: string | null
   is_current?: boolean
+  /** 流程终态顶部的「流程结束」卡片 */
+  is_process_end?: boolean
 }
 
 export interface WfInstanceDetail {

@@ -8272,6 +8272,72 @@ def _fmt_duration(start, end) -> str | None:
     return f"{d}天{h}小时"
 
 
+def _fmt_duration_verbose(start, end) -> str | None:
+    """累计耗时（对齐简道云流程结束：4天21时3分8秒）。"""
+    if not start or not end:
+        return None
+    sec = max(0, int((end - start).total_seconds()))
+    d, rem = divmod(sec, 86400)
+    h, rem = divmod(rem, 3600)
+    m, s = divmod(rem, 60)
+    parts: list[str] = []
+    if d:
+        parts.append(f"{d}天")
+    if h or d:
+        parts.append(f"{h}时")
+    if m or h or d:
+        parts.append(f"{m}分")
+    parts.append(f"{s}秒")
+    return "".join(parts)
+
+
+_PROCESS_TERMINAL_STATUSES = frozenset({
+    "completed", "rejected", "withdrawn", "returned", "terminated", "cancelled",
+})
+
+_PROCESS_END_STATUS_TEXT = {
+    "completed": "已完成",
+    "rejected": "已驳回",
+    "withdrawn": "已撤回",
+    "returned": "已退回",
+    "terminated": "已终止",
+    "cancelled": "已取消",
+}
+
+
+def _build_process_end_step(inst) -> dict | None:
+    """终态流程在动态顶部补「流程结束」卡片（对齐简道云）。"""
+    status = (getattr(inst, "status", None) or "").strip()
+    if status not in _PROCESS_TERMINAL_STATUSES:
+        return None
+    end_at = getattr(inst, "completed_at", None)
+    if not end_at:
+        return None
+    start_at = getattr(inst, "started_at", None) or getattr(inst, "created_at", None)
+
+    def _iso(dt) -> str | None:
+        return dt.isoformat() if dt else None
+
+    return {
+        "step_key": f"end:{inst.id}",
+        "node_instance_id": f"end:{inst.id}",
+        "node_def_id": "end",
+        "node_name": "流程结束",
+        "node_type": "end",
+        "status": status,
+        "status_text": _PROCESS_END_STATUS_TEXT.get(status, status),
+        "assignees": [],
+        "handler_name": None,
+        "action": None,
+        "opinion": None,
+        "started_at": _iso(end_at),
+        "completed_at": _iso(end_at),
+        "duration": _fmt_duration_verbose(start_at, end_at),
+        "is_current": False,
+        "is_process_end": True,
+    }
+
+
 async def _build_flow_steps(
     db, nodes: list, tasks: list, logs: list, process_status: str | None = None,
 ) -> list[dict]:
@@ -8939,6 +9005,10 @@ async def get_instance_detail(
         )).first()
         if u:
             initiator_name = u[0] or u[1]
+
+    end_step = _build_process_end_step(inst)
+    if end_step:
+        flow_steps.insert(0, end_step)
 
     # 轨迹补充节点名
     ni_name = {n.id: n.node_name for n in nodes}
