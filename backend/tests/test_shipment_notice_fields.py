@@ -159,23 +159,48 @@ def test_shipment_notice_parallel_fork_after_pick():
 
 def test_shipment_notice_build_flow_n3_parallel_from_jdy():
     """对照简道云：开具提货单后生产领料与仓库判定均为无条件并行，不应标 ex_n3。"""
-    import json
     import sys
     from pathlib import Path
 
-    root = Path(__file__).resolve().parents[2]
     scripts = Path(__file__).resolve().parents[1] / "scripts"
     sys.path.insert(0, str(scripts))
     from _gen_drawing_jdy import build_flow  # noqa: E402
-    from _gen_shipment_notice_jdy import unwrap_wf  # noqa: E402
 
-    from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
-
-    wf_raw = unwrap_wf(
-        json.loads((root / "docs/product/_jdy_shipment_notice_workflows_raw.json").read_text(encoding="utf-8"))
-    )
-    fields = SHIPMENT_NOTICE_JDY["shipment_notice"]["field_definitions"]
-    _nodes, routes, notes = build_flow(wf_raw, fields, "发货通知")
+    # 简道云 parents 上 condition 为 {} 表示无条件并行；不依赖未入库的 docs dump。
+    wf_raw = {
+        "workflow_config": {
+            "flows": [
+                {"flowId": 0, "name": "流程发起节点", "type": "flow"},
+                {
+                    "flowId": 1, "name": "物流审批", "type": "flow",
+                    "parents": [0], "condition": {"0": {}},
+                    "chargers": {"users": []},
+                },
+                {
+                    "flowId": 3, "name": "开具提货单", "type": "flow",
+                    "parents": [1], "condition": {"1": {}},
+                    "chargers": {"users": []},
+                },
+                {
+                    "flowId": 9, "name": "生产领料", "type": "flow",
+                    "parents": [3], "condition": {"3": {}},
+                    "chargers": {"users": []},
+                },
+                {
+                    "flowId": 10, "name": "仓库判定", "type": "flow",
+                    "parents": [3], "condition": {"3": {}},
+                    "chargers": {"users": []},
+                },
+                {
+                    "flowId": 27, "name": "抄送门岗", "type": "cc",
+                    "parents": [3],
+                    "condition": {"3": {"rel": "and", "cond": [], "isElse": False}},
+                    "ccUsers": {"users": []},
+                },
+            ]
+        }
+    }
+    _nodes, routes, notes = build_flow(wf_raw, [], "发货通知")
     pick = [r for r in routes if r.get("source") == "n3" and r.get("target") in ("n9", "n10")]
     assert len(pick) == 2
     assert all(not r.get("exclusive_group") for r in pick)
