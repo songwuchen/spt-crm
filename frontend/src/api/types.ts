@@ -346,8 +346,8 @@ export interface OpportunityProject {
   lead_code?: string | null
   customer_id?: string
   customer_name?: string
-  /** 线索转化绑客户：matched / unmatched / ambiguous */
-  customer_link_source?: 'matched' | 'unmatched' | 'ambiguous' | null
+  /** 线索转化绑客户：matched / unmatched / ambiguous / auto_created */
+  customer_link_source?: 'matched' | 'unmatched' | 'ambiguous' | 'auto_created' | null
   name: string
   stage_code: string
   amount_expect?: number

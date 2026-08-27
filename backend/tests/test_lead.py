@@ -193,16 +193,19 @@ async def test_qualify_creates_opportunity_by_default(
     await approve_lead_intel_include(db, lid, lead_intel_user)
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
     assert res["code"] == 0
-    assert res["data"].get("customer_link_source") == "unmatched"
-    assert res["data"].get("customer_id") is None
+    assert res["data"].get("customer_link_source") == "auto_created"
+    assert res["data"].get("customer_id")
     pid = res["data"].get("project_id")
     assert pid, "默认应创建商机"
     assert res["data"].get("project_code")
 
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
-    assert proj["customer_id"] is None
-    assert proj.get("customer_link_source") == "unmatched"
+    assert proj["customer_id"] == res["data"]["customer_id"]
+    assert proj.get("customer_link_source") == "auto_created"
     assert proj.get("lead_id") == lid
+
+    cust = (await client.get(f"/api/v1/customers/{res['data']['customer_id']}", headers=h)).json()["data"]
+    assert cust["name"] == company
 
     await client.delete(f"/api/v1/projects/{pid}", headers=h)
 
@@ -224,18 +227,19 @@ async def test_qualify_with_create_opportunity_carries_context(
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h,
                              json={"create_opportunity": True})).json()
     assert res["code"] == 0
-    assert res["data"].get("customer_link_source") == "unmatched"
-    assert res["data"].get("customer_id") is None
+    assert res["data"].get("customer_link_source") == "auto_created"
+    assert res["data"].get("customer_id")
     pid = res["data"].get("project_id")
     assert pid, "勾选后应创建商机"
     assert res["data"].get("project_code")
 
     lead = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
     lead_code = lead["lead_code"]
+    assert lead.get("converted_customer_id") == res["data"]["customer_id"]
 
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
-    assert proj["customer_id"] is None
-    assert proj.get("customer_link_source") == "unmatched"
+    assert proj["customer_id"] == res["data"]["customer_id"]
+    assert proj.get("customer_link_source") == "auto_created"
     assert proj["stage_code"] == "S1"
     assert (proj.get("key_requirements_json") or {}).get("summary") == "需要 3 台大型直线振动筛，含保函"
     assert proj["project_code"] != f"PRJ{lead_code}"

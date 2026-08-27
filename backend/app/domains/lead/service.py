@@ -470,7 +470,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
     the lead's demand/budget context.
 
     创建商机时会按线索 company_name 匹配客户管理：唯一完全一致则绑定已有客户；
-    未找到则不绑定并标记 unmatched；客户重名则标记 ambiguous，由人工在商机详情选择。
+    未找到则自动创建客户并绑定（customer_link_source=auto_created）；
+    客户重名则标记 ambiguous，由人工在商机详情选择。
 
     这里刻意不把 user 传进 get_lead 做范围校验：开放平台(app_key 鉴权)也调本函数，传的是
     伪用户，按它的 owner 范围判定会把租户内非本 app 创建的线索一律 403，等于静默改坏集成。
@@ -582,6 +583,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         if project is not None:
             if customer_link_source == "matched":
                 act_msg += f"，并创建商机 {project.project_code}（已匹配已有客户）"
+            elif customer_link_source == "auto_created":
+                act_msg += f"，并创建商机 {project.project_code}（已自动创建客户）"
             elif customer_link_source == "unmatched":
                 act_msg += f"，并创建商机 {project.project_code}（未匹配到客户，请手工关联）"
             elif customer_link_source == "ambiguous":

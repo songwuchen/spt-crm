@@ -128,7 +128,7 @@ export default function MobileLeadDetail() {
         <div>
           <p className="mb-2">将此线索转为商机？转化后线索状态将变为「已转化」。</p>
           <p className="mb-2 text-slate-500 text-sm">
-            客户请在商机管理中关联已有客户，不会自动建档。
+            未匹配到已有客户时，系统将自动创建客户并关联商机。
           </p>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" defaultChecked onChange={(e) => { createOpp = e.target.checked }} />
@@ -139,8 +139,16 @@ export default function MobileLeadDetail() {
       onOk: async () => {
         try {
           const res = await leadApi.qualify(id, createOpp)
+          const src = res.data.customer_link_source
+          const suffix = res.data.project_code
+            ? src === 'auto_created'
+              ? '，已自动创建客户'
+              : src === 'matched'
+                ? '，已关联已有客户'
+                : ''
+            : ''
           message.success(res.data.project_code
-            ? `已转商机 ${res.data.project_code}`
+            ? `已转商机 ${res.data.project_code}${suffix}`
             : '线索已标记为已转化')
           loadLead()
         } catch {

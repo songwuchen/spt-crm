@@ -16,7 +16,7 @@ type Props = {
 
 /**
  * 线索流程「业务员确认是否转商机」专用操作区。
- * - 确认转商机：通过流程 + 创建商机（可选；不自动建档客户）
+ * - 确认转商机：通过流程 + 创建商机（未匹配客户时系统自动建档）
  * - 暂不转商机：通过流程结束，保留情报收录，不转化（勿用 reject，以免线索被打成驳回）
  */
 export default function LeadOwnerConfirmActions({
@@ -39,9 +39,19 @@ export default function LeadOwnerConfirmActions({
       if (kind === 'convert') {
         try {
           const res = await leadApi.qualify(leadId, createOpp)
+          const src = res.data.customer_link_source
+          const suffix = res.data.project_code
+            ? src === 'auto_created'
+              ? `，已自动创建客户并关联`
+              : src === 'matched'
+                ? `，已关联已有客户`
+                : src === 'ambiguous'
+                  ? `，客户重名请在商机中手工选择`
+                  : ``
+            : ''
           message.success(
             res.data.project_code
-              ? `已转商机 ${res.data.project_code}，请在商机管理中关联客户`
+              ? `已转商机 ${res.data.project_code}${suffix}`
               : '线索已标记为已转化',
           )
         } catch (err: unknown) {
@@ -78,7 +88,7 @@ export default function LeadOwnerConfirmActions({
         </div>
         <div className="mt-2">
           <Checkbox checked={createOpp} onChange={(e) => setCreateOpp(e.target.checked)}>
-            转商机时同时创建商机（带入需求摘要 / 预算；客户稍后于商机中关联）
+            转商机时同时创建商机（带入需求摘要 / 预算；未匹配客户时系统自动建档）
           </Checkbox>
         </div>
       </div>

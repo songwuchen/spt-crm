@@ -1,5 +1,5 @@
 /** 线索转化商机的客户绑定标识（仅来自线索转化时写入） */
-export type CustomerLinkSource = 'matched' | 'unmatched' | 'ambiguous'
+export type CustomerLinkSource = 'matched' | 'unmatched' | 'ambiguous' | 'auto_created'
 
 export const CUSTOMER_LINK_META: Record<
   CustomerLinkSource,
@@ -22,6 +22,12 @@ export const CUSTOMER_LINK_META: Record<
     label: '客户重名待选',
     hint: '客户管理中存在多个同名客户，请在编辑商机中手工选择正确的关联客户。',
     alertType: 'warning',
+  },
+  auto_created: {
+    color: 'green',
+    label: '系统创建客户',
+    hint: '线索转商机时未匹配到已有客户，系统已按线索公司信息自动创建客户并关联；可在客户管理中补充完善资料。',
+    alertType: 'info',
   },
 }
 
