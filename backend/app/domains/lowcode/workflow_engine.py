@@ -1068,9 +1068,9 @@ class WorkflowEngine:
                         return
             # 多入边审批节点（如生产卡「销售订单登记」）：简道云会等所有仍可能
             # 汇入的在途分支结束后再开待办；无显式 merge 节点时在此做隐式汇聚。
+            # 与 allow_reenter 无关：退回/激活后的 reenter_session 仍需等待并行支路。
             if (
-                not allow_reenter
-                and self._incoming_count(version, node["id"]) > 1
+                self._incoming_count(version, node["id"]) > 1
                 and await self._other_running_can_reach(inst, version, node["id"])
             ):
                 self._deferred_convergence_this_batch = True
