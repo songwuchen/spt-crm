@@ -182,6 +182,15 @@ def test_shipment_notice_build_flow_n3_parallel_from_jdy():
     assert any("无条件出边保持并行" in n for n in notes)
 
 
+def test_shipment_notice_missing_exclusive_groups_skips_n3_parallel():
+    """升级逻辑不应把 n3 并行分叉误补回 ex_n3。"""
+    from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
+    from app.domains.lowcode.workflow_service import _flow_missing_exclusive_groups
+
+    routes = [dict(r) for r in SHIPMENT_NOTICE_JDY["shipment_notice"]["flow_routes"]]
+    assert not _flow_missing_exclusive_groups(routes)
+
+
 def test_shipment_notice_sales_accept_field_perms():
     from app.domains.lowcode.shipment_notice_fields import (
         apply_shipment_notice_sales_accept_field_perms,

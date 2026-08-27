@@ -3389,6 +3389,21 @@ def _route_is_always_parallel(route: dict | None) -> bool:
     )
 
 
+def _route_has_branch_condition(route: dict | None) -> bool:
+    """连线是否有可参与 if/else 分支判断的条件（__always / always 旁路不算）。"""
+    if not isinstance(route, dict):
+        return False
+    if route.get("always") or _route_is_always_parallel(route):
+        return False
+    return bool(route.get("condition"))
+
+
+def _flow_src_is_unconditional_parallel_fork(outs: list) -> bool:
+    """同源多条均无条件出边 = 简道云并行分叉（如发货通知开具提货单→生产领料/仓库判定）。"""
+    serial = _serial_exclusive_outs(outs)
+    return len(serial) >= 2 and all(not _route_has_branch_condition(o) for o in serial)
+
+
 def _serial_exclusive_outs(outs: list) -> list:
     """互斥组只覆盖非 parallel / 非恒真并行出边。转采购、总工→总经理等并行边不参与 if/else。"""
     return [
@@ -3434,6 +3449,8 @@ def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     for outs in by_src.values():
         serial = _serial_exclusive_outs(outs)
         if len(serial) < 2:
+            continue
+        if _flow_src_is_unconditional_parallel_fork(outs):
             continue
         if any(not o.get("exclusive_group") for o in serial):
             return True
@@ -5468,6 +5485,8 @@ async def _upgrade_drawing_form_flow_if_needed(
             for src, outs in by_src.items():
                 serial = _serial_exclusive_outs(outs)
                 if len(serial) < 2:
+                    continue
+                if _flow_src_is_unconditional_parallel_fork(outs):
                     continue
                 gid = f"ex_{src}"
                 for r in serial:
