@@ -449,12 +449,13 @@ async def _admin_user(db) -> dict:
 @pytest.mark.asyncio
 async def test_intel_include_allows_qualify(client, db, lead_intel_user):
     """收录 → review_status=approved，可转化。"""
+    from app.database import generate_uuid
     from app.domains.lead import service as lead_svc
 
     _ = client  # 加载 app.main，确保 ORM relationship 全部注册
     initiator = await _admin_user(db)
     reviewer_id = lead_intel_user
-    lead_id = await _create_pending_lead(db, "情报-收录", initiator)
+    lead_id = await _create_pending_lead(db, f"情报-收录-{generate_uuid()[:8]}", initiator)
     task = await _pending_task_for_lead(db, lead_id, reviewer_id)
 
     lead = await lead_svc.intel_review_lead(
@@ -472,7 +473,8 @@ async def test_intel_include_allows_qualify(client, db, lead_intel_user):
         create_opportunity=True,
     )
     assert result.get("project_id")
-    assert result.get("customer_id") is None
+    assert result.get("customer_id")
+    assert result.get("customer_link_source") in ("auto_created", "matched")
 
 
 @pytest.mark.asyncio
