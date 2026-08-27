@@ -242,6 +242,15 @@ export interface Lead {
   updated_at: string
 }
 
+/** POST /leads/{id}/qualify 返回体 */
+export interface LeadQualifyResult {
+  lead_id: string
+  project_id?: string
+  project_code?: string
+  customer_id?: string
+  customer_link_source?: 'matched' | 'unmatched' | 'ambiguous' | 'auto_created' | null
+}
+
 /** 180 天项目激活历史（对齐简道云 linkquery） */
 export interface LeadReactivationRecord {
   id: string

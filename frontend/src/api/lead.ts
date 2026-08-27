@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, Lead, LeadReactivationRecord, LeadReactivationDetail } from './types'
+import type { ApiResponse, PageData, Lead, LeadQualifyResult, LeadReactivationRecord, LeadReactivationDetail } from './types'
 
 export const leadApi = {
   list: (params: Record<string, unknown>) =>
@@ -11,7 +11,7 @@ export const leadApi = {
   update: (id: string, data: Partial<Lead>) =>
     client.put<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}`, data),
   qualify: (id: string, createOpportunity = true) =>
-    client.post<unknown, ApiResponse<{ lead_id: string; project_id?: string; project_code?: string }>>(
+    client.post<unknown, ApiResponse<LeadQualifyResult>>(
       `/api/v1/leads/${id}/qualify`, { create_opportunity: createOpportunity }),
   discard: (id: string) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/discard`),
