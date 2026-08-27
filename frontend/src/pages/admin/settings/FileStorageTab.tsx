@@ -218,7 +218,7 @@ export default function FileStorageTab() {
           showIcon
           className="!mb-0"
           message="专用于从简道云迁移过来的历史附件阅览/下载"
-          description="与上方 CRM 默认 OSS 相互独立：新上传仍走 CRM 桶；表单里带 ossKey 的迁移附件走此桶预签名链接。"
+          description="与上方 CRM 默认 OSS 相互独立：新上传仍走 CRM 桶。迁移数据里 ossKey 以 datahub/ 开头的历史附件（表单内为 jdy-oss: 引用）从此桶签发预签名链接；仅文件名的 jdy-meta: 占位无法预览。"
         />
 
         <div className="space-y-3 p-4 bg-amber-50/60 rounded-lg border border-amber-100">
@@ -239,7 +239,7 @@ export default function FileStorageTab() {
               placeholder={jdyOssHasSecret ? SECRET_PLACEHOLDER : ''}
               onChange={(e) => updateJdyOss({ secret_key: e.target.value })} />
           </Field>
-          <Field label="对象 Key 前缀（可选）" hint="与数据中台归档一致时一般为 datahub，仅作备注">
+          <Field label="对象 Key 前缀（可选）" hint="与数据中台归档一致，一般为 datahub。仅 ossKey 以 datahub/ 开头的迁移附件走此桶">
             <Input value={jdyOss.key_prefix || ''} placeholder="datahub"
               onChange={(e) => updateJdyOss({ key_prefix: e.target.value })} />
           </Field>

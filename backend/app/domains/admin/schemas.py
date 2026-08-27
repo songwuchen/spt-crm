@@ -162,7 +162,7 @@ class StorageProviderConfig(BaseModel):
     region: Optional[str] = None
     secure: Optional[bool] = None  # MinIO 是否启用 https
     public_base_url: Optional[str] = None  # 可选：直链下载基址
-    key_prefix: Optional[str] = None  # 简道云 OSS：对象 key 前缀（如 datahub，仅说明用）
+    key_prefix: Optional[str] = None  # 简道云 OSS：归档路径前缀（如 datahub），ossKey 以 datahub/ 开头走此桶
 
 
 class StorageImmConfig(BaseModel):
