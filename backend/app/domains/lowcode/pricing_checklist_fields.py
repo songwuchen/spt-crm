@@ -59,7 +59,15 @@ PRICING_CHECKLIST_LINKS: dict[str, dict[str, Any]] = {
     },
 }
 
-PICKABLE_FORM_CODES = {spec["form_code"] for spec in PRICING_CHECKLIST_LINKS.values()}
+# 合同外购件提前安排等：link_prod_card → 生产卡/补充流程
+CONTRACT_OUTSOURCE_PROD_CARD_LINK = "link_prod_card"
+CONTRACT_OUTSOURCE_PROD_CARD_DESTS = (
+    "prod_card_serial", "contract_no", "design_assign", "office",
+)
+
+PICKABLE_FORM_CODES = {
+    spec["form_code"] for spec in PRICING_CHECKLIST_LINKS.values()
+} | {"prod_card_supplement"}
 # 草稿、已撤回不可选；已提交/审批中/已通过可选。
 PICKABLE_EXCLUDED_STATUSES = ("draft", "withdrawn")
 
@@ -100,6 +108,12 @@ PICK_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("applicant", "申请人"),
         ("drawing_no", "图纸编号"),
         ("order_person", "订货人"),
+    ],
+    "prod_card_supplement": [
+        ("serial_no", "1.2.8生产卡/补充流程编号"),
+        ("drawing_no", "图纸编号（筛选用）"),
+        ("design_assign", "设计指派"),
+        ("office", "科室"),
     ],
 }
 
@@ -197,6 +211,12 @@ def _as_text(val: Any, name_map: dict[str, str] | None = None) -> str:
 def _collect_ref_ids(*vals: Any) -> list[str]:
     out: list[str] = []
     for v in vals:
+        if isinstance(v, list):
+            for item in v:
+                rid = _as_id(item)
+                if rid:
+                    out.append(rid)
+            continue
         rid = _as_id(v)
         if rid:
             out.append(rid)
@@ -306,6 +326,56 @@ def build_pricing_checklist_fill(
     return {}
 
 
+def _resolve_prod_card_contract_for_outsource(
+    data: dict,
+    *,
+    contract_names: dict[str, str] | None = None,
+) -> tuple[str | None, str]:
+    """从生产卡 form_data 解析合同 id 与展示用图纸/合同号（对齐简道云公式字段）。"""
+    from app.domains.lowcode.prod_card_contract_fill import resolve_prod_card_contract_pick
+
+    cid, _mode = resolve_prod_card_contract_pick(data)
+    if cid and contract_names and cid in contract_names:
+        return cid, contract_names[cid]
+    text = (
+        _as_text(data.get("no_drawing_no"))
+        or _as_text(data.get("yes_contract_no"))
+        or _contract_label(data.get("drawing_no_query"), contract_names)
+        or _contract_label(data.get("contract_no_select"), contract_names)
+    )
+    return cid, text
+
+
+def build_contract_outsource_prod_card_fill(
+    *,
+    business_no: str | None,
+    form_data: dict | None,
+    user_names: dict[str, str] | None = None,
+    dept_names: dict[str, str] | None = None,
+    contract_names: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """合同外购件等：选中生产卡/补充流程后带出字段（对齐简道云 linkDataMaps）。"""
+    data = form_data if isinstance(form_data, dict) else {}
+    serial = _as_text(data.get("serial_no")) or (business_no or "")
+    contract_id, _drawing_label = _resolve_prod_card_contract_for_outsource(
+        data, contract_names=contract_names,
+    )
+    design = data.get("design_assignees")
+    if design in (None, "", []):
+        design = data.get("design_assign")
+    offices = data.get("offices")
+    if offices in (None, "", []):
+        offices = data.get("office")
+    fill: dict[str, Any] = {
+        "prod_card_serial": serial,
+        "design_assign": design,
+        "office": offices,
+    }
+    if contract_id:
+        fill["contract_no"] = contract_id
+    return fill
+
+
 def instance_pick_label(inst: FormInstance) -> str:
     data = inst.form_data if isinstance(inst.form_data, dict) else {}
     serial = _as_text(data.get("serial_no")) or (inst.business_no or "")
@@ -324,6 +394,8 @@ def instance_pick_label(inst: FormInstance) -> str:
 def pick_column_defs(form_code: str, link_field: str | None = None) -> list[dict[str, str]]:
     if link_field == "prod_card_install":
         cols = PROD_CARD_INSTALL_PICK_COLUMNS
+    elif form_code == "prod_card_supplement" and link_field == CONTRACT_OUTSOURCE_PROD_CARD_LINK:
+        cols = PICK_COLUMNS.get("prod_card_supplement", [])
     else:
         cols = PICK_COLUMNS.get(form_code, [])
     return [{"key": k, "title": t} for k, t in cols]
@@ -365,13 +437,34 @@ def _pick_cell(
         return _as_text(data.get("applicant"), user_names)
     if key == "design_card_no":
         return _as_text(data.get("design_card_no"))
-    if key in ("contract_no", "drawing_no"):
+    if key == "drawing_no":
+        _cid, label = _resolve_prod_card_contract_for_outsource(
+            data, contract_names=contract_names,
+        )
+        if label:
+            return label
+        return (
+            _contract_label(data.get("drawing_no"), contract_names)
+            or _as_text(data.get("drawing_no"))
+        )
+    if key == "contract_no":
         return (
             _contract_label(data.get(key), contract_names)
             or _contract_label(data.get("drawing_no"), contract_names)
-            or _contract_label(data.get("contract_no"), contract_names)
             or _as_text(data.get("drawing_no"))
         )
+    if key == "design_assign":
+        val = data.get("design_assignees") or data.get("design_assign")
+        if isinstance(val, list):
+            parts = [_as_text(v, user_names) for v in val]
+            return "、".join(p for p in parts if p)
+        return _as_text(val, user_names)
+    if key == "office":
+        val = data.get("offices") or data.get("office")
+        if isinstance(val, list):
+            parts = [_as_text(v, dept_names) for v in val]
+            return "、".join(p for p in parts if p)
+        return _as_text(val, dept_names)
     return _as_text(data.get(key), user_names) or _as_text(data.get(key), dept_names)
 
 
@@ -445,13 +538,24 @@ async def list_pickable_form_instances(
         ))
         if link_field == "prod_card_install":
             user_ids.extend(_collect_ref_ids(data.get("sales_person")))
+        if form_code == "prod_card_supplement":
+            user_ids.extend(_collect_ref_ids(
+                data.get("design_assignees"), data.get("design_assign"),
+            ))
         dept_ids.extend(_collect_ref_ids(
             data.get("department"), data.get("order_dept"),
         ))
+        if form_code == "prod_card_supplement":
+            dept_ids.extend(_collect_ref_ids(data.get("offices"), data.get("office")))
         for raw in (data.get("contract_no"), data.get("drawing_no")):
             rid = _as_id(raw)
             if rid and _is_uuid(rid):
                 contract_ids.append(rid)
+        if form_code == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import resolve_prod_card_contract_pick
+            pcid, _ = resolve_prod_card_contract_pick(data)
+            if pcid and _is_uuid(pcid):
+                contract_ids.append(pcid)
         if link_field == "prod_card_install":
             pid = _as_id(data.get("project_no"))
             if pid and _is_uuid(pid):
@@ -535,6 +639,14 @@ async def list_pickable_form_instances(
         elif link_field and link_field in PRICING_CHECKLIST_LINKS:
             item["fill"] = build_pricing_checklist_fill(
                 link_field,
+                business_no=inst.business_no,
+                form_data=data,
+                user_names=user_names,
+                dept_names=dept_names,
+                contract_names=contract_names,
+            )
+        elif link_field == CONTRACT_OUTSOURCE_PROD_CARD_LINK:
+            item["fill"] = build_contract_outsource_prod_card_fill(
                 business_no=inst.business_no,
                 form_data=data,
                 user_names=user_names,
