@@ -1885,6 +1885,30 @@ def expand_filterable_form_fields(field_definitions: list | None) -> list[dict]:
     return out
 
 
+def _form_data_field_text(field: str):
+    return FormInstance.form_data.op("->>")(field)
+
+
+def _form_data_field_empty_expr(field: str):
+    txt = _form_data_field_text(field)
+    return or_(txt.is_(None), txt == "", txt == "null", txt == "[]", txt == "{}")
+
+
+def _form_data_json_kv_match(field: str, val: str):
+    """明细子表等同名列：匹配 JSON 内 "field": "val"（避免 eq 否 误命中其它 radio）。"""
+    blob = cast(FormInstance.form_data, String)
+    return or_(
+        blob.ilike(f'%"{field}": "{val}"%'),
+        blob.ilike(f'%"{field}":"{val}"%'),
+    )
+
+
+def _form_data_scalar_eq(field: str, val: str):
+    txt = _form_data_field_text(field)
+    empty = _form_data_field_empty_expr(field)
+    return or_(txt == val, and_(empty, _form_data_json_kv_match(field, val)))
+
+
 def _form_data_filter_clause(rule: dict):
     """单条规则 → SQL 条件（form_data->>field 文本语义）。
 
@@ -1893,9 +1917,9 @@ def _form_data_filter_clause(rule: dict):
     field = rule["field"]
     op = rule["op"]
     value = rule.get("value")
-    txt = FormInstance.form_data.op("->>")(field)
+    txt = _form_data_field_text(field)
     blob = cast(FormInstance.form_data, String)
-    empty = or_(txt.is_(None), txt == "", txt == "null", txt == "[]", txt == "{}")
+    empty = _form_data_field_empty_expr(field)
 
     if op == "is_empty":
         # 顶层空，且 JSON 中未见该键（明细行也无）
@@ -1903,12 +1927,9 @@ def _form_data_filter_clause(rule: dict):
     if op == "is_not_empty":
         return or_(not_(empty), blob.ilike(f'%"{field}"%'))
     if op == "eq":
-        return or_(txt == str(value), blob.ilike(f"%{value}%"))
+        return _form_data_scalar_eq(field, str(value))
     if op == "ne":
-        return and_(
-            or_(txt.is_(None), txt != str(value)),
-            or_(blob.is_(None), not_(blob.ilike(f"%{value}%"))),
-        )
+        return not_(_form_data_scalar_eq(field, str(value)))
     if op == "contains":
         return or_(txt.ilike(f"%{value}%"), blob.ilike(f"%{value}%"))
     if op == "not_contains":
@@ -1918,10 +1939,10 @@ def _form_data_filter_clause(rule: dict):
         )
     if op == "in":
         vals = value if isinstance(value, list) else [value]
-        parts = [txt == str(v) for v in vals if v is not None and str(v) != ""]
-        # 人员/对象字段可能以 JSON 文本存储，额外做包含匹配（含明细行）
-        parts += [txt.ilike(f"%{v}%") for v in vals if v is not None and str(v) != ""]
-        parts += [blob.ilike(f"%{v}%") for v in vals if v is not None and str(v) != ""]
+        parts = [
+            _form_data_scalar_eq(field, str(v))
+            for v in vals if v is not None and str(v) != ""
+        ]
         return or_(*parts) if parts else False
     if op == "between":
         if not isinstance(value, (list, tuple)) or len(value) < 2:

@@ -1562,7 +1562,7 @@ export default function FormDataListPage({
   const listNoCol = {
     title: '流水号',
     key: 'business_no',
-    width: listFullText ? 120 : 140,
+    width: listColWidths.serial_no ?? (listFullText ? 168 : 140),
     ellipsis: { showTitle: true } as const,
     fixed: 'left' as const,
     render: (_: unknown, row: FormInstance | DetailFlatRow) => {

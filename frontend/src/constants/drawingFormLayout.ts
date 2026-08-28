@@ -615,7 +615,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     ],
     listFullText: true,
     listColumnWidths: {
-      serial_no: 160,
+      serial_no: 180,
       ship_type: 96,
       ship_status: 88,
       contract_no: 200,

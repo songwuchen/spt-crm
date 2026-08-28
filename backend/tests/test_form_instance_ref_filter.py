@@ -67,6 +67,55 @@ def test_plain_contains_still_works_for_text():
     assert clause is not None
 
 
+@pytest.mark.asyncio
+async def test_radio_eq_does_not_match_other_fields_with_same_value(db):
+    """radio eq「否」不应因其它字段值为「否」而误命中（如 is_after_sales=是 但 is_reship=否）。"""
+    token = generate_uuid()[:8]
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-radio-eq-{token}", code=f"ut_re_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[
+            {"id": "is_after_sales", "type": "radio", "label": "是否售后",
+             "options": [{"label": "是", "value": "是"}, {"label": "否", "value": "否"}]},
+        ],
+        layout_definition={}, rule_definitions=[],
+    )
+    yes_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="yes", status="running", initiator_id="ut-admin",
+        form_data={"is_after_sales": "是", "is_reship": "否", "need_weigh": "否"},
+        field_definitions=[],
+    )
+    no_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="no", status="running", initiator_id="ut-admin",
+        form_data={"is_after_sales": "否", "is_reship": "是"},
+        field_definitions=[],
+    )
+    db.add_all([tpl, ver, yes_inst, no_inst])
+    await db.commit()
+    try:
+        filt = {"match": "all", "rules": [{"field": "is_after_sales", "op": "eq", "value": "否"}]}
+        rows, total = await list_instances(db, DEMO_TENANT, tpl.id, 1, 20, filters=filt)
+        ids = {r.id for r in rows}
+        assert no_inst.id in ids
+        assert yes_inst.id not in ids
+        assert total == 1
+    finally:
+        await db.delete(yes_inst)
+        await db.delete(no_inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.commit()
+
+
 def test_person_name_chars_all_present():
     assert _person_name_chars_all_present("尚高华", "高尚")
     assert _person_name_chars_all_present("王高尚", "高尚")
