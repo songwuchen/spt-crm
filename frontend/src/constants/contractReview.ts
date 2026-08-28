@@ -152,7 +152,7 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
       // rule0：合同评审或项目评审
       { key: 'owner_id', label: '业务员', source: 'native', widget: 'person', required: true, showWhen: WHEN_REVIEW_TYPE },
       { key: 'region_manager_id', label: '区域经理/组长', source: 'native', widget: 'person', showWhen: WHEN_CONTRACT },
-      { key: 'department_id', label: '业务部门', source: 'native', widget: 'department', showWhen: WHEN_REVIEW_TYPE },
+      { key: 'department_id', label: '业务部门', source: 'native', widget: 'department', required: true, showWhen: WHEN_REVIEW_TYPE },
       { key: 'company_name', label: '公司名称', source: 'native', widget: 'text', required: true, showWhen: WHEN_REVIEW_TYPE },
       {
         // 触发 rule5；客户回填为「是/否」文本
