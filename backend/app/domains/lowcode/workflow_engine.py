@@ -2666,9 +2666,10 @@ class WorkflowEngine:
         await self._audit(inst, actor, "withdraw")
 
     async def end_process(self, process_instance_id: str, actor: dict, *, reason: str | None = None) -> None:
-        """驳回/撤回后发起人手动结束：清掉「修改并重新提交」待办，避免永久挂在审批中心。
+        """手动结束流程（对齐简道云记录内「结束流程」）。
 
-        不改变业务单据状态（仍为 rejected/withdrawn），也不新建修订待办。
+        - running：终止进行中流程，关闭全部待办，表单/业务回写为已驳回。
+        - rejected/withdrawn/returned：清掉「修改并重新提交」修订待办，不改业务态。
         """
         inst = (await self.db.execute(
             select(WfProcessInstance).where(
@@ -2678,8 +2679,11 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         if not inst:
             raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        if inst.status == "running":
+            await self._terminate_running_process(inst, actor, reason=reason)
+            return
         if inst.status not in ("rejected", "withdrawn", "returned"):
-            raise BusinessException(code=BUSINESS_ERROR, message="仅已驳回、已退回或已撤回的流程可手动结束")
+            raise BusinessException(code=BUSINESS_ERROR, message="当前流程状态不可结束")
 
         uid = actor.get("sub")
         revise_assignees = (await self.db.execute(
@@ -2707,6 +2711,75 @@ class WorkflowEngine:
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "end_process")
 
+    async def _terminate_running_process(
+        self, inst, actor: dict, *, reason: str | None = None,
+    ) -> None:
+        """进行中流程手动终止：关闭待办，流程标 terminated，表单/业务标 rejected。"""
+        uid = actor.get("sub")
+        perms = set(actor.get("permissions") or [])
+        is_admin = (
+            "workflow:manage" in perms
+            or "workflow:activate" in perms
+            or "form_data:delete" in perms
+        )
+        if inst.initiator_id != uid and not is_admin:
+            raise BusinessException(
+                code=FORBIDDEN, message="仅发起人或流程/数据管理员可结束进行中的流程",
+            )
+
+        now = _now()
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled"
+            ni.completed_at = now
+
+        tasks = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ))).scalars().all()
+        pending_assignees = [t.assignee_id for t in tasks if t.status == "pending" and t.assignee_id]
+        for t in tasks:
+            t.status = "cancelled"
+        if tasks:
+            self._queue("todos_done", [t.id for t in tasks])
+
+        inst.status = "terminated"
+        inst.completed_at = now
+        inst.pending_joins = None
+        await self.db.flush()
+
+        term_reason = reason or "手动结束流程"
+        if inst.form_instance_id:
+            from app.domains.lowcode.models import FormInstance
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi:
+                fi.status = "rejected"
+        if inst.biz_type and inst.biz_id:
+            from app.domains.lowcode.wf_biz_writeback import writeback
+            await writeback(
+                self.db, self.tenant_id, inst.biz_type, inst.biz_id, "terminated", reason=term_reason,
+            )
+
+        self._log(inst.id, None, None, actor, "terminate", term_reason)
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(
+            self.db, self.tenant_id, "workflow.rejected", inst, {"reason": term_reason},
+        )
+        from app.domains.lowcode import shipment_notice_events as sne
+        await sne.emit_from_process(
+            self.db, self.tenant_id, sne.EVENT_CANCELLED, inst, {"reason": term_reason},
+        )
+        if pending_assignees:
+            self._queue("withdrawn", pending_assignees, actor, inst)
+        self._queue("finished", "terminated", term_reason, inst)
+
+        await self.db.commit()
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "terminate")
+
     async def end_process_by_task(self, task_id: str, actor: dict, *, reason: str | None = None) -> None:
         """从修订待办入口结束流程（线索修订页等仅持有 task_id 的场景）。"""
         task = (await self.db.execute(
@@ -2717,6 +2790,16 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         if not task:
             raise BusinessException(code=NOT_FOUND, message="待办不存在")
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.id == task.process_instance_id,
+                WfProcessInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if inst and inst.status == "running":
+            raise BusinessException(
+                code=BUSINESS_ERROR, message="审批待办不可结束进行中的流程，请从记录详情操作",
+            )
         await self.end_process(task.process_instance_id, actor, reason=reason)
 
     async def resubmit(self, process_instance_id: str, actor: dict) -> WfProcessInstance:

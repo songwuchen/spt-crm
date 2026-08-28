@@ -494,6 +494,173 @@ input, textarea, select {
   min-height: 0;
 }
 
+/* 简道云式 · 记录详情弹窗 */
+.spt-jdy-record-modal .ant-modal-header {
+  padding: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: stretch;
+}
+.spt-jdy-record-modal .ant-modal-title {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+.spt-jdy-record-drawer .ant-drawer-header-title {
+  flex: 1;
+  min-width: 0;
+}
+.spt-jdy-record-drawer .ant-drawer-header-title .ant-drawer-title {
+  flex: 1;
+  min-width: 0;
+}
+.spt-jdy-record-modal .ant-modal-close,
+.spt-jdy-record-drawer .ant-drawer-close {
+  display: none !important;
+}
+.spt-jdy-record-modal .ant-modal-body {
+  padding: 0 16px 16px;
+}
+.spt-jdy-record-modal .ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 10px 16px;
+}
+.spt-jdy-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px 8px 16px;
+  line-height: 1;
+  width: 100%;
+  box-sizing: border-box;
+}
+.spt-jdy-modal-title__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.spt-jdy-modal-title__no {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.spt-jdy-modal-title__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.spt-jdy-modal-title__btn.ant-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.spt-jdy-modal-title__btn .anticon {
+  font-size: 15px;
+}
+.spt-record-detail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.spt-record-detail-toolbar__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.spt-record-detail-toolbar__icon-btn {
+  color: #64748b;
+}
+.spt-record-detail-toolbar__icon-btn:hover {
+  color: #0f766e !important;
+}
+.spt-record-detail-toolbar__sep {
+  width: 1px;
+  height: 16px;
+  background: #e2e8f0;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+.spt-record-detail-toolbar__nav {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.spt-record-detail-body {
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
+}
+.spt-record-detail-body--fill {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+.spt-record-detail-body__main {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 12px;
+  min-width: 0;
+}
+.spt-record-detail-body--fill .spt-record-detail-body__main {
+  min-height: 0;
+}
+.spt-record-detail-body__side {
+  width: 300px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+.spt-record-detail-body--fill .spt-record-detail-body__side {
+  overflow: hidden;
+}
+
+/* 简道云式 · 记录侧边详情（列表仍可见左侧） */
+.spt-jdy-record-drawer-root .ant-drawer-content-wrapper {
+  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.12);
+}
+.spt-jdy-record-drawer-root:not(.spt-drawer-fullscreen) .ant-drawer-content-wrapper {
+  width: 75vw !important;
+  max-width: 92vw;
+}
+.spt-jdy-record-drawer-root .ant-drawer-mask {
+  background: rgba(15, 23, 42, 0.25);
+}
+.spt-jdy-record-drawer .ant-drawer-header {
+  padding: 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.spt-jdy-record-drawer .ant-drawer-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 10px 16px;
+}
+.spt-jdy-record-drawer:not(.spt-jdy-record-drawer--fill) .ant-drawer-body {
+  flex: 0 1 auto;
+  overflow: auto;
+}
+.spt-jdy-record-drawer-root.spt-drawer-fullscreen .ant-drawer-content-wrapper {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
 /* 审批抽屉 · 全屏 */
 .wf-approve-drawer-root.spt-drawer-fullscreen .ant-drawer-content-wrapper {
   width: 100vw !important;
@@ -563,16 +730,27 @@ input, textarea, select {
   background: rgba(19, 127, 236, 0.65);
 }
 
-/* 表单明细子表：可拖右下角调整可视高度；列宽拖拽复用 .spt-resizable-th */
+/* 表单明细子表：高度随行数自适应（空表紧凑；有数据随内容增高，超出 max 后表内滚动） */
 .detail-table-resizable-wrap {
-  resize: vertical;
-  overflow: auto;
-  min-height: 120px;
+  overflow: hidden;
+  min-height: 72px;
   max-height: 560px;
-  height: 260px;
   margin-bottom: 4px;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
+}
+.detail-table-resizable-wrap--edit {
+  resize: vertical;
+  overflow: auto;
+}
+.detail-table-resizable-wrap--empty .ant-table-placeholder .ant-table-cell {
+  padding: 12px 8px !important;
+}
+.detail-table-resizable-wrap--empty .ant-empty {
+  margin: 0;
+}
+.detail-table-resizable-wrap--empty .ant-empty-description {
+  margin-top: 4px;
 }
 .detail-table-resizable-wrap .fill-height-table-wrap {
   min-width: min-content;

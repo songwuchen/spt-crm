@@ -130,6 +130,8 @@ async def writeback(
         val = reg.get("returned") or reg.get("withdrawn")
     elif flow_status == "submitted":
         val = reg.get("submitted")
+    elif flow_status == "terminated":
+        val = reg.get("rejected")
     else:
         val = None
     if val is None:

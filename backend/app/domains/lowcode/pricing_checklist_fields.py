@@ -228,6 +228,44 @@ def _is_uuid(val: str) -> bool:
     return len(s) == 36 and s.count("-") == 4
 
 
+async def _lookup_contract_ids_for_pick_keyword(
+    db: AsyncSession,
+    tenant_id: str,
+    keyword: str,
+) -> list[str]:
+    """生产卡选单：图纸号/合同号关键词反查 contracts.id（form_data 仅存合同引用）。"""
+    from app.domains.contract.models import Contract
+
+    kw = (keyword or "").strip()
+    if not kw:
+        return []
+    like = f"%{kw}%"
+    rows = (await db.execute(
+        select(Contract.id).where(
+            Contract.tenant_id == tenant_id,
+            or_(
+                Contract.drawing_no.ilike(like),
+                Contract.contract_no.ilike(like),
+                Contract.peer_contract_no.ilike(like),
+            ),
+        ).limit(200)
+    )).scalars().all()
+    return [str(x) for x in rows]
+
+
+def _prod_card_form_contract_ref_conds(contract_ids: list[str]):
+    """form_data 中 drawing_no_query / contract_no_select 命中合同 id（含 {id:…} 嵌套）。"""
+    if not contract_ids:
+        return None
+    parts = []
+    for cid in contract_ids:
+        for key in ("drawing_no_query", "contract_no_select"):
+            col = FormInstance.form_data[key]
+            parts.append(col.astext == cid)
+            parts.append(col["id"].astext == cid)
+    return or_(*parts)
+
+
 def _contract_label(val: Any, contract_names: dict[str, str] | None = None) -> str:
     rid = _as_id(val)
     if rid and contract_names and rid in contract_names:
@@ -509,11 +547,17 @@ async def list_pickable_form_instances(
         kw = (keyword or "").strip()
         if kw:
             like = f"%{kw}%"
-            conds.append(or_(
+            kw_conds = [
                 FormInstance.title.ilike(like),
                 FormInstance.business_no.ilike(like),
                 cast(FormInstance.form_data, String).ilike(like),
-            ))
+            ]
+            if form_code == "prod_card_supplement":
+                cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, kw)
+                ref_conds = _prod_card_form_contract_ref_conds(cids)
+                if ref_conds is not None:
+                    kw_conds.append(ref_conds)
+            conds.append(or_(*kw_conds))
         total = int((await db.execute(
             select(func.count()).select_from(FormInstance).where(*conds)
         )).scalar_one() or 0)

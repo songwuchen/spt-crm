@@ -477,19 +477,22 @@ async def pickable_customers(
     from app.domains.customer.models import Customer
 
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
-    q = select(Customer.id, Customer.name, Customer.customer_code).where(
-        Customer.tenant_id == tenant_id, Customer.is_deleted == False,  # noqa: E712
-    )
+    q = select(
+        Customer.id, Customer.name, Customer.customer_code, Customer.is_deleted,
+    ).where(Customer.tenant_id == tenant_id)
     if id_list:
+        # 按 id 回显时包含已软删客户，避免详情页露出 UUID
         q = q.where(Customer.id.in_(id_list))
-    elif keyword:
-        like = f"%{keyword}%"
-        q = q.where(or_(Customer.name.ilike(like), Customer.customer_code.ilike(like))).limit(50)
     else:
-        q = q.order_by(Customer.updated_at.desc()).limit(50)
+        q = q.where(Customer.is_deleted == False)  # noqa: E712
+        if keyword:
+            like = f"%{keyword}%"
+            q = q.where(or_(Customer.name.ilike(like), Customer.customer_code.ilike(like))).limit(50)
+        else:
+            q = q.order_by(Customer.updated_at.desc()).limit(50)
     rows = (await db.execute(q)).all()
     return ok([
-        {"id": r[0], "name": r[1], "customer_code": r[2]}
+        {"id": r[0], "name": r[1], "customer_code": r[2], "is_deleted": bool(r[3])}
         for r in rows
     ])
 
@@ -682,6 +685,11 @@ async def pickable_contract_prod_card_fill(
     )
     if mode not in _MODES:
         mode = "drawing_no_query"
+    from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
+    resolved_id = await resolve_contract_id_for_fill(db, tenant_id, contract_id)
+    if not resolved_id:
+        raise BusinessException(code=NOT_FOUND, message="合同不存在")
+    contract_id = resolved_id
     c = (
         await db.execute(
             select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)

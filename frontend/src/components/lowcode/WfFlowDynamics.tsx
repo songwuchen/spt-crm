@@ -72,7 +72,7 @@ function avatarLetter(name: string) {
 
 export default function WfFlowDynamics({
   steps, comments, tab, onTabChange, onSubmitComment, commenting, variant = 'drawer',
-  dataLog,
+  dataLog, fillParent,
 }: {
   steps: WfFlowStep[]
   comments: WfInstanceDetail['comments']
@@ -82,6 +82,8 @@ export default function WfFlowDynamics({
   commenting?: boolean
   /** drawer=PC 右侧栏；page=移动端整页嵌入 */
   variant?: 'drawer' | 'page'
+  /** 全屏弹窗侧栏：占满列高并在内部滚动 */
+  fillParent?: boolean
   /** 数据日志（对齐简道云「数据日志」Tab） */
   dataLog?: {
     resourceType: string
@@ -117,7 +119,9 @@ export default function WfFlowDynamics({
   return (
     <div className={isPage
       ? 'flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden'
-      : 'h-full min-h-0 flex flex-col bg-slate-50'}
+      : fillParent
+        ? 'h-full min-h-0 flex flex-col bg-slate-50'
+        : 'flex flex-col bg-slate-50'}
     >
       <Tabs
         size="small"

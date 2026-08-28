@@ -4,9 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Select, Spin } from 'antd'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import {
+  customerReadonlyLabel,
+  isRefUuid,
+  missingRefPlaceholder,
+} from '@/utils/refFieldDisplay'
 
 interface COpt { label: string; value: string }
-type CustRow = { id: string; name?: string; customer_code?: string | null }
+type CustRow = { id: string; name?: string; customer_code?: string | null; is_deleted?: boolean }
 
 let cache: { opts: COpt[]; ts: number } | null = null
 const TTL = 5 * 60 * 1000
@@ -14,10 +19,17 @@ let inflight: Promise<COpt[]> | null = null
 const silent = { headers: { 'X-Silent-Error': '1' } }
 
 function toOpts(rows: CustRow[]): COpt[] {
-  return (rows || []).map((c) => ({
-    label: c.name ? `${c.name}${c.customer_code ? `（${c.customer_code}）` : ''}` : (c.customer_code || c.id),
-    value: c.id,
-  }))
+  return (rows || []).map((c) => {
+    const base = c.name
+      ? `${c.name}${c.customer_code ? `（${c.customer_code}）` : ''}`
+      : (c.customer_code || c.id)
+    const label = c.is_deleted ? `${base}（已删除）` : base
+    return { label, value: c.id }
+  })
+}
+
+function missingOpt(id: string): COpt {
+  return { label: missingRefPlaceholder('customer'), value: id }
 }
 
 async function fetchList(keyword?: string): Promise<COpt[]> {
@@ -60,7 +72,7 @@ async function hydrateMissing(ids: string[], opts: COpt[]): Promise<COpt[]> {
     }
     for (const id of missing) {
       if (!have.has(id)) {
-        next = [...next, { label: id, value: id }]
+        next = [...next, missingOpt(id)]
         have.add(id)
       }
     }
@@ -68,7 +80,7 @@ async function hydrateMissing(ids: string[], opts: COpt[]): Promise<COpt[]> {
   } catch {
     for (const id of missing) {
       if (!have.has(id)) {
-        next = [...next, { label: id, value: id }]
+        next = [...next, missingOpt(id)]
         have.add(id)
       }
     }
@@ -126,12 +138,17 @@ export default function CustomerField({
 
   const options = useMemo(() => {
     if (!raw || opts.some((o) => o.value === raw)) return opts
+    if (isRefUuid(raw)) return [...opts, missingOpt(raw)]
     return [{ label: raw, value: raw }, ...opts]
   }, [opts, raw])
 
   if (readonly) {
-    const label = options.find((o) => o.value === raw)?.label || raw || '—'
-    return <span>{label}</span>
+    const resolved = options.find((o) => o.value === raw)?.label
+    return (
+      <span>
+        {customerReadonlyLabel(raw, resolved, loading && isRefUuid(raw))}
+      </span>
+    )
   }
 
   return (
@@ -154,7 +171,8 @@ export default function CustomerField({
               setOpts((prev) => {
                 const map = new Map(found.map((o) => [o.value, o]))
                 if (raw && !map.has(raw)) {
-                  const keep = prev.find((o) => o.value === raw) || { label: raw, value: raw }
+                  const keep = prev.find((o) => o.value === raw)
+                    || (isRefUuid(raw) ? missingOpt(raw) : { label: raw, value: raw })
                   map.set(raw, keep)
                 }
                 const merged = Array.from(map.values())

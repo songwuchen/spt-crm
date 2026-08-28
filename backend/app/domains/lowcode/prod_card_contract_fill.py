@@ -2,7 +2,13 @@
 """生产卡选合同后的字段带出（对齐简道云 linkDataMaps）。"""
 from __future__ import annotations
 
+import re
 from typing import Any
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.I,
+)
 
 
 PROD_CARD_STD_ROOM_DESIGNER_JDY_DEPT = "56ca5b8af97e80434fc06122"
@@ -190,18 +196,77 @@ def strip_prod_card_contract_snapshot(form_data: dict | None) -> dict:
     return data
 
 
+def _normalize_contract_ref(val: Any) -> str | None:
+    """合同 pick 值：UUID / 流水号 / 合同号 / 图纸号；简道云迁移可能为 {} 或嵌套 {id}。"""
+    if val is None:
+        return None
+    if isinstance(val, dict):
+        if not val:
+            return None
+        inner = val.get("id") or val.get("value")
+        if inner is None or inner == "":
+            return None
+        s = str(inner).strip()
+        return s or None
+    s = str(val).strip()
+    return s or None
+
+
+def _looks_like_uuid(ref: str) -> bool:
+    return bool(_UUID_RE.match(ref))
+
+
+async def resolve_contract_id_for_fill(
+    db,
+    tenant_id: str,
+    ref: Any,
+) -> str | None:
+    """将合同引用解析为 contracts.id（UUID 直查，否则按流水号/合同号/图纸号）。"""
+    from sqlalchemy import select
+    from app.domains.contract.models import Contract
+
+    raw = _normalize_contract_ref(ref)
+    if not raw:
+        return None
+    if _looks_like_uuid(raw):
+        row = (
+            await db.execute(
+                select(Contract.id).where(
+                    Contract.id == raw,
+                    Contract.tenant_id == tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row:
+            return str(row)
+    for col in (Contract.serial_no, Contract.contract_no, Contract.drawing_no):
+        row = (
+            await db.execute(
+                select(Contract.id).where(
+                    Contract.tenant_id == tenant_id,
+                    col == raw,
+                ).order_by(Contract.updated_at.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
+        if row:
+            return str(row)
+    return None
+
+
 def resolve_prod_card_contract_pick(form_data: dict | None) -> tuple[str | None, str]:
-    """返回 (contract_id, mode)。补充=是优先合同号选择，否则图纸号查询。"""
+    """返回 (contract_ref, mode)。补充=是优先合同号选择，否则图纸号查询。"""
     fd = form_data if isinstance(form_data, dict) else {}
     is_supp = str(fd.get("is_supplement") or "").strip()
-    yes_id = str(fd.get("contract_no_select") or "").strip() or None
-    no_id = str(fd.get("drawing_no_query") or "").strip() or None
+    yes_id = _normalize_contract_ref(fd.get("contract_no_select"))
+    no_id = _normalize_contract_ref(fd.get("drawing_no_query"))
     if is_supp == "是" and yes_id:
         return yes_id, "contract_no_select"
     if no_id:
         return no_id, "drawing_no_query"
     if yes_id:
-        return yes_id, "contract_no_select"
+        # 简道云迁移：补充=否 时合同引用也可能落在 contract_no_select，需按整块带出
+        mode = "contract_no_select" if is_supp == "是" else "drawing_no_query"
+        return yes_id, mode
     return None, "drawing_no_query"
 
 
@@ -218,9 +283,12 @@ async def load_prod_card_fill_for_contract(
 
     if mode not in ("drawing_no_query", "contract_no_select"):
         mode = "drawing_no_query"
+    resolved_id = await resolve_contract_id_for_fill(db, tenant_id, contract_id)
+    if not resolved_id:
+        return {}
     c = (
         await db.execute(
-            select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)
+            select(Contract).where(Contract.id == resolved_id, Contract.tenant_id == tenant_id)
         )
     ).scalar_one_or_none()
     if not c:
@@ -229,7 +297,7 @@ async def load_prod_card_fill_for_contract(
         await db.execute(
             select(ContractVersion).where(
                 ContractVersion.tenant_id == tenant_id,
-                ContractVersion.contract_id == contract_id,
+                ContractVersion.contract_id == resolved_id,
                 ContractVersion.version_no == c.current_version_no,
             )
         )
@@ -239,7 +307,7 @@ async def load_prod_card_fill_for_contract(
             await db.execute(
                 select(ContractVersion).where(
                     ContractVersion.tenant_id == tenant_id,
-                    ContractVersion.contract_id == contract_id,
+                    ContractVersion.contract_id == resolved_id,
                 ).order_by(ContractVersion.version_no.desc()).limit(1)
             )
         ).scalar_one_or_none()
@@ -295,10 +363,12 @@ async def overlay_prod_card_contract_live(
 ) -> dict:
     """读时叠加热合同引用；无选合同时清空带出键，避免残留快照。"""
     data = dict(form_data or {})
-    cid, mode = resolve_prod_card_contract_pick(data)
+    ref, mode = resolve_prod_card_contract_pick(data)
     live: dict[str, Any] = {}
-    if cid:
-        live = await load_prod_card_fill_for_contract(db, tenant_id, cid, mode, user)
+    if ref:
+        cid = await resolve_contract_id_for_fill(db, tenant_id, ref)
+        if cid:
+            live = await load_prod_card_fill_for_contract(db, tenant_id, cid, mode, user)
     # 技术协议评审流水号：有选评审时以评审为准（也可后续改成实时）
     tar_id = str(data.get("select_contract_tech_review") or "").strip()
     if tar_id:

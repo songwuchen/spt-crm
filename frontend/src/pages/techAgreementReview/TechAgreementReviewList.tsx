@@ -7,13 +7,18 @@ import {
 } from 'antd'
 import {
   PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SendOutlined, PrinterOutlined,
+  StopOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import type { ColumnsType } from 'antd/es/table'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import ListToolbar from '@/components/list/ListToolbar'
-import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
-import RecordPrevNextNav from '@/components/RecordPrevNextNav'
+import { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
+import JdyRecordModalTitle from '@/components/lowcode/JdyRecordModalTitle'
+import RecordDetailToolbar, { type RecordToolbarAction } from '@/components/lowcode/RecordDetailToolbar'
+import RecordDetailBodyLayout from '@/components/lowcode/RecordDetailBodyLayout'
+import RecordDetailSideDrawer from '@/components/lowcode/RecordDetailSideDrawer'
+import { resolveRecordDisplayNo } from '@/utils/recordModalTitle'
 import { rememberSiblingNav } from '@/hooks/useSiblingRecordNav'
 import { useListView } from '@/hooks/useListView'
 import { techAgreementReviewApi, type TechAgreementReview } from '@/api/techAgreementReview'
@@ -37,6 +42,7 @@ import {
 import { loadTechAgreementWf } from '@/pages/techAgreementReview/TechAgreementReviewViewBody'
 import { printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
 import { buildTechAgreementReviewFieldLabels } from '@/utils/dataLogLabels'
+import { canEndProcessInRecordView, isRunningProcessTerminate } from '@/utils/recordWorkflowToolbar'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
@@ -106,6 +112,7 @@ export default function TechAgreementReviewList() {
   usePageTitle('技术协议评审')
   const navigate = useNavigate()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const userId = useAuthStore((s) => s.user?.id)
   const canCreate = hasPermission('tech_agreement_review:create')
   const canEdit = hasPermission('tech_agreement_review:edit')
   const canDelete = hasPermission('tech_agreement_review:delete')
@@ -123,6 +130,7 @@ export default function TechAgreementReviewList() {
   kwRef.current = keyword
 
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
+  const [viewPresentation, setViewPresentation] = useState<'modal' | 'drawer'>('modal')
   const [viewLoading, setViewLoading] = useState(false)
   const [modalFullscreen, setModalFullscreen] = useState(false)
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
@@ -133,7 +141,7 @@ export default function TechAgreementReviewList() {
   const customerSelect = useCustomerSelect()
   const submitterSelect = useUserSelect()
 
-  const openView = async (id: string, startEdit = false) => {
+  const openView = async (id: string, startEdit = false, presentation?: 'modal' | 'drawer') => {
     rememberSiblingNav('tech_agreement_review', {
       ids: data.map((d) => d.id),
       total,
@@ -148,6 +156,7 @@ export default function TechAgreementReviewList() {
     setViewLoading(true)
     setViewRec(null)
     setWfDetail(null)
+    if (presentation) setViewPresentation(presentation)
     try {
       const res = await techAgreementReviewApi.get(id)
       const row = res.data
@@ -168,6 +177,7 @@ export default function TechAgreementReviewList() {
 
   const closeView = () => {
     setViewRec(null)
+    setViewPresentation('modal')
     setWfDetail(null)
     setModalFullscreen(false)
     form.resetFields()
@@ -193,6 +203,35 @@ export default function TechAgreementReviewList() {
       setWfCommenting(false)
     }
   }
+
+  const handleEndProcess = () => {
+    if (!wfDetail?.id) return
+    const terminating = isRunningProcessTerminate(wfDetail)
+    Modal.confirm({
+      title: '确认结束流程？',
+      content: terminating
+        ? '结束后流程将终止，当前全部待办关闭，单据将变为已驳回。此操作不可撤销。'
+        : '结束后将关闭「修改并重新提交」等待办。',
+      okText: '结束流程',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await workflowApi.endProcess(wfDetail.id)
+          message.success('已结束流程')
+          closeView()
+          void fetchData(page)
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '结束流程失败')
+        }
+      },
+    })
+  }
+
+  const canEndProcess = canEndProcessInRecordView(wfDetail, userId, null, {
+    canManageWorkflow: hasPermission('workflow:activate') || hasPermission('workflow:manage'),
+    canDeleteFormData: hasPermission('form_data:delete'),
+  })
 
   const enterEdit = () => {
     if (!viewRec || !canEditTarStatus(viewRec.row.status)) {
@@ -298,7 +337,7 @@ export default function TechAgreementReviewList() {
     const kind = col.kind || 'text'
     if (col.key === 'review_code') {
       return (
-        <a className="text-primary font-bold font-mono" onClick={() => void openView(row.id)}>
+        <a className="text-primary font-bold font-mono" onClick={() => void openView(row.id, false, 'modal')}>
           {dash(raw)}
         </a>
       )
@@ -337,7 +376,7 @@ export default function TechAgreementReviewList() {
       width: 100,
       fixed: 'right',
       render: (_, r) => (
-        <a className="text-primary text-sm px-2" onClick={() => void openView(r.id)}>查看</a>
+        <a className="text-primary text-sm px-2" onClick={() => void openView(r.id, false, 'modal')}>查看</a>
       ),
     })
     return cols
@@ -410,9 +449,201 @@ export default function TechAgreementReviewList() {
   )
   const modalWidth = showFlowPane ? 1100 : 760
   const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
-  const contentMaxH = modalFullscreen ? 'calc(100vh - 200px)' : '70vh'
+  const contentMaxH = modalFullscreen
+    ? 'calc(100vh - 200px)'
+    : (viewPresentation === 'drawer' ? 'calc(100vh - 220px)' : '70vh')
   const editable = !!viewRec && canEdit && canEditTarStatus(viewRec.row.status)
-  const modalOpen = !!viewRec || viewLoading
+  const modalOpen = (viewLoading && !viewRec) || (!!viewRec && viewPresentation === 'modal')
+
+  const viewRecordTitle = useMemo(() => {
+    if (!viewRec) return '查看记录'
+    return resolveRecordDisplayNo({
+      businessNo: viewRec.row.review_code,
+      fallback: viewRec.readonly ? '查看记录' : '编辑记录',
+    })
+  }, [viewRec])
+
+  const handleCopyRecordLink = () => {
+    if (!viewRec) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('id', viewRec.row.id)
+    void navigator.clipboard.writeText(url.toString()).then(
+      () => message.success('链接已复制'),
+      () => message.error('复制链接失败'),
+    )
+  }
+
+  const recordToolbarActions = useMemo((): RecordToolbarAction[] => {
+    if (!viewRec) return []
+    const actions: RecordToolbarAction[] = [
+      {
+        key: 'print',
+        label: '打印',
+        icon: <PrinterOutlined />,
+        onClick: () => {
+          void printTechAgreementReview({ row: viewRec.row, flowSteps: wfDetail?.flow_steps })
+        },
+      },
+    ]
+    if (editable && viewRec.readonly) {
+      actions.push({
+        key: 'edit',
+        label: '编辑',
+        icon: <EditOutlined />,
+        onClick: enterEdit,
+      })
+    }
+    if (editable) {
+      actions.push({
+        key: 'submit',
+        label: '提交审批',
+        icon: <SendOutlined />,
+        onClick: () => { void submitFromView() },
+      })
+    }
+    if (canEndProcess) {
+      actions.push({
+        key: 'end-process',
+        label: '结束流程',
+        icon: <StopOutlined />,
+        danger: true,
+        onClick: handleEndProcess,
+      })
+    }
+    if (canDelete) {
+      actions.push({
+        key: 'delete',
+        label: '删除',
+        icon: <DeleteOutlined />,
+        danger: true,
+        render: () => (
+          <Popconfirm title="确认删除该记录?" onConfirm={() => void handleDelete()}>
+            <Button type="text" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        ),
+      })
+    }
+    return actions
+  }, [viewRec, editable, canDelete, wfDetail, saving, canEndProcess]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const recordDetailFooter = viewRec && !viewRec.readonly && editable
+    ? [
+        <Button key="c" onClick={closeView}>取消</Button>,
+        <Button key="s" loading={saving} onClick={() => void saveEdit(false)}>存草稿</Button>,
+        <Button key="sub" type="primary" loading={saving} onClick={() => void saveEdit(true)}>提交审批</Button>,
+      ]
+    : null
+
+  const recordDetailInner = viewRec ? (
+    <div className={`flex flex-col min-h-0${modalFullscreen ? ' flex-1' : ''}`}>
+      <RecordDetailToolbar
+        actions={recordToolbarActions}
+        onCopyLink={handleCopyRecordLink}
+        nav={{
+          index: viewNavGlobalIndex,
+          total,
+          disabled: navBusy || viewLoading,
+          onPrev: () => { void goViewRelative(-1) },
+          onNext: () => { void goViewRelative(1) },
+        }}
+      />
+      <div className="flex items-center gap-2 mb-2 -mt-1">
+        <Tag color={STATUS_COLOR[viewRec.row.status] || 'default'}>
+          {STATUS_LABEL[viewRec.row.status] || viewRec.row.status}
+        </Tag>
+      </div>
+      <RecordDetailBodyLayout
+        fillHeight={modalFullscreen}
+        contentMaxH={contentMaxH}
+        showSide={showFlowPane}
+        main={(
+          <Form form={form} layout="vertical">
+            <ContractSectionTitle title="关联客户" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 mb-4">
+              {viewRec.readonly ? (
+                <Form.Item label="公司名称">
+                  <div className="min-h-[32px] py-1 text-[15px] leading-6 text-slate-800 break-words">
+                    {(form.getFieldValue('company_name') as string) || '—'}
+                  </div>
+                </Form.Item>
+              ) : (
+                <Form.Item name="customer_id" label="选择公司名称">
+                  <Select
+                    allowClear
+                    showSearch
+                    filterOption={false}
+                    placeholder="从客户库选择"
+                    loading={customerSelect.loading || fillingCustomer}
+                    options={customerSelect.options}
+                    onSearch={customerSelect.onSearch}
+                    onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
+                    onChange={(v, opt) => {
+                      if (!v) {
+                        form.setFieldsValue({
+                          customer_id: undefined,
+                          company_name: undefined,
+                          industry: undefined,
+                          address: undefined,
+                        })
+                        return
+                      }
+                      void fillFromCustomer(String(v), (opt as { label?: string } | undefined)?.label)
+                    }}
+                  />
+                </Form.Item>
+              )}
+            </div>
+            <TechAgreementFields
+              form={form}
+              readOnly={viewRec.readonly}
+              includeApproverSections={viewRec.readonly || ['submitted', 'approved', 'rejected'].includes(viewRec.row.status)}
+              slots={{
+                approve_files: (
+                  <div className="md:col-span-2 mb-4 space-y-3">
+                    <AttachmentPanel
+                      bizType="tech_agreement_review_drawing"
+                      bizId={viewRec.row.id}
+                      title="认可图（附件）"
+                    />
+                    <AttachmentPanel
+                      bizType="tech_agreement_review"
+                      bizId={viewRec.row.id}
+                      title="技术协议（附件）"
+                    />
+                  </div>
+                ),
+              }}
+            />
+          </Form>
+        )}
+        side={(
+          wfDetail ? (
+            <WfFlowDynamics
+              fillParent={modalFullscreen}
+              steps={wfDetail.flow_steps || []}
+              comments={wfDetail.comments || []}
+              onSubmitComment={handleWfComment}
+              commenting={wfCommenting}
+              dataLog={viewRec ? {
+                resourceType: 'tech_agreement_review',
+                resourceId: viewRec.row.id,
+                fieldLabels: buildTechAgreementReviewFieldLabels(),
+                alsoResources: wfDetail.id
+                  ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
+                  : undefined,
+              } : undefined}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center bg-slate-50 px-4">
+              <Text type="secondary" className="text-sm">
+                {viewRec.row.status === 'draft' ? '提交审批后将在此显示流程进度' : '暂无流程动态'}
+              </Text>
+            </div>
+          )
+        )}
+      />
+    </div>
+  ) : null
 
   return (
     <div>
@@ -478,11 +709,17 @@ export default function TechAgreementReviewList() {
       />
 
       <Modal
+        className="spt-jdy-record-modal"
+        closable={false}
         title={(
-          <ModalFullscreenTitle
-            title={viewRec && !viewRec.readonly ? '编辑记录' : '查看记录'}
+          <JdyRecordModalTitle
+            variant="modal"
+            title={viewRecordTitle}
+            editing={Boolean(viewRec && !viewRec.readonly)}
             fullscreen={modalFullscreen}
-            onToggle={() => setModalFullscreen((v) => !v)}
+            onToggleFullscreen={() => setModalFullscreen((v) => !v)}
+            onOpenInSidebar={() => setViewPresentation('drawer')}
+            onClose={closeView}
           />
         )}
         open={modalOpen}
@@ -491,154 +728,25 @@ export default function TechAgreementReviewList() {
         wrapClassName={fsProps.wrapClassName}
         styles={fsProps.styles}
         onCancel={closeView}
-        footer={
-          viewRec && !viewRec.readonly && editable
-            ? [
-                <Button key="c" onClick={closeView}>取消</Button>,
-                <Button key="s" loading={saving} onClick={() => void saveEdit(false)}>存草稿</Button>,
-                <Button key="sub" type="primary" loading={saving} onClick={() => void saveEdit(true)}>提交审批</Button>,
-              ]
-            : [<Button key="c" onClick={closeView}>关闭</Button>]
-        }
+        footer={recordDetailFooter}
         destroyOnClose
       >
         {viewLoading && !viewRec ? (
           <div className="flex justify-center py-16"><Spin /></div>
-        ) : viewRec ? (
-          <div className={modalFullscreen ? 'flex flex-col flex-1 min-h-0' : undefined}>
-            <div
-              className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100 flex-wrap shrink-0"
-              style={{ marginTop: -4 }}
-            >
-              <Tag color={STATUS_COLOR[viewRec.row.status] || 'default'}>
-                {STATUS_LABEL[viewRec.row.status] || viewRec.row.status}
-              </Tag>
-              <span className="font-mono text-sm text-slate-600 mr-2">{viewRec.row.review_code}</span>
-              <Button
-                type="text"
-                icon={<PrinterOutlined />}
-                onClick={() => {
-                  void printTechAgreementReview({ row: viewRec.row, flowSteps: wfDetail?.flow_steps })
-                }}
-              >
-                打印
-              </Button>
-              {editable && viewRec.readonly && (
-                <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>编辑</Button>
-              )}
-              {editable && (
-                <Button type="text" icon={<SendOutlined />} loading={saving} onClick={() => void submitFromView()}>
-                  提交审批
-                </Button>
-              )}
-              {canDelete && (
-                <Popconfirm title="确认删除该记录?" onConfirm={() => void handleDelete()}>
-                  <Button type="text" danger icon={<DeleteOutlined />}>删除</Button>
-                </Popconfirm>
-              )}
-              <div className="flex-1" />
-              <RecordPrevNextNav
-                index={viewNavGlobalIndex}
-                total={total}
-                disabled={navBusy || viewLoading}
-                onPrev={() => { void goViewRelative(-1) }}
-                onNext={() => { void goViewRelative(1) }}
-              />
-            </div>
-            <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
-              <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>
-                <Form form={form} layout="vertical">
-                  <ContractSectionTitle title="关联客户" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 mb-4">
-                    {viewRec.readonly ? (
-                      <Form.Item label="公司名称">
-                        <div className="min-h-[32px] py-1 text-[15px] leading-6 text-slate-800 break-words">
-                          {(form.getFieldValue('company_name') as string) || '—'}
-                        </div>
-                      </Form.Item>
-                    ) : (
-                      <Form.Item name="customer_id" label="选择公司名称">
-                        <Select
-                          allowClear
-                          showSearch
-                          filterOption={false}
-                          placeholder="从客户库选择"
-                          loading={customerSelect.loading || fillingCustomer}
-                          options={customerSelect.options}
-                          onSearch={customerSelect.onSearch}
-                          onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
-                          onChange={(v, opt) => {
-                            if (!v) {
-                              form.setFieldsValue({
-                                customer_id: undefined,
-                                company_name: undefined,
-                                industry: undefined,
-                                address: undefined,
-                              })
-                              return
-                            }
-                            void fillFromCustomer(String(v), (opt as { label?: string } | undefined)?.label)
-                          }}
-                        />
-                      </Form.Item>
-                    )}
-                  </div>
-                  <TechAgreementFields
-                    form={form}
-                    readOnly={viewRec.readonly}
-                    includeApproverSections={viewRec.readonly || ['submitted', 'approved', 'rejected'].includes(viewRec.row.status)}
-                    slots={{
-                      approve_files: (
-                        <div className="md:col-span-2 mb-4 space-y-3">
-                          <AttachmentPanel
-                            bizType="tech_agreement_review_drawing"
-                            bizId={viewRec.row.id}
-                            title="认可图（附件）"
-                          />
-                          <AttachmentPanel
-                            bizType="tech_agreement_review"
-                            bizId={viewRec.row.id}
-                            title="技术协议（附件）"
-                          />
-                        </div>
-                      ),
-                    }}
-                  />
-                </Form>
-              </div>
-              {showFlowPane && (
-                <div
-                  className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
-                  style={{ maxHeight: contentMaxH, height: modalFullscreen ? contentMaxH : undefined }}
-                >
-                  {wfDetail ? (
-                    <WfFlowDynamics
-                      steps={wfDetail.flow_steps || []}
-                      comments={wfDetail.comments || []}
-                      onSubmitComment={handleWfComment}
-                      commenting={wfCommenting}
-                      dataLog={viewRec ? {
-                        resourceType: 'tech_agreement_review',
-                        resourceId: viewRec.row.id,
-                        fieldLabels: buildTechAgreementReviewFieldLabels(),
-                        alsoResources: wfDetail.id
-                          ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
-                          : undefined,
-                      } : undefined}
-                    />
-                  ) : (
-                    <div className="h-full flex items-center justify-center bg-slate-50 px-4">
-                      <Text type="secondary" className="text-sm">
-                        {viewRec.row.status === 'draft' ? '提交审批后将在此显示流程进度' : '暂无流程动态'}
-                      </Text>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
+        ) : recordDetailInner}
       </Modal>
+      <RecordDetailSideDrawer
+        open={!!viewRec && viewPresentation === 'drawer'}
+        title={viewRecordTitle}
+        editing={Boolean(viewRec && !viewRec.readonly)}
+        fullscreen={modalFullscreen}
+        onToggleFullscreen={() => setModalFullscreen((v) => !v)}
+        onClose={closeView}
+        onOpenInModal={() => setViewPresentation('modal')}
+        footer={recordDetailFooter}
+      >
+        {recordDetailInner}
+      </RecordDetailSideDrawer>
     </div>
   )
 }

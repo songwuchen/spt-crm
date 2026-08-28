@@ -454,6 +454,39 @@ def test_strip_and_resolve_prod_card_contract_live():
     assert resolve_prod_card_contract_pick({
         "is_supplement": "否", "drawing_no_query": "c-no",
     }) == ("c-no", "drawing_no_query")
+    assert resolve_prod_card_contract_pick({
+        "is_supplement": "否",
+        "contract_no_select": "1.2.3-2026082201503",
+        "drawing_no_query": {},
+    }) == ("1.2.3-2026082201503", "drawing_no_query")
+
+
+def test_resolve_contract_id_for_fill_by_serial(monkeypatch):
+    import asyncio
+
+    from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
+
+    n = 0
+
+    async def fake_execute(_stmt):
+        nonlocal n
+        n += 1
+
+        class R:
+            def scalar_one_or_none(self_inner):
+                return "ee6049dc-aaaa-bbbb-cccc-dddddddddddd" if n >= 1 else None
+
+        return R()
+
+    class FakeDb:
+        async def execute(self, stmt):
+            return await fake_execute(stmt)
+
+    cid = asyncio.run(resolve_contract_id_for_fill(
+        FakeDb(), "00000000-0000-0000-0000-000000000001", "1.2.3-2026082201503",
+    ))
+    assert cid == "ee6049dc-aaaa-bbbb-cccc-dddddddddddd"
+    assert n >= 1
 
 
 def test_build_fill_contract_no_select_falls_back_reg_customer():

@@ -8813,6 +8813,7 @@ async def _build_flow_steps(
 async def find_latest_instance_by_biz(
     db, tenant_id: str, biz_type: str, biz_id: str,
     viewer_id: str | None = None,
+    viewer_perms: list[str] | None = None,
 ) -> dict | None:
     """业务详情页按 (biz_type, biz_id) 取最新流程实例详情（含审批记录）。无则 None。"""
     if not biz_type or not biz_id:
@@ -8826,12 +8827,15 @@ async def find_latest_instance_by_biz(
     )).scalar_one_or_none()
     if not inst:
         return None
-    return await get_instance_detail(db, tenant_id, inst.id, viewer_id=viewer_id)
+    return await get_instance_detail(
+        db, tenant_id, inst.id, viewer_id=viewer_id, viewer_perms=viewer_perms,
+    )
 
 
 async def find_latest_instance_by_form_instance(
     db, tenant_id: str, form_instance_id: str,
     viewer_id: str | None = None,
+    viewer_perms: list[str] | None = None,
 ) -> dict | None:
     """表单详情页：按 form_instance_id 取最新流程实例（兼容未回写 process_instance_id 的旧数据）。"""
     if not form_instance_id:
@@ -8853,7 +8857,9 @@ async def find_latest_instance_by_form_instance(
     )).scalar_one_or_none()
     if not inst:
         return None
-    return await get_instance_detail(db, tenant_id, inst.id, viewer_id=viewer_id)
+    return await get_instance_detail(
+        db, tenant_id, inst.id, viewer_id=viewer_id, viewer_perms=viewer_perms,
+    )
 
 
 def list_activate_nodes(version: WfProcessDefinitionVersion | None) -> list[dict]:
@@ -8896,9 +8902,48 @@ async def get_activate_nodes(db, tenant_id: str, instance_id: str) -> list[dict]
     return list_activate_nodes(pub or version)
 
 
+_REVISE_NODE_DEF_ID = "__initiator_revise__"
+
+
+def compute_can_end_process(
+    inst,
+    viewer_id: str | None,
+    viewer_perms: list[str] | None,
+    tasks: list,
+    nodes: list | None = None,
+) -> bool:
+    """记录详情是否可「结束流程」（running 终止 / 修订待办关闭）。"""
+    if not viewer_id or not inst:
+        return False
+    status = inst.status or ""
+    if status == "running":
+        perms = set(viewer_perms or [])
+        is_admin = (
+            "workflow:manage" in perms
+            or "workflow:activate" in perms
+            or "form_data:delete" in perms
+        )
+        return inst.initiator_id == viewer_id or is_admin
+    if status not in ("rejected", "withdrawn", "returned"):
+        return False
+    if inst.initiator_id == viewer_id:
+        return True
+    revise_node_ids: set[str] = set()
+    if nodes:
+        for n in nodes:
+            if n.node_type == "revise" or n.node_def_id == _REVISE_NODE_DEF_ID:
+                revise_node_ids.add(n.id)
+    for t in tasks:
+        if t.status == "pending" and t.assignee_id == viewer_id:
+            if not revise_node_ids or t.node_instance_id in revise_node_ids:
+                return True
+    return False
+
+
 async def get_instance_detail(
     db, tenant_id, instance_id, viewer_id: str | None = None,
     task_id: str | None = None,
+    viewer_perms: list[str] | None = None,
 ) -> dict:
     inst = (await db.execute(select(WfProcessInstance).where(
         WfProcessInstance.id == instance_id, WfProcessInstance.tenant_id == tenant_id,
@@ -9166,6 +9211,9 @@ async def get_instance_detail(
 
     # 轨迹补充节点名
     ni_name = {n.id: n.node_name for n in nodes}
+    can_end_process = compute_can_end_process(
+        inst, viewer_id, viewer_perms, list(tasks), list(nodes),
+    )
     return {
         **_inst_dict(inst, form_code=form_code),
         "initiator_name": initiator_name,
@@ -9173,6 +9221,7 @@ async def get_instance_detail(
         "approval_nodes": approval_nodes,
         "activate_nodes": activate_nodes,
         "can_activate": can_activate,
+        "can_end_process": can_end_process,
         "biz_detail": biz_detail,
         "biz_ref_id": biz_ref_id,
         "form_fields": form_fields,

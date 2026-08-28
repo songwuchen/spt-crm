@@ -2,6 +2,7 @@
 from app.domains.lowcode.pricing_checklist_fields import (
     CONTRACT_OUTSOURCE_PROD_CARD_LINK,
     PICKABLE_FORM_CODES,
+    _prod_card_form_contract_ref_conds,
     build_contract_outsource_prod_card_fill,
     pick_column_defs,
 )
@@ -16,6 +17,10 @@ def test_pick_columns_for_contract_outsource_link():
         "prod_card_supplement", CONTRACT_OUTSOURCE_PROD_CARD_LINK,
     )}
     assert cols == {"serial_no", "drawing_no", "design_assign", "office"}
+
+
+def test_prod_card_form_contract_ref_conds_empty():
+    assert _prod_card_form_contract_ref_conds([]) is None
 
 
 def test_build_contract_outsource_prod_card_fill_maps_fields():

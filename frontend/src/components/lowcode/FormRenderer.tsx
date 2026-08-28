@@ -909,6 +909,23 @@ function isBlankDetailRow(row: unknown): boolean {
   )
 }
 
+const DETAIL_TABLE_HEADER_H = 40
+const DETAIL_TABLE_ROW_H = 40
+const DETAIL_TABLE_EMPTY_H = 72
+const DETAIL_TABLE_MAX_H = 560
+
+/** 明细子表外层高度：空表紧凑，有数据随行数增高，封顶后表体滚动 */
+function detailTableWrapMetrics(rowCount: number) {
+  const natural = rowCount <= 0
+    ? DETAIL_TABLE_EMPTY_H
+    : DETAIL_TABLE_HEADER_H + rowCount * DETAIL_TABLE_ROW_H + 4
+  const height = Math.min(DETAIL_TABLE_MAX_H, Math.max(DETAIL_TABLE_EMPTY_H, natural))
+  const bodyScrollY = rowCount > 0 && natural > DETAIL_TABLE_MAX_H
+    ? DETAIL_TABLE_MAX_H - DETAIL_TABLE_HEADER_H - 4
+    : undefined
+  return { height, bodyScrollY }
+}
+
 function DetailTable({
   field, readonly, value, onChange, onPatch, formValues = {}, rules = [], fields = [], layout = 'table', createFill = true,
 }: {
@@ -1029,6 +1046,13 @@ function DetailTable({
   }
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const widthOf = (c: FieldDefinition) => colWidths[c.id] ?? defaultColWidth(c)
+
+  const { height: wrapHeight, bodyScrollY } = detailTableWrapMetrics(rows.length)
+  const wrapClass = [
+    'detail-table-resizable-wrap',
+    rows.length === 0 ? 'detail-table-resizable-wrap--empty' : '',
+    !readonly ? 'detail-table-resizable-wrap--edit' : '',
+  ].filter(Boolean).join(' ')
 
   if (layout === 'cards') {
     return (
@@ -1159,7 +1183,10 @@ function DetailTable({
 
   return (
     <div>
-      <div className="detail-table-resizable-wrap">
+      <div
+        className={wrapClass}
+        style={{ height: wrapHeight }}
+      >
         <FillHeightTable
           size="small"
           rowKey={(_, i) => String(i)}
@@ -1171,7 +1198,10 @@ function DetailTable({
           onColumnWidthChange={(colKey, width) => {
             setColWidths((prev) => ({ ...prev, [colKey]: width }))
           }}
-          scroll={{ x: 'max-content' }}
+          scroll={{
+            x: 'max-content',
+            ...(bodyScrollY != null ? { y: bodyScrollY } : {}),
+          }}
           locale={{ emptyText: '暂无明细' }}
         />
       </div>

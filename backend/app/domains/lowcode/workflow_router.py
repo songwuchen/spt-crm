@@ -174,7 +174,8 @@ async def instance_by_biz(
 ):
     """业务详情页：按业务单据查最新流程实例（含 timeline / flow_steps）。无则 data=null。"""
     detail = await wsvc.find_latest_instance_by_biz(
-        db, tenant_id, biz_type, biz_id, viewer_id=user.get("sub"),
+        db, tenant_id, biz_type, biz_id,
+        viewer_id=user.get("sub"), viewer_perms=user.get("permissions"),
     )
     return ok(detail)
 
@@ -188,7 +189,8 @@ async def instance_by_form_instance(
 ):
     """表单详情：按 form_instance_id 查最新流程实例。无则 data=null。"""
     detail = await wsvc.find_latest_instance_by_form_instance(
-        db, tenant_id, form_instance_id, viewer_id=user.get("sub"),
+        db, tenant_id, form_instance_id,
+        viewer_id=user.get("sub"), viewer_perms=user.get("permissions"),
     )
     return ok(detail)
 
@@ -202,7 +204,9 @@ async def instance_detail(
     user: dict = Depends(get_current_user),
 ):
     return ok(await wsvc.get_instance_detail(
-        db, tenant_id, instance_id, viewer_id=user.get("sub"), task_id=task_id,
+        db, tenant_id, instance_id,
+        viewer_id=user.get("sub"), task_id=task_id,
+        viewer_perms=user.get("permissions"),
     ))
 
 
@@ -255,7 +259,7 @@ async def end_process(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """已驳回/已撤回：发起人手动结束，取消「修改并重新提交」待办。"""
+    """手动结束流程：进行中终止，或驳回/撤回后关闭修订待办。"""
     await WorkflowEngine(db, tenant_id).end_process(instance_id, user)
     return ok(None)
 

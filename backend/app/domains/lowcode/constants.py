@@ -127,6 +127,7 @@ class ActionType(StrEnum):
     TIMEOUT = "timeout"
     STASH = "stash"
     END_PROCESS = "end_process"
+    TERMINATE = "terminate"
     ACTIVATE = "activate"
     ADJUST_ASSIGNEE = "adjust_assignee"
 

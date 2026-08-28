@@ -23,12 +23,17 @@ import {
 } from '@/components/lowcode/formInstanceFilterUtils'
 import {
   ArrowLeftOutlined, PlusOutlined, DownloadOutlined, DownOutlined,
-  PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
+  PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined, CopyOutlined,
   SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
+  StopOutlined,
   BarChartOutlined,
 } from '@ant-design/icons'
-import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
-import RecordPrevNextNav from '@/components/RecordPrevNextNav'
+import { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
+import JdyRecordModalTitle from '@/components/lowcode/JdyRecordModalTitle'
+import RecordDetailToolbar, { type RecordToolbarAction } from '@/components/lowcode/RecordDetailToolbar'
+import RecordDetailBodyLayout from '@/components/lowcode/RecordDetailBodyLayout'
+import RecordDetailSideDrawer from '@/components/lowcode/RecordDetailSideDrawer'
+import { resolveRecordDisplayNo } from '@/utils/recordModalTitle'
 import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { attachmentApi } from '@/api/attachment'
@@ -77,6 +82,7 @@ import { FORM_INSTANCE_STATUS } from '@/utils/lowcodeWorkflowLabels'
 import {
   canUserActRevise, hasActiveReviseStep, resolveReviseTaskId,
 } from '@/utils/reviseWorkflow'
+import { canEndProcessInRecordView, isRunningProcessTerminate } from '@/utils/recordWorkflowToolbar'
 import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 
 const { Title, Text } = Typography
@@ -579,6 +585,7 @@ type ViewRec = {
   value: Record<string, unknown>
   readonly: boolean
   id: string
+  business_no?: string | null
   process_instance_id?: string | null
   rules: FormRule[]
   status?: string
@@ -647,6 +654,7 @@ export default function FormDataListPage({
   )
   const [colState, setColStateRaw] = useState<ColumnState>(() => loadColState(colStorageKey))
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
+  const [viewPresentation, setViewPresentation] = useState<'modal' | 'drawer'>('modal')
   const [modalFullscreen, setModalFullscreen] = useState(false)
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const userId = useAuthStore((s) => s.user?.id)
@@ -950,7 +958,11 @@ export default function FormDataListPage({
     }
   }
 
-  const openView = async (recId: string, readonly: boolean) => {
+  const openView = async (
+    recId: string,
+    readonly: boolean,
+    opts?: { presentation?: 'modal' | 'drawer' },
+  ) => {
     const res = await lowcodeApi.getInstance(recId)
     const detailRules = (res.data.rule_definitions as FormRule[] | undefined)
     setViewRec({
@@ -958,6 +970,7 @@ export default function FormDataListPage({
       value: res.data.form_data,
       readonly,
       id: recId,
+      business_no: res.data.business_no,
       process_instance_id: res.data.process_instance_id,
       rules: detailRules?.length ? detailRules : rules,
       status: res.data.status,
@@ -967,12 +980,14 @@ export default function FormDataListPage({
       updated_at: res.data.updated_at,
       retroactive_field_perms: (res.data as FormInstanceDetail).retroactive_field_perms,
     })
+    if (opts?.presentation) setViewPresentation(opts.presentation)
     setWfDetail(null)
     await loadWorkflow(recId, res.data.process_instance_id)
   }
 
   const closeView = () => {
     setViewRec(null)
+    setViewPresentation('modal')
     setWfDetail(null)
     setSerialPreviews({})
     setModalFullscreen(false)
@@ -1184,18 +1199,34 @@ export default function FormDataListPage({
     }
   }
 
-  const handleEndReviseProcess = () => {
-    if (!effectiveReviseTaskId) return
+  const handleEndProcess = () => {
+    if (!wfDetail?.id) return
+    const terminating = isRunningProcessTerminate(wfDetail)
     Modal.confirm({
-      title: '确认手动结束？',
-      content: '结束后将取消「修改并重新提交」待办。如需再走审批，请重新发起。',
+      title: '确认结束流程？',
+      content: terminating
+        ? '结束后流程将终止，当前全部待办关闭，单据将变为已驳回。此操作不可撤销。'
+        : '结束后将关闭「修改并重新提交」等待办。如需再走审批，可重新发起或激活流程。',
       okText: '结束流程',
       okType: 'danger',
       onOk: async () => {
-        await workflowApi.endProcessByTask(effectiveReviseTaskId)
-        message.success('已手动结束流程')
-        closeView()
-        load()
+        try {
+          if (
+            !terminating
+            && effectiveReviseTaskId
+            && canUserActRevise(wfDetail, effectiveReviseTaskId, userId)
+          ) {
+            await workflowApi.endProcessByTask(effectiveReviseTaskId)
+          } else {
+            await workflowApi.endProcess(wfDetail.id)
+          }
+          message.success('已结束流程')
+          closeView()
+          load()
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '结束流程失败')
+        }
       },
     })
   }
@@ -1316,12 +1347,190 @@ export default function FormDataListPage({
     setViewRec((s) => (s ? { ...s, readonly: false } : s))
   }
 
+  const handleCopyRecordLink = () => {
+    if (!viewRec) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('instance', viewRec.id)
+    void navigator.clipboard.writeText(url.toString()).then(
+      () => message.success('链接已复制'),
+      () => message.error('复制链接失败'),
+    )
+  }
+
+  const handleCopyRecord = async () => {
+    if (!viewRec || !id) return
+    try {
+      const res = await lowcodeApi.getInstance(viewRec.id)
+      const fd = { ...(res.data.form_data || {}) }
+      delete fd.serial_no
+      const created = await lowcodeApi.createInstance({
+        template_id: id,
+        form_data: fd,
+        as_draft: true,
+      })
+      message.success('已复制为新草稿')
+      await openView(created.data.id, false)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '复制失败')
+    }
+  }
+
+  const viewRecordTitle = useMemo(() => {
+    if (!viewRec) return '查看记录'
+    return resolveRecordDisplayNo({
+      businessNo: viewRec.business_no,
+      formData: viewRec.value,
+      fallback: viewRec.readonly ? '查看记录' : '编辑记录',
+    })
+  }, [viewRec])
+
+  const canEndProcess = canEndProcessInRecordView(wfDetail, userId, effectiveReviseTaskId, {
+    canManageWorkflow: hasPermission('workflow:activate') || hasPermission('workflow:manage'),
+    canDeleteFormData: hasPermission('form_data:delete'),
+  })
+
+  const recordToolbarActions = useMemo((): RecordToolbarAction[] => {
+    if (!viewRec) return []
+    const actions: RecordToolbarAction[] = []
+
+    if (canPrintQuote || canPrintScheme) {
+      actions.push({
+        key: 'print',
+        label: '打印',
+        icon: <PrinterOutlined />,
+        onClick: () => { void handlePrint(viewRec.id) },
+      })
+    }
+    if (canPrintProdCard) {
+      actions.push({
+        key: 'print-prod',
+        label: '打印',
+        icon: <PrinterOutlined />,
+        render: () => (
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'notice',
+                  label: '生产通知单',
+                  onClick: () => { void handlePrint(viewRec.id, 'notice') },
+                },
+                {
+                  key: 'supplement',
+                  label: '生产补充卡',
+                  onClick: () => { void handlePrint(viewRec.id, 'supplement') },
+                },
+              ],
+            }}
+            trigger={['click']}
+          >
+            <Button type="text" icon={<PrinterOutlined />}>
+              打印 <DownOutlined />
+            </Button>
+          </Dropdown>
+        ),
+      })
+    }
+    if (canPrintBonus) {
+      actions.push({
+        key: 'print-bonus',
+        label: '打印',
+        icon: <PrinterOutlined />,
+        render: () => (
+          <Dropdown
+            menu={{
+              items: (Object.entries(BIZ_BONUS_PRINT_MODE_LABELS) as [BizBonusPrintMode, string][]).map(
+                ([key, label]) => ({
+                  key,
+                  label,
+                  onClick: () => { void handlePrint(viewRec.id, undefined, key) },
+                }),
+              ),
+            }}
+            trigger={['click']}
+          >
+            <Button type="text" icon={<PrinterOutlined />}>
+              打印 <DownOutlined />
+            </Button>
+          </Dropdown>
+        ),
+      })
+    }
+    actions.push({
+      key: 'copy',
+      label: '复制',
+      icon: <CopyOutlined />,
+      onClick: () => { void handleCopyRecord() },
+    })
+    if (canEditRecord(viewRec.status) && viewRec.readonly && !isReviseFlow) {
+      actions.push({
+        key: 'edit',
+        label: '编辑',
+        icon: <EditOutlined />,
+        onClick: enterEdit,
+      })
+    }
+    if (canOpenReviseDrawer && !isReviseFlow) {
+      actions.push({
+        key: 'revise',
+        label: '修改并重新提交',
+        icon: <SendOutlined />,
+        onClick: () => openWfDrawer(wfDetail!.id, effectiveReviseTaskId),
+      })
+    }
+    if (canResubmitRecord(viewRec.status) && !isReviseFlow && !wfDetail?.id) {
+      actions.push({
+        key: 'submit',
+        label: '提交审批',
+        icon: <SendOutlined />,
+        onClick: submitDraft,
+      })
+    }
+    if (canActivateFlow && wfDetail?.can_activate && wfDetail.id) {
+      actions.push({
+        key: 'activate',
+        label: '激活流程',
+        icon: <ThunderboltOutlined />,
+        onClick: () => setActivateOpen(true),
+      })
+    }
+    if (canEndProcess) {
+      actions.push({
+        key: 'end-process',
+        label: '结束流程',
+        icon: <StopOutlined />,
+        danger: true,
+        onClick: handleEndProcess,
+      })
+    }
+    if (canDeleteRecord(viewRec)) {
+      actions.push({
+        key: 'delete',
+        label: '删除',
+        icon: <DeleteOutlined />,
+        danger: true,
+        render: () => (
+          <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
+            <Button type="text" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        ),
+      })
+    }
+    return actions
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handlePrint 等稳定引用省略
+  }, [
+    viewRec, isReviseFlow, canOpenReviseDrawer, wfDetail, effectiveReviseTaskId,
+    canActivateFlow, canPrintQuote, canPrintScheme, canPrintProdCard, canPrintBonus,
+    canEndProcess,
+  ])
+
   // 列表操作列只保留「查看」；打印/编辑/删除放到详情工具栏（对齐简道云）
   const renderOps = (r: FormInstance) => (
     <Space size={0}>
-      <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
+      <Button size="small" type="link" onClick={() => openView(r.id, true, { presentation: 'modal' })}>查看</Button>
       {canEditRecord(r.status) && (
-        <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
+        <Button size="small" type="link" onClick={() => openView(r.id, false, { presentation: 'modal' })}>编辑</Button>
       )}
     </Space>
   )
@@ -1360,7 +1569,7 @@ export default function FormDataListPage({
       const rec = expandDetails.length ? (row as DetailFlatRow).record : (row as FormInstance)
       const no = recordListNo(rec, schemaFields)
       return (
-        <a className="font-mono text-primary" title={no} onClick={() => openView(rec.id, true)}>
+        <a className="font-mono text-primary" title={no} onClick={() => openView(rec.id, true, { presentation: 'modal' })}>
           {no}
         </a>
       )
@@ -1538,10 +1747,100 @@ export default function FormDataListPage({
     ? Math.max(1100, layoutMaxW + 300)
     : (layoutMaxW || (drawingLayout ? 960 : 780))
   const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
-  const contentMaxH = modalFullscreen ? 'calc(100vh - 200px)' : '70vh'
+  const contentMaxH = modalFullscreen
+    ? 'calc(100vh - 200px)'
+    : (viewPresentation === 'drawer' ? 'calc(100vh - 220px)' : '70vh')
   const displayFields = viewRec
     ? (drawingLayout ? applyDrawingFormLayout(templateCode, viewRec.fields) : viewRec.fields)
     : []
+
+  const recordDetailFooter = viewRec && isReviseFlow
+    ? [
+        <Button key="c" onClick={closeView}>取消</Button>,
+        <Button key="s" onClick={saveReviseDraft}>存草稿</Button>,
+        <Button key="rs" type="primary" onClick={resubmitRevise}>保存并重新提交</Button>,
+      ]
+    : viewRec && canOpenReviseDrawer
+      ? null
+      : viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
+      ? [
+          <Button key="c" onClick={closeView}>取消</Button>,
+          <Button
+            key="s"
+            type={canResubmitRecord(viewRec.status) ? 'default' : 'primary'}
+            onClick={saveEdit}
+          >
+            {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
+          </Button>,
+          ...(canResubmitRecord(viewRec.status) && !wfDetail?.id
+            ? [
+                <Button key="sub" type="primary" onClick={submitDraft}>
+                  提交审批
+                </Button>,
+              ]
+            : []),
+        ]
+      : null
+
+  const recordDetailInner = viewRec ? (
+    <div className={`flex flex-col min-h-0${modalFullscreen ? ' flex-1' : ''}`}>
+      <RecordDetailToolbar
+        actions={recordToolbarActions}
+        onCopyLink={handleCopyRecordLink}
+        nav={{
+          index: viewNavGlobalIndex,
+          total,
+          disabled: navBusy,
+          onPrev: () => { void goViewRelative(-1) },
+          onNext: () => { void goViewRelative(1) },
+        }}
+      />
+      <RecordDetailBodyLayout
+        fillHeight={modalFullscreen}
+        contentMaxH={contentMaxH}
+        showSide={showFlowPane}
+        main={(
+          <>
+            <FormRenderer
+              fields={displayFields}
+              rules={viewRec.rules}
+              mode={viewRec.readonly ? 'readonly' : 'edit'}
+              value={viewRec.value}
+              onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
+              serialPreviews={serialPreviews}
+              includeApproverFields={includeApproverFieldsOnEdit}
+              retroactiveFieldPerms={viewRec.retroactive_field_perms}
+              gridLayout={modalFullscreen || viewPresentation === 'drawer' ? 'adaptive' : 'default'}
+            />
+            <FormInstanceSystemMeta
+              initiatorName={viewRec.initiator_name}
+              createdAt={viewRec.created_at}
+              updatedAt={viewRec.updated_at}
+              status={viewRec.status}
+              flowSteps={wfDetail?.flow_steps}
+            />
+          </>
+        )}
+        side={(
+          <WfFlowDynamics
+            fillParent={modalFullscreen}
+            steps={wfDetail?.flow_steps || []}
+            comments={wfDetail?.comments || []}
+            onSubmitComment={wfDetail ? handleWfComment : undefined}
+            commenting={wfCommenting}
+            dataLog={viewRec ? {
+              resourceType: 'form_instance',
+              resourceId: viewRec.id,
+              fieldLabels: buildFormFieldLabels(viewRec.fields),
+              alsoResources: wfDetail?.id
+                ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
+                : undefined,
+            } : undefined}
+          />
+        )}
+      />
+    </div>
+  ) : null
 
   const schemeCreateMenu: MenuProps['items'] = legacySchemeList ? [
     { key: 'drawing-requisition', label: '合同图纸领用', onClick: () => nav('/drawing-requisitions/fill') },
@@ -1647,216 +1946,42 @@ export default function FormDataListPage({
         />
 
       <Modal
+        className="spt-jdy-record-modal"
+        closable={false}
         title={(
-          <ModalFullscreenTitle
-            title={viewRec?.readonly ? '查看记录' : '编辑记录'}
+          <JdyRecordModalTitle
+            variant="modal"
+            title={viewRecordTitle}
+            editing={Boolean(viewRec && !viewRec.readonly)}
             fullscreen={modalFullscreen}
-            onToggle={() => setModalFullscreen((v) => !v)}
+            onToggleFullscreen={() => setModalFullscreen((v) => !v)}
+            onOpenInSidebar={() => setViewPresentation('drawer')}
+            onClose={closeView}
           />
         )}
-        open={!!viewRec}
+        open={!!viewRec && viewPresentation === 'modal'}
         width={fsProps.width}
         style={fsProps.style}
         wrapClassName={fsProps.wrapClassName}
         styles={fsProps.styles}
         onCancel={closeView}
-        footer={
-          viewRec && isReviseFlow
-            ? [
-                <Button key="c" onClick={closeView}>取消</Button>,
-                <Button key="s" onClick={saveReviseDraft}>存草稿</Button>,
-                <Button key="rs" type="primary" onClick={resubmitRevise}>保存并重新提交</Button>,
-                <Button key="end" danger onClick={handleEndReviseProcess}>手动结束</Button>,
-              ]
-            : viewRec && canOpenReviseDrawer
-              ? [
-                  <Button key="c" onClick={closeView}>关闭</Button>,
-                  <Button
-                    key="rs"
-                    type="primary"
-                    onClick={() => openWfDrawer(wfDetail!.id, effectiveReviseTaskId)}
-                  >
-                    修改并重新提交
-                  </Button>,
-                ]
-              : viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
-              ? [
-                  <Button key="c" onClick={closeView}>取消</Button>,
-                  <Button
-                    key="s"
-                    type={canResubmitRecord(viewRec.status) ? 'default' : 'primary'}
-                    onClick={saveEdit}
-                  >
-                    {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
-                  </Button>,
-                  ...(canResubmitRecord(viewRec.status) && !wfDetail?.id
-                    ? [
-                        <Button key="sub" type="primary" onClick={submitDraft}>
-                          提交审批
-                        </Button>,
-                      ]
-                    : []),
-                ]
-              : [<Button key="c" onClick={closeView}>关闭</Button>]
-        }
+        footer={recordDetailFooter}
         destroyOnClose
       >
-        {viewRec && (
-          <div className={modalFullscreen ? 'flex flex-col flex-1 min-h-0' : undefined}>
-            {/* 详情工具栏：打印 / 编辑 / 提交审批 / 删除（对齐简道云） */}
-            <div
-              className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100 shrink-0"
-              style={{ marginTop: -4 }}
-            >
-              {canPrintQuote && (
-                <Button
-                  type="text"
-                  icon={<PrinterOutlined />}
-                  onClick={() => handlePrint(viewRec.id)}
-                >
-                  打印
-                </Button>
-              )}
-              {canPrintScheme && (
-                <Button
-                  type="text"
-                  icon={<PrinterOutlined />}
-                  onClick={() => handlePrint(viewRec.id)}
-                >
-                  打印
-                </Button>
-              )}
-              {canPrintProdCard && (
-                <Dropdown
-                  menu={{
-                    items: [
-                      {
-                        key: 'notice',
-                        label: '生产通知单',
-                        onClick: () => { void handlePrint(viewRec.id, 'notice') },
-                      },
-                      {
-                        key: 'supplement',
-                        label: '生产补充卡',
-                        onClick: () => { void handlePrint(viewRec.id, 'supplement') },
-                      },
-                    ],
-                  }}
-                  trigger={['click']}
-                >
-                  <Button type="text" icon={<PrinterOutlined />}>
-                    打印 <DownOutlined />
-                  </Button>
-                </Dropdown>
-              )}
-              {canPrintBonus && (
-                <Dropdown
-                  menu={{
-                    items: (Object.entries(BIZ_BONUS_PRINT_MODE_LABELS) as [BizBonusPrintMode, string][]).map(
-                      ([key, label]) => ({
-                        key,
-                        label,
-                        onClick: () => { void handlePrint(viewRec.id, undefined, key) },
-                      }),
-                    ),
-                  }}
-                  trigger={['click']}
-                >
-                  <Button type="text" icon={<PrinterOutlined />}>
-                    打印 <DownOutlined />
-                  </Button>
-                </Dropdown>
-              )}
-              {canEditRecord(viewRec.status) && viewRec.readonly && !isReviseFlow && (
-                <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>
-                  编辑
-                </Button>
-              )}
-              {canOpenReviseDrawer && !isReviseFlow && (
-                <Button
-                  type="text"
-                  icon={<SendOutlined />}
-                  onClick={() => openWfDrawer(wfDetail!.id, effectiveReviseTaskId)}
-                >
-                  修改并重新提交
-                </Button>
-              )}
-              {canResubmitRecord(viewRec.status) && !isReviseFlow && !wfDetail?.id && (
-                <Button type="text" icon={<SendOutlined />} onClick={submitDraft}>
-                  提交审批
-                </Button>
-              )}
-              {canActivateFlow && wfDetail?.can_activate && wfDetail.id && (
-                <Button
-                  type="text"
-                  icon={<ThunderboltOutlined />}
-                  onClick={() => setActivateOpen(true)}
-                >
-                  激活流程
-                </Button>
-              )}
-              {canDeleteRecord(viewRec) && (
-                <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
-                  <Button type="text" danger icon={<DeleteOutlined />}>
-                    删除
-                  </Button>
-                </Popconfirm>
-              )}
-              <div className="flex-1" />
-              <RecordPrevNextNav
-                index={viewNavGlobalIndex}
-                total={total}
-                disabled={navBusy}
-                onPrev={() => { void goViewRelative(-1) }}
-                onNext={() => { void goViewRelative(1) }}
-              />
-            </div>
-            <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
-              <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>
-                <FormRenderer
-                  fields={displayFields}
-                  rules={viewRec.rules}
-                  mode={viewRec.readonly ? 'readonly' : 'edit'}
-                  value={viewRec.value}
-                  onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
-                  serialPreviews={serialPreviews}
-                  includeApproverFields={includeApproverFieldsOnEdit}
-                  retroactiveFieldPerms={viewRec.retroactive_field_perms}
-                  gridLayout={modalFullscreen ? 'adaptive' : 'default'}
-                />
-                <FormInstanceSystemMeta
-                  initiatorName={viewRec.initiator_name}
-                  createdAt={viewRec.created_at}
-                  updatedAt={viewRec.updated_at}
-                  status={viewRec.status}
-                  flowSteps={wfDetail?.flow_steps}
-                />
-              </div>
-              {showFlowPane && (
-                <div
-                  className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
-                  style={{ maxHeight: contentMaxH, height: modalFullscreen ? contentMaxH : undefined }}
-                >
-                  <WfFlowDynamics
-                    steps={wfDetail?.flow_steps || []}
-                    comments={wfDetail?.comments || []}
-                    onSubmitComment={wfDetail ? handleWfComment : undefined}
-                    commenting={wfCommenting}
-                    dataLog={viewRec ? {
-                      resourceType: 'form_instance',
-                      resourceId: viewRec.id,
-                      fieldLabels: buildFormFieldLabels(viewRec.fields),
-                      alsoResources: wfDetail?.id
-                        ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
-                        : undefined,
-                    } : undefined}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {recordDetailInner}
       </Modal>
+      <RecordDetailSideDrawer
+        open={!!viewRec && viewPresentation === 'drawer'}
+        title={viewRecordTitle}
+        editing={Boolean(viewRec && !viewRec.readonly)}
+        fullscreen={modalFullscreen}
+        onToggleFullscreen={() => setModalFullscreen((v) => !v)}
+        onClose={closeView}
+        onOpenInModal={() => setViewPresentation('modal')}
+        footer={recordDetailFooter}
+      >
+        {recordDetailInner}
+      </RecordDetailSideDrawer>
       <WfActivateFlowModal
         open={activateOpen}
         instanceId={wfDetail?.id}

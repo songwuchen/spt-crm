@@ -435,6 +435,8 @@ export interface WfInstanceDetail {
   activate_nodes?: { id: string; name: string; type?: string }[]
   /** 实例状态是否允许激活（前端再叠加 workflow:activate 权限） */
   can_activate?: boolean
+  /** 当前用户是否可在记录详情结束流程 */
+  can_end_process?: boolean
 }
 
 // ===== 仪表盘 =====

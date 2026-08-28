@@ -11,6 +11,11 @@ import FormRenderer, { deriveRolePerms, findRequiredError, scrollToLcField } fro
 import FormFillPage from '@/pages/lowcode/FormFillPage'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
+import JdyRecordModalTitle from '@/components/lowcode/JdyRecordModalTitle'
+import RecordDetailToolbar, { type RecordToolbarAction } from '@/components/lowcode/RecordDetailToolbar'
+import RecordDetailBodyLayout from '@/components/lowcode/RecordDetailBodyLayout'
+import { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
+import { resolveRecordDisplayNo } from '@/utils/recordModalTitle'
 import { buildFormFieldLabels } from '@/utils/dataLogLabels'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
@@ -29,6 +34,7 @@ type ViewRec = {
   value: Record<string, unknown>
   readonly: boolean
   id: string
+  business_no?: string | null
   process_instance_id?: string | null
   rules: FormRule[]
   status?: string
@@ -77,6 +83,7 @@ export default function EmbeddedLowcodeFormModal({
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
   const [viewLoading, setViewLoading] = useState(false)
+  const [modalFullscreen, setModalFullscreen] = useState(false)
 
   const displayTitle = title || TEMPLATE_LABELS[templateCode] || templateCode
   const layout = DRAWING_FORM_LAYOUT[templateCode]
@@ -106,6 +113,7 @@ export default function EmbeddedLowcodeFormModal({
         value: res.data.form_data,
         readonly,
         id: recId,
+        business_no: res.data.business_no,
         process_instance_id: res.data.process_instance_id,
         rules: detailRules || [],
         status: res.data.status,
@@ -169,6 +177,7 @@ export default function EmbeddedLowcodeFormModal({
   const handleClose = () => {
     setViewRec(null)
     setWfDetail(null)
+    setModalFullscreen(false)
     onClose()
   }
 
@@ -226,7 +235,49 @@ export default function EmbeddedLowcodeFormModal({
   }
 
   const modalWidth = mode === 'view' ? Math.max(980, contentMaxWidth + 320) : Math.max(860, contentMaxWidth + 40)
+  const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
+  const contentMaxH = modalFullscreen ? 'calc(100vh - 200px)' : '65vh'
   const showFlowPane = mode === 'view' && !!viewRec
+
+  const viewRecordTitle = useMemo(() => {
+    if (mode === 'create') return displayTitle
+    if (!viewRec) return displayTitle
+    return resolveRecordDisplayNo({
+      businessNo: viewRec.business_no,
+      formData: viewRec.value,
+      fallback: viewRec.readonly ? displayTitle : `${displayTitle} · 编辑`,
+    })
+  }, [mode, viewRec, displayTitle])
+
+  const recordToolbarActions = useMemo((): RecordToolbarAction[] => {
+    if (!viewRec) return []
+    const actions: RecordToolbarAction[] = []
+    if (canEditRecord(templateCode, viewRec.status) && viewRec.readonly) {
+      actions.push({
+        key: 'edit',
+        label: '编辑',
+        icon: <EditOutlined />,
+        onClick: () => setViewRec((s) => (s ? { ...s, readonly: false } : s)),
+      })
+    }
+    if (canResubmitRecord(viewRec.status) && viewRec.readonly) {
+      actions.push({
+        key: 'submit',
+        label: '提交审批',
+        icon: <SendOutlined />,
+        onClick: submitDraft,
+      })
+    }
+    return actions
+  }, [viewRec, templateCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCopyRecordLink = () => {
+    if (!viewRec) return
+    void navigator.clipboard.writeText(window.location.href).then(
+      () => message.success('链接已复制'),
+      () => message.error('复制链接失败'),
+    )
+  }
 
   const viewFooter = viewRec && !viewRec.readonly && canEditRecord(templateCode, viewRec.status)
     ? [
@@ -242,17 +293,29 @@ export default function EmbeddedLowcodeFormModal({
           ? [<Button key="sub" type="primary" onClick={submitDraft}>提交审批</Button>]
           : []),
       ]
-    : [<Button key="c" onClick={handleClose}>关闭</Button>]
+    : null
 
   return (
     <Modal
-      title={mode === 'create' ? `新建 · ${displayTitle}` : `查看 · ${displayTitle}`}
+      className={mode === 'view' ? 'spt-jdy-record-modal' : undefined}
+      closable={mode === 'view' ? false : undefined}
+      title={mode === 'view' ? (
+        <JdyRecordModalTitle
+          title={viewRecordTitle}
+          editing={Boolean(viewRec && !viewRec.readonly)}
+          fullscreen={modalFullscreen}
+          onToggleFullscreen={() => setModalFullscreen((v) => !v)}
+          onClose={handleClose}
+        />
+      ) : `新建 · ${displayTitle}`}
       open={open}
       onCancel={handleClose}
       footer={mode === 'create' ? null : viewFooter}
-      width={modalWidth}
+      width={mode === 'view' ? fsProps.width : modalWidth}
+      style={mode === 'view' ? fsProps.style : undefined}
+      wrapClassName={mode === 'view' ? fsProps.wrapClassName : undefined}
+      styles={mode === 'view' ? fsProps.styles : { body: { maxHeight: '72vh', overflowY: 'auto' } }}
       destroyOnClose
-      styles={{ body: { maxHeight: '72vh', overflowY: 'auto' } }}
     >
       {bootLoading || (mode === 'view' && viewLoading && !viewRec) ? (
         <div className="flex justify-center py-16">
@@ -268,60 +331,52 @@ export default function EmbeddedLowcodeFormModal({
           onCancel={handleClose}
         />
       ) : viewRec ? (
-        <div>
-          <div className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100">
-            {canEditRecord(templateCode, viewRec.status) && viewRec.readonly && (
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => setViewRec((s) => (s ? { ...s, readonly: false } : s))}
-              >
-                编辑
-              </Button>
-            )}
-            {canResubmitRecord(viewRec.status) && viewRec.readonly && (
-              <Button type="text" icon={<SendOutlined />} onClick={submitDraft}>
-                提交审批
-              </Button>
-            )}
-          </div>
-          <div className="flex gap-0 min-h-[420px]">
-            <div className="flex-1 overflow-y-auto pr-3">
-              <FormRenderer
-                fields={displayFields}
-                rules={viewRec.rules}
-                mode={viewRec.readonly ? 'readonly' : 'edit'}
-                value={viewRec.value}
-                onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
-                includeApproverFields={includeApproverFieldsOnEdit}
-              />
-              <FormInstanceSystemMeta
-                initiatorName={viewRec.initiator_name}
-                createdAt={viewRec.created_at}
-                updatedAt={viewRec.updated_at}
-                status={viewRec.status}
-                flowSteps={wfDetail?.flow_steps}
-              />
-            </div>
-            {showFlowPane && (
-              <div className="w-[280px] shrink-0 overflow-hidden rounded-md border border-slate-200 max-h-[65vh]">
-                <WfFlowDynamics
-                  steps={wfDetail?.flow_steps || []}
-                  comments={wfDetail?.comments || []}
-                  onSubmitComment={wfDetail ? handleWfComment : undefined}
-                  commenting={wfCommenting}
-                  dataLog={{
-                    resourceType: 'form_instance',
-                    resourceId: viewRec.id,
-                    fieldLabels: buildFormFieldLabels(viewRec.fields),
-                    alsoResources: wfDetail?.id
-                      ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
-                      : undefined,
-                  }}
+        <div className={modalFullscreen ? 'flex flex-col flex-1 min-h-0' : undefined}>
+          <RecordDetailToolbar
+            actions={recordToolbarActions}
+            onCopyLink={handleCopyRecordLink}
+          />
+          <RecordDetailBodyLayout
+            fullscreen={modalFullscreen}
+            contentMaxH={contentMaxH}
+            showSide={showFlowPane}
+            main={(
+              <>
+                <FormRenderer
+                  fields={displayFields}
+                  rules={viewRec.rules}
+                  mode={viewRec.readonly ? 'readonly' : 'edit'}
+                  value={viewRec.value}
+                  onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
+                  includeApproverFields={includeApproverFieldsOnEdit}
+                  gridLayout={modalFullscreen ? 'adaptive' : 'default'}
                 />
-              </div>
+                <FormInstanceSystemMeta
+                  initiatorName={viewRec.initiator_name}
+                  createdAt={viewRec.created_at}
+                  updatedAt={viewRec.updated_at}
+                  status={viewRec.status}
+                  flowSteps={wfDetail?.flow_steps}
+                />
+              </>
             )}
-          </div>
+            side={(
+              <WfFlowDynamics
+                steps={wfDetail?.flow_steps || []}
+                comments={wfDetail?.comments || []}
+                onSubmitComment={wfDetail ? handleWfComment : undefined}
+                commenting={wfCommenting}
+                dataLog={{
+                  resourceType: 'form_instance',
+                  resourceId: viewRec.id,
+                  fieldLabels: buildFormFieldLabels(viewRec.fields),
+                  alsoResources: wfDetail?.id
+                    ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
+                    : undefined,
+                }}
+              />
+            )}
+          />
         </div>
       ) : null}
     </Modal>
