@@ -2949,6 +2949,62 @@ def apply_presale_cc_initiator_and_applicant(nodes: list[dict]) -> bool:
     return changed
 
 
+_INSTALL_DRAWING_CC_DESIGN_ASSIGN_RULE = {
+    "type": "mixed",
+    "value": [
+        {"type": "specified_user", "value": "02364335378133"},  # 曹修国
+        {"type": "form_field_person", "value": "order_person"},
+        {"type": "form_field_person", "value": "design_assignees"},
+        {"type": "creator"},
+    ],
+}
+_INSTALL_DRAWING_CC_DESIGN_ASSIGN_NAMES = frozenset({"抄送设计指派1", "抄送设计指派2"})
+
+
+def _install_drawing_cc_design_assign_rule_ok(rule: dict | None) -> bool:
+    """安装图：抄送设计指派 → 曹修国 + 订货人 + 设计指派 + 发起人。"""
+    rule = rule or {}
+    if rule.get("type") != "mixed":
+        return False
+    want = {
+        (p["type"], p.get("value"))
+        for p in _INSTALL_DRAWING_CC_DESIGN_ASSIGN_RULE["value"]
+    }
+    got: set[tuple[str, str | None]] = set()
+    for sub in rule.get("value") or []:
+        if isinstance(sub, dict):
+            got.add((sub.get("type"), sub.get("value")))
+    return want <= got
+
+
+def _flow_install_drawing_cc_design_assign_needs_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "cc":
+            continue
+        if n.get("name") in _INSTALL_DRAWING_CC_DESIGN_ASSIGN_NAMES:
+            if not _install_drawing_cc_design_assign_rule_ok(n.get("approver_rule")):
+                return True
+    return False
+
+
+def apply_install_drawing_cc_design_assign(nodes: list[dict]) -> bool:
+    """安装图设计通知：抄送设计指派1/2 → 曹修国、订货人、设计指派、流程发起人。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "cc":
+            continue
+        if n.get("name") not in _INSTALL_DRAWING_CC_DESIGN_ASSIGN_NAMES:
+            continue
+        if _install_drawing_cc_design_assign_rule_ok(n.get("approver_rule")):
+            continue
+        n["approver_rule"] = {
+            "type": "mixed",
+            "value": [dict(x) for x in _INSTALL_DRAWING_CC_DESIGN_ASSIGN_RULE["value"]],
+        }
+        changed = True
+    return changed
+
+
 def _quote_nodes_named(nodes: list | None, name: str) -> set[str]:
     return {
         str(n["id"])
@@ -5450,6 +5506,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             db, tenant_id, d, version,
             patched_nodes, patched_routes,
             DRAWING_FORM_FLOW_DESC, f"发起旁路抄送业务员({form_code})",
+        )
+        return
+    # 安装图设计通知：抄送设计指派1/2 → 曹修国 + 订货人 + 设计指派 + 发起人
+    if (
+        topology_ok
+        and form_code == "install_drawing_notice"
+        and _flow_install_drawing_cc_design_assign_needs_fix(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_install_drawing_cc_design_assign(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"抄送设计指派改为曹修国+订货人+设计指派+发起人({form_code})",
         )
         return
     # 安装图设计通知：剥离业务打分（及打分备注）节点可填权限

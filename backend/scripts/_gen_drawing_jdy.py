@@ -621,6 +621,34 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
     return rules
 
 
+def cc_users_rule(c: dict | None, widget_slug: dict[str, str]) -> dict:
+    """简道云 CC 节点 ccUsers 可同时含具名用户、表单人员控件、发起人。"""
+    c = c or {}
+    parts: list[dict] = []
+    seen: set[str] = set()
+
+    def add(part: dict) -> None:
+        key = json.dumps(part, sort_keys=True, ensure_ascii=False)
+        if key in seen:
+            return
+        seen.add(key)
+        parts.append(part)
+
+    for u in c.get("users") or []:
+        if isinstance(u, dict) and u.get("username"):
+            add({"type": "specified_user", "value": u["username"]})
+    for w in c.get("widgets") or []:
+        slug = widget_slug.get(w, w)
+        add({"type": "form_field_person", "value": slug})
+    if c.get("creator"):
+        add({"type": "creator"})
+    if not parts:
+        return charger_rule(c, widget_slug)
+    if len(parts) == 1:
+        return parts[0]
+    return {"type": "mixed", "value": parts}
+
+
 def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
     c = chargers or {}
     if c.get("creator"):
@@ -806,14 +834,15 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         jdy_type = f.get("type") or "flow"
         crm_id = nid(fid, name, jdy_type)
         if jdy_type == "cc":
-            rule = charger_rule(
-                {**({} if not isinstance(f.get("ccUsers"), dict) else {
-                    "users": f["ccUsers"].get("users") or [],
-                    "widgets": f["ccUsers"].get("widgets") or [],
-                    "creator": f["ccUsers"].get("creator"),
-                    "roles": f["ccUsers"].get("roles") or [],
-                    "deptManager": f["ccUsers"].get("deptManager") or {},
-                })},
+            cc_raw = f.get("ccUsers") if isinstance(f.get("ccUsers"), dict) else {}
+            rule = cc_users_rule(
+                {
+                    "users": cc_raw.get("users") or [],
+                    "widgets": cc_raw.get("widgets") or [],
+                    "creator": cc_raw.get("creator"),
+                    "roles": cc_raw.get("roles") or [],
+                    "deptManager": cc_raw.get("deptManager") or {},
+                },
                 widget_slug,
             )
             nodes.append({"id": crm_id, "type": "cc", "name": name, "approver_rule": rule})
