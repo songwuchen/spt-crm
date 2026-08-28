@@ -455,7 +455,7 @@ export default function ApproveFieldForm({
           }
 
           if (t === 'contract') {
-            const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'payment_allocation' }).contract_fill
+            const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'contract_shipment_loan' | 'payment_allocation' }).contract_fill
             const deptField = (fieldProps as { filter_by_department_field?: string }).filter_by_department_field
             let formDepartmentId: string | undefined
             if (deptField) {

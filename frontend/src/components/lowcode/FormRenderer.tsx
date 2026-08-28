@@ -499,7 +499,7 @@ function FieldWidget({
     case 'contract': {
       const props = (field.props || {}) as {
         filter_by_department_field?: string
-        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'biz_bonus_transfer' | 'biz_bonus_biz_initiate' | 'commission_database' | 'payment_allocation'
+        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice' | 'contract_shipment_loan' | 'biz_bonus_transfer' | 'biz_bonus_biz_initiate' | 'commission_database' | 'payment_allocation'
       }
       const deptField = props.filter_by_department_field
       let formDepartmentId: string | undefined

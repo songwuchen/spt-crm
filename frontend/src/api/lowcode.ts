@@ -108,6 +108,12 @@ export const lowcodeApi = {
       '/api/v1/lc/payment-registration/dashboard/summary',
       { params },
     ),
+  /** 发货借据仪表盘汇总（借据总金额，筛选口径与列表一致） */
+  contractShipmentLoanDashboardSummary: (params: { template_id: string; filters?: string; keyword?: string; status?: string }) =>
+    client.get<unknown, ApiResponse<{ count: number; sum: number }>>(
+      '/api/v1/lc/contract-shipment-loan/shipment-dashboard/summary',
+      { params },
+    ),
   /** 提成数据库仪表盘汇总（应付/已付奖金，筛选口径与列表一致） */
   commissionDatabaseDashboardSummary: (params: { template_id: string; filters?: string; keyword?: string; status?: string }) =>
     client.get<unknown, ApiResponse<{

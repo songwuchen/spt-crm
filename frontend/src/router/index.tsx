@@ -6,6 +6,8 @@ import MobileLayout from '@/layouts/MobileLayout'
 import PermissionGuard from '@/components/PermissionGuard'
 import { currentZone } from '@/config/zone'
 import { isChunkLoadError, recoverFromStaleChunks } from '@/utils/chunkRecover'
+import { mobileZoneRedirectTarget } from '@/utils/zonePaths'
+import { buildMobileFormModuleRoutes } from '@/router/mobileFormModuleRoutes'
 
 function RouteError() {
   const err = useRouteError()
@@ -81,6 +83,7 @@ const PaymentRegistrationDashboard = lazy(() => import('@/pages/payment/PaymentR
 const BizBonusPaymentDashboardV1 = lazy(() => import('@/pages/bonus/BizBonusPaymentDashboard').then((m) => ({ default: m.BizBonusPaymentDashboardV1 })))
 const BizBonusPaymentDashboardV2 = lazy(() => import('@/pages/bonus/BizBonusPaymentDashboard').then((m) => ({ default: m.BizBonusPaymentDashboardV2 })))
 const ContractManagementDashboard = lazy(() => import('@/pages/contract/ContractManagementDashboard'))
+const ShipmentLoanDashboard = lazy(() => import('@/pages/contract/ShipmentLoanDashboard'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
@@ -143,6 +146,8 @@ const MobileLowcodeFormFill = lazy(() => import('@/pages/mobile/MobileLowcodeFor
 const MobileLowcodeApprovals = lazy(() => import('@/pages/mobile/MobileLowcodeApprovals'))
 const MobileLowcodeApprovalDetail = lazy(() => import('@/pages/mobile/MobileLowcodeApprovalDetail'))
 const MobileSchemePage = lazy(() => import('@/pages/mobile/MobileSchemePage'))
+const MobileFormModulesHub = lazy(() => import('@/pages/mobile/MobileFormModulesHub'))
+const MobileMorePage = lazy(() => import('@/pages/mobile/MobileMorePage'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -182,7 +187,7 @@ function Guard({ permission, children }: { permission: string | string[]; childr
 // The mobile domain (link.fourier.net.cn) is the 移动端 — any desktop route under
 // "/" bounces to the mobile app so it never renders the desktop chrome on phones.
 function webZoneLoader() {
-  if (currentZone() === 'mobile') return redirect('/m')
+  if (currentZone() === 'mobile') return redirect(mobileZoneRedirectTarget())
   return null
 }
 
@@ -191,6 +196,13 @@ function ZoneEntry() {
   if (currentZone() === 'platform') return <Navigate to="/platform/tenants" replace />
   return <Lazy><Dashboard /></Lazy>
 }
+
+const mobileFormModuleRouteList = buildMobileFormModuleRoutes({
+  Guard,
+  FormModulePage,
+  FormModuleFillPage,
+  Lazy,
+})
 
 export const router = createBrowserRouter([
   {
@@ -335,6 +347,9 @@ export const router = createBrowserRouter([
       { path: 'payment-registrations/dashboard', element: <Guard permission="form_data:view"><Lazy><PaymentRegistrationDashboard /></Lazy></Guard> },
       { path: 'payment-registrations/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="payment_registration" listPath="/payment-registrations" title="收款登记" /></Guard> },
       { path: 'payment-registrations', element: <Guard permission="form_data:view"><FormModulePage templateCode="payment_registration" title="收款登记" basePath="/payment-registrations" dashboardPath="/payment-registrations/dashboard" /></Guard> },
+      { path: 'contract-shipment-loans/shipment-dashboard', element: <Guard permission="form_data:view"><Lazy><ShipmentLoanDashboard /></Lazy></Guard> },
+      { path: 'contract-shipment-loans/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="contract_shipment_loan" listPath="/contract-shipment-loans" title="合同及发货借据流程" /></Guard> },
+      { path: 'contract-shipment-loans', element: <Guard permission="form_data:view"><FormModulePage templateCode="contract_shipment_loan" title="合同及发货借据流程" basePath="/contract-shipment-loans" dashboardPath="/contract-shipment-loans/shipment-dashboard" /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
@@ -375,31 +390,73 @@ export const router = createBrowserRouter([
       { path: 'approvals', element: <Lazy><MobileApprovals /></Lazy> },
       { path: 'approvals/:id', element: <Lazy><MobileApprovalDetail /></Lazy> },
       { path: 'customers/:id', element: <Guard permission="customer:view"><MobileCustomerDetail /></Guard> },
+      { path: 'customers/:id/edit', element: <Guard permission="customer:edit"><CustomerForm /></Guard> },
       { path: 'customers/new', element: <Guard permission="customer:create"><MobileCustomerForm /></Guard> },
+      { path: 'customer-pool', element: <Guard permission="customer:view"><CustomerPool /></Guard> },
+      { path: 'contacts', element: <Guard permission="contact:view"><ContactList /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><MobileContracts /></Guard> },
+      { path: 'contracts/:cid', element: <Guard permission="contract:view"><ContractDetail /></Guard> },
+      { path: 'contracts/dashboard', element: <Guard permission="contract:view"><Lazy><ContractManagementDashboard /></Lazy></Guard> },
+      { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
+      { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
+      { path: 'contract-reviews/:id/edit', element: <Guard permission="contract_review:edit"><ContractReviewForm /></Guard> },
+      { path: 'contract-reviews/:id', element: <Guard permission="contract_review:view"><ContractReviewDetail /></Guard> },
+      { path: 'tech-agreement-reviews', element: <Guard permission="tech_agreement_review:view"><TechAgreementReviewList /></Guard> },
+      { path: 'tech-agreement-reviews/fill', element: <Guard permission="tech_agreement_review:create"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/new', element: <Guard permission="tech_agreement_review:create"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/:id/edit', element: <Guard permission="tech_agreement_review:edit"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/:id', element: <Guard permission="tech_agreement_review:view"><TechAgreementReviewDetail /></Guard> },
       { path: 'payments', element: <Guard permission="payment:view"><MobilePayments /></Guard> },
+      { path: 'commissions', element: <Guard permission="commission:view"><CommissionPage /></Guard> },
+      { path: 'collection', element: <Guard permission="collection:view"><CollectionPage /></Guard> },
+      { path: 'guarantees', element: <Guard permission="guarantee:view"><GuaranteePage /></Guard> },
       { path: 'service-tickets', element: <Guard permission="service:view"><MobileServiceTickets /></Guard> },
       { path: 'service-tickets/:id', element: <Guard permission="service:view"><MobileServiceTicketDetail /></Guard> },
       { path: 'notifications', element: <Lazy><MobileNotifications /></Lazy> },
       { path: 'calendar', element: <Lazy><MobileCalendar /></Lazy> },
       { path: 'leads', element: <Guard permission="lead:view"><MobileLeads /></Guard> },
+      { path: 'lead-reactivations', element: <Guard permission="lead:view"><LeadReactivationList /></Guard> },
+      { path: 'lead-reactivations/:recordId', element: <Guard permission="lead:view"><LeadReactivationDetail /></Guard> },
       { path: 'leads/new', element: <Guard permission="lead:create"><MobileLeadForm /></Guard> },
       { path: 'leads/:id/edit', element: <Guard permission="lead:edit"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><MobileLeadDetail /></Guard> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
-      // 桌面端 follow-ups 用 customer:view
+      { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
       { path: 'follow-up/new', element: <Guard permission="customer:view"><MobileFollowUp /></Guard> },
+      { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
+      { path: 'sales-targets', element: <Guard permission="project:view"><SalesTargetPage /></Guard> },
+      { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
+      { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
+      { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
+      { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
+      { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },
+      { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
+      { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
+      { path: 'equipment-profile', element: <Guard permission="customer:view"><EquipmentProfilePage /></Guard> },
+      { path: 'measurements', element: <Guard permission="service:view"><MeasurementPage /></Guard> },
+      { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
+      { path: 'knowledge-base', element: <Guard permission="project:view"><KnowledgeBasePage /></Guard> },
+      { path: 'payment-registrations/dashboard', element: <Guard permission="form_data:view"><Lazy><PaymentRegistrationDashboard /></Lazy></Guard> },
+      { path: 'contract-shipment-loans/shipment-dashboard', element: <Guard permission="form_data:view"><Lazy><ShipmentLoanDashboard /></Lazy></Guard> },
+      { path: 'biz-bonus-payment-dash-v1', element: <Guard permission="form_data:view"><Lazy><BizBonusPaymentDashboardV1 /></Lazy></Guard> },
+      { path: 'biz-bonus-payment-dash-v2', element: <Guard permission="form_data:view"><Lazy><BizBonusPaymentDashboardV2 /></Lazy></Guard> },
       // 桌面端 analytics / opportunities/kanban 均用 project:view
       { path: 'reports', element: <Guard permission="project:view"><MobileReports /></Guard> },
       { path: 'kanban', element: <Guard permission="project:view"><MobileKanban /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><MobileProducts /></Guard> },
       { path: 'search', element: <Lazy><MobileSearch /></Lazy> },
       { path: 'profile', element: <Lazy><MobileProfile /></Lazy> },
+      { path: 'more', element: <Lazy><MobileMorePage /></Lazy> },
+      { path: 'form-modules', element: <Guard permission="form_data:view"><Lazy><MobileFormModulesHub /></Lazy></Guard> },
       { path: 'solutions', element: <Guard permission="form_data:view"><MobileSchemePage /></Guard> },
-      { path: 'lowcode/forms', element: <Guard permission="role:manage"><MobileLowcodeForms /></Guard> },
+      { path: 'opportunities/:id/edit', element: <Guard permission="project:edit"><OpportunityForm /></Guard> },
+      { path: 'opportunities/:id/contracts/:cid', element: <Guard permission="contract:view"><ContractDetail /></Guard> },
+      { path: 'opportunities/:id/solutions/:sid', element: <Guard permission="solution:view"><SolutionDetail /></Guard> },
+      { path: 'lowcode/forms', element: <Guard permission="form_data:view"><Lazy><MobileFormModulesHub /></Lazy></Guard> },
       { path: 'lowcode/forms/:id/fill', element: <Guard permission="form_data:create"><MobileLowcodeFormFill /></Guard> },
       { path: 'lowcode/approvals', element: <Lazy><MobileLowcodeApprovals /></Lazy> },
       { path: 'lowcode/approvals/:id', element: <Lazy><MobileLowcodeApprovalDetail /></Lazy> },
+      ...mobileFormModuleRouteList,
     ],
   },
   { path: '*', element: <Lazy><NotFound /></Lazy>, errorElement: <RouteError /> },

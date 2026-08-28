@@ -41,33 +41,23 @@ export default defineConfig({
     allowedHosts: true,
     port: 5175,
     proxy: {
-      // 默认 8002：与本地 uvicorn 常用端口一致；可用 VITE_API_PROXY 覆盖
-      // 必须用 127.0.0.1 而非 localhost：Windows 上 localhost 可能走 IPv6 [::1]，
-      // 会命中 Docker 旧 backend（无 jdy_oss），而 uvicorn --reload 在 IPv4。
-      '/api': {
-        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/docs': {
-        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/redoc': {
-        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/openapi.json': {
-        target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8002',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/ws': {
-        target: process.env.VITE_WS_PROXY || 'ws://127.0.0.1:8002',
-        ws: true,
-      },
+      // 默认 8002；可用 VITE_API_PROXY / VITE_WS_PROXY 覆盖。
+      // Windows + Docker Desktop：127.0.0.1:8002 可能仍被本机旧 uvicorn 占用，
+      // 而 [::1]:8002 才是容器内已配置 jdy_oss / IMM 的 backend。
+      ...(() => {
+        const apiTarget = process.env.VITE_API_PROXY
+          || (process.platform === 'win32' ? 'http://[::1]:8002' : 'http://127.0.0.1:8002')
+        const wsTarget = process.env.VITE_WS_PROXY
+          || (process.platform === 'win32' ? 'ws://[::1]:8002' : 'ws://127.0.0.1:8002')
+        const common = { changeOrigin: true, secure: false as const }
+        return {
+          '/api': { target: apiTarget, ...common },
+          '/docs': { target: apiTarget, ...common },
+          '/redoc': { target: apiTarget, ...common },
+          '/openapi.json': { target: apiTarget, ...common },
+          '/ws': { target: wsTarget, ws: true },
+        }
+      })(),
     },
   },
 })

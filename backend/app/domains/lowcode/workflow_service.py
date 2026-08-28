@@ -516,6 +516,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "contract_shipment_loan",
+        "code": "SYS_CONTRACT_SHIPMENT_LOAN",
+        "name": "合同及发货借据流程",
+        "approver_rule": {
+            "type": "specified_role", "value": "finance_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "quote_management",
         "code": "SYS_QUOTE_MANAGEMENT",
         "name": "报价管理",
@@ -747,6 +757,13 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(BONUS_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._contract_shipment_loan_jdy_generated import (
+            CONTRACT_SHIPMENT_LOAN_JDY,
+        )
+        packs.update(CONTRACT_SHIPMENT_LOAN_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
@@ -804,6 +821,7 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_prod_card_notify_production_cc(nodes)
         apply_prod_card_finance_branch_parallel(nodes, routes)
         apply_prod_card_xiaomeng_yangshuang_cc(nodes, routes)
+        apply_prod_card_design1_material_route(nodes, routes)
         fix_packaging_fork_serial_priority(nodes, routes)
         from app.domains.lowcode.wf_node_actions import apply_prod_card_material_code_node_actions
         apply_prod_card_material_code_node_actions(nodes)
@@ -2351,6 +2369,68 @@ def _flow_prod_card_finance_not_parallel(
         elif r.get("exclusive_group"):
             return True
     return False
+
+
+_PROD_CARD_DESIGN1_MATERIAL_CONDITION: dict = {
+    "field": "transfer_packaging_users",
+    "operator": "is_empty",
+    "value": None,
+}
+
+
+def _route_condition_matches(a: dict | None, b: dict) -> bool:
+    if not isinstance(a, dict):
+        return False
+    return (
+        a.get("field") == b.get("field")
+        and a.get("operator") == b.get("operator")
+    )
+
+
+def _flow_missing_prod_card_design1_material_route(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """V2+ 曾误删「安排设计1→物料编码(transfer_packaging 为空)」边。"""
+    design_ids = _prod_card_nodes_named(nodes, "安排设计1")
+    material_ids = _prod_card_nodes_named(nodes, "物料编码")
+    if not design_ids or not material_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("source") or "") not in design_ids:
+            continue
+        if str(r.get("target") or "") not in material_ids:
+            continue
+        if _route_condition_matches(r.get("condition"), _PROD_CARD_DESIGN1_MATERIAL_CONDITION):
+            return False
+    return True
+
+
+def apply_prod_card_design1_material_route(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """补回安排设计1→物料编码（无转新乡/工艺包装人选时），对齐简道云 V1。"""
+    if not _flow_missing_prod_card_design1_material_route(nodes, routes):
+        return False
+    design_id = next(iter(_prod_card_nodes_named(nodes, "安排设计1")))
+    material_id = next(iter(_prod_card_nodes_named(nodes, "物料编码")))
+    gid = f"ex_{design_id}"
+    routes.append({  # type: ignore[union-attr]
+        "id": f"r_design1_material_{design_id}",
+        "source": design_id,
+        "target": material_id,
+        "condition": dict(_PROD_CARD_DESIGN1_MATERIAL_CONDITION),
+        "exclusive_group": gid,
+    })
+    return True
+
+
+def _prod_card_routes_ready_for_publish(
+    nodes: list | None, routes: list | None,
+) -> None:
+    """发布前兜底：任意 prod_card 补丁后仍保留安排设计1→物料编码。"""
+    apply_prod_card_design1_material_route(nodes, routes)
 
 
 # 小萌工厂：杨霜审批 → 抄送小萌工厂（宋华强/任成双/段晓彤）∥ 结束（不加转电气车间）
@@ -4872,6 +4952,24 @@ async def _upgrade_drawing_form_flow_if_needed(
     """系统兜底表单流：单节点/旧简图升级为简道云对齐拓扑（图纸/方案/生产卡）。"""
     if not form_code:
         return
+    # 用户画布版生产卡也须补路由回归（205 等环境 category=user_designed）
+    if form_code == "prod_card_supplement":
+        version = await _published_version(db, tenant_id, d.id)
+        if version and _flow_missing_prod_card_design1_material_route(
+            version.node_definitions, version.route_definitions,
+        ):
+            import copy
+            patched_routes = copy.deepcopy(version.route_definitions or [])
+            apply_prod_card_design1_material_route(version.node_definitions, patched_routes)
+            fix_packaging_fork_serial_priority(version.node_definitions, patched_routes)
+            _prod_card_routes_ready_for_publish(version.node_definitions, patched_routes)
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                version.node_definitions, patched_routes,
+                d.description or DRAWING_FORM_FLOW_DESC,
+                "补回安排设计1→物料编码(transfer_packaging为空)",
+            )
+            return
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
     if d.code not in (
@@ -4898,6 +4996,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_BIZ_BONUS_TRANSFER",
         "SYS_BIZ_BONUS_BIZ_INITIATE",
         "SYS_COMMISSION_DATABASE",
+        "SYS_CONTRACT_SHIPMENT_LOAN",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -5179,6 +5278,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         if apply_prod_card_material_code_node_actions(patched):
             tags.append("物料编码关闭转交")
         if tags:
+            _prod_card_routes_ready_for_publish(patched, patched_routes)
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
                 patched, patched_routes,
@@ -5430,6 +5530,26 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"无合同号总工按 need_gm 走总经理审批({form_code})",
         )
         return
+    # 生产卡：补回安排设计1→物料编码（V2+ 回归缺边）
+    if (
+        topology_ok
+        and form_code == "prod_card_supplement"
+        and _flow_missing_prod_card_design1_material_route(
+            version.node_definitions, version.route_definitions,
+        )
+    ):
+        import copy
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        apply_prod_card_design1_material_route(version.node_definitions, patched_routes)
+        fix_packaging_fork_serial_priority(version.node_definitions, patched_routes)
+        _prod_card_routes_ready_for_publish(version.node_definitions, patched_routes)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            version.node_definitions, patched_routes,
+            DRAWING_FORM_FLOW_DESC,
+            "补回安排设计1→物料编码(transfer_packaging为空)",
+        )
+        return
     # 工艺包装分叉：互斥 + 包装优先（对齐简道云实单；纠正曾误标的 parallel）
     if topology_ok and form_code in (
         "drawing_requisition", "install_drawing_notice", "scheme_management",
@@ -5440,6 +5560,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         if fix_packaging_fork_serial_priority(
             version.node_definitions, patched_routes,
         ):
+            if form_code == "prod_card_supplement":
+                _prod_card_routes_ready_for_publish(version.node_definitions, patched_routes)
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
                 version.node_definitions, patched_routes,
@@ -5516,6 +5638,13 @@ async def _upgrade_drawing_form_flow_if_needed(
                     r["exclusive_group"] = gid
             tags.append(f"补同源互斥组({form_code})")
         if tags:
+            if form_code == "prod_card_supplement":
+                need_mat = _flow_missing_prod_card_design1_material_route(
+                    publish_nodes, patched_routes,
+                )
+                _prod_card_routes_ready_for_publish(publish_nodes, patched_routes)
+                if need_mat:
+                    tags.append("安排设计1→物料编码(transfer_packaging为空)")
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
                 publish_nodes, patched_routes,
@@ -5606,6 +5735,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "售出产品/工具退回"
     elif form_code == "cs_loan_slip":
         d.name = "客服借据"
+    elif form_code == "contract_shipment_loan":
+        d.name = "合同及发货借据流程"
     elif form_code == "cs_drawing_request":
         d.name = "客服领图"
     elif form_code == "cs_service_delay":

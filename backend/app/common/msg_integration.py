@@ -411,11 +411,17 @@ def _abs_url(config: dict, link: str | None, mobile: bool = False) -> str | None
 async def dispatch_todo(
     db: AsyncSession, tenant_id: str, assignee_user_id: str,
     title: str, content: str, link: str | None = None, mobile_link: str | None = None,
+    *,
+    head_text: str | None = None,
+    form: list[dict[str, str]] | None = None,
+    author: str | None = None,
 ) -> dict[str, Any]:
     """把「待审批」推送给指定负责人（钉钉工作通知 + 创建钉钉待办）。
 
     需要租户配置了钉钉企业应用（dingtalk 集成的 auth_config_json 含 app_key/app_secret/agent_id），
     且该负责人在 CRM 中填了手机号（用于匹配钉钉账号）。未配置或匹配不到时安全跳过（站内通知已兜底）。
+
+    form/author/head_text：生产卡等表单可传简道云式 OA 字段表（与抄送卡同口径）。
 
     返回 {work_notification: bool, todo: bool, todo_id: str|None, union_id: str|None}。
     """
@@ -444,10 +450,14 @@ async def dispatch_todo(
     pc_url = _abs_url(config, link, mobile=False)
     app_url = _abs_url(config, mobile_link or link, mobile=True)
     corp_id = (config.get("corp_id") or "").strip() or None
+    brand = head_text or (config.get("app_display_name") or config.get("corp_name") or "威猛云")
 
     results["work_notification"] = await send_dingtalk_work_notification(
         token, config["agent_id"], [userid], title, content,
         pc_url=pc_url, app_url=app_url, corp_id=corp_id,
+        head_text=str(brand)[:16],
+        form=form,
+        author=author,
     )
 
     # 创建真正的钉钉待办（需 unionId + 应用具备待办权限）

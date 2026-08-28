@@ -1236,6 +1236,7 @@ export default function FormDataListPage({
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
+    || templateCode === 'prod_card_supplement'
   /** 列表弹窗内可编辑（审批中/已通过也允许，走 form-instances PUT） */
   const canEditRecord = (_status?: string | null) => true
   const canResubmitRecord = (status?: string | null) =>

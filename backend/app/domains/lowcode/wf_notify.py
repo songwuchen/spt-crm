@@ -94,6 +94,32 @@ def _skip_external_notify() -> bool:
     return os.environ.get("WF_SKIP_EXTERNAL_NOTIFY") == "1"
 
 
+async def _resolve_form_code_for_notify(
+    db: AsyncSession, inst: WfProcessInstance,
+) -> str | None:
+    """流程实例 → 表单模板 code（优先 biz_type，其次关联 FormInstance）。"""
+    code = (getattr(inst, "biz_type", None) or "").strip()
+    if code and code in _CC_NOTIFY_FIELD_PREFS:
+        return code
+    if code and code not in ("form_instance", "lowcode", "wf"):
+        # 非预设表单也可能是真实 template code
+        pass
+    fid = getattr(inst, "form_instance_id", None)
+    if not fid:
+        return code or None
+    try:
+        from app.domains.lowcode.models import FormInstance, FormTemplate
+        fi = await db.get(FormInstance, fid)
+        if not fi or not fi.template_id:
+            return code or None
+        tpl = await db.get(FormTemplate, fi.template_id)
+        if tpl and (tpl.code or "").strip():
+            return tpl.code.strip()
+    except Exception:
+        pass
+    return code or None
+
+
 async def notify_tasks_created(
     tenant_id: str, inst: WfProcessInstance, task_ids: list[str],
 ) -> None:
@@ -101,6 +127,9 @@ async def notify_tasks_created(
 
     对齐旧引擎 submit_approval 的通知行为：仅对 status=pending 的待办下发
     (顺序会签下 waiting 的后续审批人不打扰)。
+
+    生产卡等已配置抄送卡字段的表单：钉钉工作通知同步发简道云式 OA 字段卡
+    （下卡日期/所在部门/图纸编号），避免只有「某某提交了审批」一行字。
     """
     if not task_ids:
         return
@@ -120,6 +149,14 @@ async def notify_tasks_created(
             initiator = await _user_name(db, tenant_id, getattr(inst, "initiator_id", None))
             title = getattr(inst, "title", None) or getattr(inst, "biz_type", None) or "审批"
             inst_id = getattr(inst, "id", None)
+            form_code = await _resolve_form_code_for_notify(db, inst) or ""
+            form_rows: list[dict[str, str]] = []
+            ding_oa_title: str | None = None
+            author: str | None = None
+            if form_code in _CC_NOTIFY_FIELD_PREFS:
+                form_rows = await _cc_form_fields(db, tenant_id, inst)
+                ding_oa_title = _CC_NOTIFY_TITLES.get(form_code)
+                author = _fmt_cc_author(initiator)
 
             from app.domains.lowcode.workflow_models import WfNodeInstance
             ni_ids = [t.node_instance_id for t in tasks if t.node_instance_id]
@@ -156,12 +193,21 @@ async def notify_tasks_created(
                 if skip_external:
                     continue
                 try:
+                    ding_title = ding_oa_title or n_title
+                    ding_content = todo_content
+                    if form_rows:
+                        ding_content = "\n".join(
+                            f"{r['key']}{'' if r['key'].endswith(':') else ':'} {r['value']}"
+                            for r in form_rows
+                        )
                     res = await dispatch_todo(
                         db, tenant_id, t.assignee_id,
-                        n_title,
-                        todo_content,
+                        ding_title,
+                        ding_content,
                         link=f"/approvals?wf={inst_id}&task={t.id}",
                         mobile_link=f"/m/lowcode/approvals/{inst_id}?task={t.id}",
+                        form=form_rows or None,
+                        author=author,
                     )
                     todo_id = (res or {}).get("todo_id")
                     if todo_id:
@@ -240,7 +286,7 @@ _CC_NOTIFY_FIELD_PREFS: dict[str, list[tuple[str, str]]] = {
     "prod_card_supplement": [
         ("card_date", "下卡日期"),
         ("department", "所在部门"),
-        ("__drawing_no_formula__", "图纸编号（筛选用）（公式的）"),
+        ("__drawing_no_formula__", "图纸编号"),
     ],
     "payment_registration": [
         ("payment_date", "来款日期"),
@@ -279,7 +325,7 @@ def _short_date_text(val) -> str:
 
 
 def _prod_card_drawing_no(data: dict) -> str:
-    """生产卡「图纸编号（筛选用）（公式的）」：优先带出字段，其次查询引用。"""
+    """生产卡「图纸编号」：优先带出字段，其次查询引用。"""
     for k in ("no_drawing_no", "drawing_no_query"):
         v = data.get(k)
         if v in (None, "", [], {}):
@@ -440,6 +486,12 @@ async def _cc_form_fields(db: AsyncSession, tenant_id: str, inst: WfProcessInsta
             tpl = await db.get(FormTemplate, fi.template_id)
             if tpl and tpl.code:
                 form_code = tpl.code
+        if not form_code or form_code not in _CC_NOTIFY_FIELD_PREFS:
+            # biz_type 可能不是模板 code，再按 template 解析一次
+            if fi.template_id:
+                tpl = await db.get(FormTemplate, fi.template_id)
+                if tpl and tpl.code and tpl.code in _CC_NOTIFY_FIELD_PREFS:
+                    form_code = tpl.code
         if form_code and form_code in _CC_NOTIFY_FIELD_PREFS:
             rows = await _cc_form_fields_from_prefs(
                 db, tenant_id, form_code, data, fi.field_definitions or [],
@@ -487,7 +539,7 @@ async def notify_cc_users(
             author = _fmt_cc_author(initiator)
             form_rows = await _cc_form_fields(db, tenant_id, inst)
 
-            form_code = getattr(inst, "biz_type", None)
+            form_code = await _resolve_form_code_for_notify(db, inst)
             custom_title = _CC_NOTIFY_TITLES.get(form_code or "")
             if custom_title:
                 ding_title = custom_title

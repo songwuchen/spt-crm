@@ -35,6 +35,7 @@ ALWAYS_EDITABLE_FORM_CODES: frozenset[str] = frozenset({
     "drawing_requisition",
     "install_drawing_notice",
     "cs_drawing_request",
+    "prod_card_supplement",
 })
 
 # 兼容旧名

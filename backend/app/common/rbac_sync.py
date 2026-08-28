@@ -272,6 +272,9 @@ BUSINESS_ROLE_CODES = (
     "gate_guard",
     "prod_material_code",
     "prod_elec_workshop",
+    "prod_quality_control",
+    "plan_procurement_dept",
+    "plan_dispatch_dept",
     "legal",
 )
 
@@ -1005,6 +1008,197 @@ async def ensure_legal_role_members(db, tenant_id: str) -> dict:
         result["pruned"] = 0
     result["role_name"] = role.name
     return result
+
+
+PROD_QUALITY_CONTROL_DEPT_NAMES: tuple[str, ...] = ("工艺与质量控制部",)
+PLAN_PROCUREMENT_DEPT_NAMES: tuple[str, ...] = ("计划采购部",)
+PLAN_DISPATCH_DEPT_NAMES: tuple[str, ...] = ("计划调度室",)
+
+
+async def ensure_prod_quality_control_dept_role(db, tenant_id: str) -> dict:
+    """确保 prod_quality_control 角色存在，并通过部门规则挂给工艺与质量控制部成员。"""
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    from app.common.dept_role_auto import apply_dept_role_rules_bulk
+    from app.domains.organization.models import Department, DeptRoleRule
+
+    await ensure_business_roles(db, tenant_id, ["prod_quality_control"])
+    role = (
+        await db.execute(
+            select(Role).where(
+                Role.tenant_id == tenant_id, Role.code == "prod_quality_control",
+            )
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return {"error": "role_not_found"}
+
+    depts = (
+        await db.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id,
+                Department.name.in_(PROD_QUALITY_CONTROL_DEPT_NAMES),
+            )
+        )
+    ).scalars().all()
+
+    rules_added = 0
+    for d in depts:
+        exists = (
+            await db.execute(
+                select(DeptRoleRule.id).where(
+                    DeptRoleRule.tenant_id == tenant_id,
+                    DeptRoleRule.department_id == d.id,
+                    DeptRoleRule.role_id == role.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(DeptRoleRule(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            department_id=d.id,
+            role_id=role.id,
+            include_children=True,
+            enabled=True,
+        ))
+        rules_added += 1
+    await db.flush()
+
+    stats = await apply_dept_role_rules_bulk(db, tenant_id, commit=False)
+    await invalidate_tenant_auth_cache(tenant_id)
+    return {
+        "role_code": role.code,
+        "role_name": role.name,
+        "scope_by_resource": dict(role.scope_by_resource or {}),
+        "dept_rules_added": rules_added,
+        "depts": [{"id": d.id, "name": d.name, "path": d.path} for d in depts],
+        "apply": stats,
+    }
+
+
+async def ensure_plan_procurement_dept_role(db, tenant_id: str) -> dict:
+    """确保 plan_procurement_dept 角色存在，并通过部门规则挂给计划采购部成员。"""
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    from app.common.dept_role_auto import apply_dept_role_rules_bulk
+    from app.domains.organization.models import Department, DeptRoleRule
+
+    await ensure_business_roles(db, tenant_id, ["plan_procurement_dept"])
+    role = (
+        await db.execute(
+            select(Role).where(
+                Role.tenant_id == tenant_id, Role.code == "plan_procurement_dept",
+            )
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return {"error": "role_not_found"}
+
+    depts = (
+        await db.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id,
+                Department.name.in_(PLAN_PROCUREMENT_DEPT_NAMES),
+            )
+        )
+    ).scalars().all()
+
+    rules_added = 0
+    for d in depts:
+        exists = (
+            await db.execute(
+                select(DeptRoleRule.id).where(
+                    DeptRoleRule.tenant_id == tenant_id,
+                    DeptRoleRule.department_id == d.id,
+                    DeptRoleRule.role_id == role.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(DeptRoleRule(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            department_id=d.id,
+            role_id=role.id,
+            include_children=True,
+            enabled=True,
+        ))
+        rules_added += 1
+    await db.flush()
+
+    stats = await apply_dept_role_rules_bulk(db, tenant_id, commit=False)
+    await invalidate_tenant_auth_cache(tenant_id)
+    return {
+        "role_code": role.code,
+        "role_name": role.name,
+        "scope_by_resource": dict(role.scope_by_resource or {}),
+        "dept_rules_added": rules_added,
+        "depts": [{"id": d.id, "name": d.name, "path": d.path} for d in depts],
+        "apply": stats,
+    }
+
+
+async def ensure_plan_dispatch_dept_role(db, tenant_id: str) -> dict:
+    """确保 plan_dispatch_dept 角色存在，并通过部门规则挂给计划调度室成员。"""
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    from app.common.dept_role_auto import apply_dept_role_rules_bulk
+    from app.domains.organization.models import Department, DeptRoleRule
+
+    await ensure_business_roles(db, tenant_id, ["plan_dispatch_dept"])
+    role = (
+        await db.execute(
+            select(Role).where(
+                Role.tenant_id == tenant_id, Role.code == "plan_dispatch_dept",
+            )
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return {"error": "role_not_found"}
+
+    depts = (
+        await db.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id,
+                Department.name.in_(PLAN_DISPATCH_DEPT_NAMES),
+            )
+        )
+    ).scalars().all()
+
+    rules_added = 0
+    for d in depts:
+        exists = (
+            await db.execute(
+                select(DeptRoleRule.id).where(
+                    DeptRoleRule.tenant_id == tenant_id,
+                    DeptRoleRule.department_id == d.id,
+                    DeptRoleRule.role_id == role.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(DeptRoleRule(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            department_id=d.id,
+            role_id=role.id,
+            include_children=True,
+            enabled=True,
+        ))
+        rules_added += 1
+    await db.flush()
+
+    stats = await apply_dept_role_rules_bulk(db, tenant_id, commit=False)
+    await invalidate_tenant_auth_cache(tenant_id)
+    return {
+        "role_code": role.code,
+        "role_name": role.name,
+        "scope_by_resource": dict(role.scope_by_resource or {}),
+        "dept_rules_added": rules_added,
+        "depts": [{"id": d.id, "name": d.name, "path": d.path} for d in depts],
+        "apply": stats,
+    }
 
 
 async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:

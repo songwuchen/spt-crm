@@ -150,6 +150,7 @@ export type ContractFillMode =
   | 'contract_no_select'
   | 'invoice_application'
   | 'shipment_notice'
+  | 'contract_shipment_loan'
   | 'biz_bonus_transfer'
   | 'biz_bonus_biz_initiate'
   | 'commission_database'
@@ -251,6 +252,9 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
     'consignee_unit', 'contract_no_text', 'department', 'sales_person', 'dept_contract_no',
     'need_install', 'counterparty_contract_no', 'accept_method', 'accept_docs', 'contract_amount',
     'ship_lines', 'ship_amount', 'prior_shipped_amount', 'shipped_amount_incl', 'unshipped_amount',
+  ],
+  contract_shipment_loan: [
+    'customer_name', 'contract_no', 'sales_person', 'field_6', 'field_2', 'field_7', 'field_13',
   ],
   biz_bonus_transfer: [
     'salesperson', 'sign_date', 'company_name', 'contract_lines',

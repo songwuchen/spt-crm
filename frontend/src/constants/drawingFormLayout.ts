@@ -1334,6 +1334,37 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     ],
     spans: { field_4: 24 },
   },
+  contract_shipment_loan: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'field_3', 'customer_name', 'contract_no', 'sales_person', 'field_6',
+      'field', 'field_13', 'field_15',
+    ],
+    listExpandDetail: 'field_7',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'field_2', 'field_3', 'field_4', 'field_5',
+          'field_6', 'sales_person', 'contract_no', 'customer_name',
+        ],
+      },
+      {
+        title: '借据明细与金额',
+        fieldIds: [
+          'field_7', 'field_13', 'field_14', 'field_15', 'field_16',
+          'f_0107', 'remark',
+        ],
+      },
+      {
+        title: '后续登记',
+        fieldIds: [
+          'field_18', 'field_19', 'field_20', 'field_21', 'field_22',
+        ],
+      },
+    ],
+    spans: { field_7: 24, f_0107: 24, remark: 24 },
+  },
   cs_drawing_request: {
     contentMaxWidth: 960,
     listColumns: [

@@ -103,7 +103,7 @@ export default function MobileLowcodeApprovalDetail() {
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!detail?.biz_id && !!effectiveTaskId
     && !isReviseTask && !isLeadOwnerConfirm
   const formEditPath = detail?.form_instance_id && detail?.form_code
-    ? formModuleInstancePath(detail.form_code, detail.form_instance_id, { edit: true })
+    ? formModuleInstancePath(detail.form_code, detail.form_instance_id, { edit: true, mobile: true })
     : null
 
   // 线索修订：跳到申报编辑页（与第一次报项目同体验）

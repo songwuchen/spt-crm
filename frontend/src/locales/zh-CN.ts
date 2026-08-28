@@ -117,6 +117,8 @@ const zhCN = {
     invoiceApplications: '开票申请',
     paymentRegistrations: '收款登记',
     paymentRegistrationDashboard: '收款登记仪表盘',
+    contractShipmentLoans: '合同及发货借据流程',
+    shipmentLoanDashboard: '发货借据',
     contractManagementDashboard: '合同管理仪表盘',
     shipping: '发货',
     shipmentNotices: '发货通知',

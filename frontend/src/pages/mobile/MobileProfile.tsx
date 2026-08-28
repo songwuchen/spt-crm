@@ -75,7 +75,8 @@ export default function MobileProfile() {
     { icon: 'task_alt', label: '我的审批', path: '/m/approvals' },
     { icon: 'edit_note', label: '新建跟进', path: '/m/follow-up/new' },
     { icon: 'description', label: '合同列表', path: '/m/contracts' },
-    { icon: 'analytics', label: '数据分析', path: '/analytics' },
+    { icon: 'analytics', label: '数据分析', path: '/m/analytics' },
+    { icon: 'apps', label: '全部功能', path: '/m/more' },
   ]
 
   return (

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '@/api/dashboard'
+import { toZonePath } from '@/utils/zonePaths'
 import { approvalApi } from '@/api/approval'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -95,7 +96,7 @@ export default function MobileReports() {
       <div className="px-4 space-y-2 pb-20">
         <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">详细报表</div>
         {reportLinks.map((r) => (
-          <button key={r.path} onClick={() => navigate(r.path)}
+          <button key={r.path} onClick={() => navigate(toZonePath(r.path))}
             className="w-full bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 text-left active:bg-slate-50">
             <MobileIcon name={r.icon} className="text-primary" style={{ fontSize: 24 }} />
             <div className="flex-1">

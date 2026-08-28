@@ -85,6 +85,8 @@ export const menuGroups: MenuGroup[] = [
       { key: '/invoice-applications', icon: 'receipt_long', labelKey: 'nav.invoiceApplications', permission: 'form_data:view' },
       { key: '/payment-registrations', icon: 'payments', labelKey: 'nav.paymentRegistrations', permission: 'form_data:view' },
       { key: '/payment-registrations/dashboard', icon: 'insert_chart', labelKey: 'nav.paymentRegistrationDashboard', permission: 'form_data:view' },
+      { key: '/contract-shipment-loans', icon: 'receipt', labelKey: 'nav.contractShipmentLoans', permission: 'form_data:view' },
+      { key: '/contract-shipment-loans/shipment-dashboard', icon: 'insert_chart', labelKey: 'nav.shipmentLoanDashboard', permission: 'form_data:view' },
       { key: '/shipment-notices', icon: 'local_shipping', labelKey: 'nav.shipmentNotices', permission: 'form_data:view' },
       { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
       { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },

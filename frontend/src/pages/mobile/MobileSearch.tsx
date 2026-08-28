@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '@/api/dashboard'
+import { toZonePath } from '@/utils/zonePaths'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface SearchResult {
@@ -88,7 +89,7 @@ export default function MobileSearch() {
               </div>
               <div className="space-y-1.5">
                 {items.map((r) => (
-                  <div key={`${r.type}-${r.id}`} onClick={() => navigate(r.url)}
+                  <div key={`${r.type}-${r.id}`} onClick={() => navigate(toZonePath(r.url))}
                     className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 active:bg-slate-50">
                     <MobileIcon name={cfg.icon} className={`${cfg.color}`} style={{ fontSize: 20 }} />
                     <div className="flex-1 min-w-0">

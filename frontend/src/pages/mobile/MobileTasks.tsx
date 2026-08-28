@@ -33,7 +33,7 @@ export default function MobileTasks() {
   const handleTaskClick = (t: TaskItem) => {
     const path = taskNavigatePath(t)
     if (path && !t.is_completed) {
-      navigate(path.startsWith('/leads/') ? `/m${path}` : path)
+      navigate(path)
       return
     }
     toggleComplete(t)

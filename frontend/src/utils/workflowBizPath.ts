@@ -28,6 +28,7 @@ export const FORM_MODULE_BASE_PATHS: Record<string, string> = {
   shipment_notice: '/shipment-notices',
   xunhan_contract_review: '/xunhan-contract-reviews',
   payment_registration: '/payment-registrations',
+  contract_shipment_loan: '/contract-shipment-loans',
   cs_service_request: '/cs-service-requests',
   cs_product_replace: '/cs-product-replaces',
   cs_product_return: '/cs-product-returns',
@@ -58,8 +59,7 @@ export function formModuleInstancePath(
 ): string | null {
   const base = FORM_MODULE_BASE_PATHS[formCode]
   if (!base) return null
-  // 低代码模块路由仅在桌面侧栏注册；移动端浏览器同样打开该路径
-  void opts?.mobile
+  const prefix = opts?.mobile ? '/m' : ''
   const q = new URLSearchParams({ instance: formInstanceId })
   if (opts?.reviseTaskId) {
     q.set('reviseTask', opts.reviseTaskId)
@@ -67,7 +67,7 @@ export function formModuleInstancePath(
   } else if (opts?.edit) {
     q.set('edit', '1')
   }
-  return `${base}?${q.toString()}`
+  return `${prefix}${base}?${q.toString()}`
 }
 
 /** 业务单据审批 → 完整详情页路径 */

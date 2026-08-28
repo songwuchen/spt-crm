@@ -46,16 +46,22 @@ export default function MobileWorkbench() {
   const [pendingCount, setPendingCount] = useState(0)
   const user = useAuthStore((s) => s.user)
   const hasPermission = useAuthStore((s) => s.hasPermission)
-  const canOpenLowcodeForms = Boolean(hasPermission?.('role:manage'))
+  const canOpenFormModules = Boolean(
+    hasPermission?.('form_data:view') || hasPermission?.('form_data:create'),
+  )
   const navigate = useNavigate()
   const quickActions = [
     { icon: 'add_business', label: '新客户', path: '/m/customers/new', color: 'text-blue-600 bg-blue-50' },
+    { icon: 'trending_up', label: '线索', path: '/m/leads', color: 'text-emerald-600 bg-emerald-50' },
     { icon: 'contact_phone', label: '写跟进', path: '/m/follow-up/new', color: 'text-purple-600 bg-purple-50' },
-    { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-emerald-600 bg-emerald-50' },
+    { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-teal-600 bg-teal-50' },
     { icon: 'task_alt', label: '审批', path: '/m/approvals', color: 'text-amber-600 bg-amber-50' },
-    ...(canOpenLowcodeForms
-      ? [{ icon: 'assignment', label: '表单填报', path: '/m/lowcode/forms', color: 'text-indigo-600 bg-indigo-50' }]
+    { icon: 'description', label: '合同', path: '/m/contracts', color: 'text-slate-600 bg-slate-50' },
+    { icon: 'support_agent', label: '工单', path: '/m/service-tickets', color: 'text-red-600 bg-red-50' },
+    ...(canOpenFormModules
+      ? [{ icon: 'assignment', label: '业务表单', path: '/m/form-modules', color: 'text-indigo-600 bg-indigo-50' }]
       : []),
+    { icon: 'grid_view', label: '全部功能', path: '/m/more', color: 'text-violet-600 bg-violet-50' },
   ]
 
   const refreshAll = async () => {
@@ -130,7 +136,7 @@ export default function MobileWorkbench() {
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">待跟进商机</h3>
           <div className="space-y-2">
             {myOv.stalled_projects.map((p) => (
-              <div key={p.id} onClick={() => navigate(`/m/opportunities`)}
+              <div key={p.id} onClick={() => navigate(`/m/opportunities/${p.id}`)}
                 className="flex items-center gap-3 p-2.5 rounded-lg bg-amber-50 border border-amber-100 cursor-pointer active:bg-amber-100">
                 <MobileIcon name="schedule" className="text-amber-500" style={{ fontSize: 18 }} />
                 <div className="flex-1 min-w-0">
@@ -146,7 +152,10 @@ export default function MobileWorkbench() {
 
       {/* Summary Cards */}
       <div className="space-y-3">
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+        <div
+          className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 cursor-pointer active:bg-slate-50"
+          onClick={() => navigate('/m/leads')}
+        >
           <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
             <MobileIcon name="schedule" className="text-amber-600" style={{ fontSize: 20 }} />
           </div>
@@ -156,10 +165,10 @@ export default function MobileWorkbench() {
           </div>
           <span className="text-2xl font-black text-amber-600">{myOv?.my_pending_leads || stats.pending_leads}</span>
         </div>
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-            <MobileIcon name="support_agent" className="text-red-500" style={{ fontSize: 20 }} />
-          </div>
+        <div
+          className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 cursor-pointer active:bg-slate-50"
+          onClick={() => navigate('/m/service-tickets')}
+        >
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">未关闭工单</div>
             <div className="text-sm text-slate-500">{myOv?.my_open_tickets || stats.ticket_open} 个需要关注</div>

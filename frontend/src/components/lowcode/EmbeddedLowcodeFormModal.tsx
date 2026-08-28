@@ -160,8 +160,10 @@ export default function EmbeddedLowcodeFormModal({
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
+    || templateCode === 'prod_card_supplement'
   const includeApproverFieldsOnEdit = Boolean(
-    viewRec && !viewRec.readonly && postCompleteEditable && viewRec.status === 'completed',
+    viewRec && !viewRec.readonly && postCompleteEditable
+      && (templateCode === 'prod_card_supplement' || viewRec.status === 'completed'),
   )
 
   const handleClose = () => {

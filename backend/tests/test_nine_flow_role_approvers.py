@@ -56,6 +56,62 @@ def test_prod_elec_workshop_member_roster():
     assert len(PROD_ELEC_WORKSHOP_MEMBER_USERNAMES) == 2
 
 
+def test_prod_quality_control_role_catalog():
+    from app.common.rbac_catalog import STANDARD_ROLES, role_perm_codes
+    from app.common.rbac_sync import PROD_QUALITY_CONTROL_DEPT_NAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "prod_quality_control")
+    assert role["name"] == "工艺与质量控制部"
+    sbr = role.get("scope_by_resource") or {}
+    assert sbr.get("prod_card_supplement") == "all"
+    assert sbr.get("contract") == "all"
+    perms = set(role_perm_codes(role))
+    assert "form_data:view" in perms
+    assert "form_data:edit" in perms
+    assert "order:view" in perms
+    assert "order:edit" in perms
+    assert "product:view" in perms
+    assert "product:edit" in perms
+    assert "contract:view" in perms
+    assert "approval:approve" not in perms
+    assert "approval:decide" not in perms
+    assert PROD_QUALITY_CONTROL_DEPT_NAMES == ("工艺与质量控制部",)
+
+
+def test_plan_procurement_dept_role_catalog():
+    from app.common.rbac_catalog import STANDARD_ROLES, role_perm_codes
+    from app.common.rbac_sync import PLAN_PROCUREMENT_DEPT_NAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "plan_procurement_dept")
+    assert role["name"] == "计划采购部"
+    sbr = role.get("scope_by_resource") or {}
+    assert sbr.get("prod_card_supplement") == "all"
+    perms = set(role_perm_codes(role))
+    assert "form_data:view" in perms
+    assert "order:view" in perms
+    assert "product:view" in perms
+    assert "approval:approve" not in perms
+    assert PLAN_PROCUREMENT_DEPT_NAMES == ("计划采购部",)
+
+
+def test_plan_dispatch_dept_role_catalog():
+    from app.common.rbac_catalog import STANDARD_ROLES, role_perm_codes
+    from app.common.rbac_sync import PLAN_DISPATCH_DEPT_NAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "plan_dispatch_dept")
+    assert role["name"] == "计划调度室"
+    sbr = role.get("scope_by_resource") or {}
+    assert sbr.get("contract") == "all"
+    assert sbr.get("prod_card_supplement") == "all"
+    perms = set(role_perm_codes(role))
+    assert "form_data:view" in perms
+    assert "contract:view" in perms
+    assert "order:view" in perms
+    assert "product:view" in perms
+    assert "approval:approve" not in perms
+    assert PLAN_DISPATCH_DEPT_NAMES == ("计划调度室",)
+
+
 def test_legal_member_roster():
     from app.common.rbac_catalog import STANDARD_ROLES
     from app.common.rbac_sync import LEGAL_MEMBER_REAL_NAMES, LEGAL_MEMBER_USERNAMES

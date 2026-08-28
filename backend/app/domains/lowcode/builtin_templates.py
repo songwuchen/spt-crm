@@ -210,6 +210,19 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "contract_shipment_loan",
+        "name": "合同及发货借据流程",
+        "category": "合同",
+        "icon": "FileTextOutlined",
+        "description": (
+            "对齐简道云数据中心「合同及发货借据流程」"
+            "(app=56ca77ce… entry=5d255b27…)。"
+            "字段见 docs/product/_jdy_contract_shipment_loan_crm_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "quote_management",
         "name": "报价管理",
         "category": "合同",
@@ -594,12 +607,18 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._bonus_jdy_generated import BONUS_JDY
     except Exception:
         BONUS_JDY = {}
+    try:
+        from app.domains.lowcode._contract_shipment_loan_jdy_generated import (
+            CONTRACT_SHIPMENT_LOAN_JDY,
+        )
+    except Exception:
+        CONTRACT_SHIPMENT_LOAN_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
         **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
         **SHIPMENT_NOTICE_JDY, **XUNHAN_CONTRACT_REVIEW_JDY, **TECH_FEEDBACK_OUTSOURCE_JDY,
-        **BONUS_JDY,
+        **BONUS_JDY, **CONTRACT_SHIPMENT_LOAN_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -672,6 +691,11 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "shipment_notice":
             from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
             apply_shipment_notice_fields(defs)
+        if t["key"] == "contract_shipment_loan":
+            from app.domains.lowcode.contract_shipment_loan_fields import (
+                apply_contract_shipment_loan_fields,
+            )
+            apply_contract_shipment_loan_fields(defs)
         if t["key"] in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
             from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
             apply_bonus_contract_fields(defs, t["key"])

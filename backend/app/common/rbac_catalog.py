@@ -491,6 +491,41 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "prod_quality_control", "name": "工艺与质量控制部", "scope": "dept",
+        "scope_by_resource": {
+            "prod_card_supplement": "all",
+            "contract": "all",
+        },
+        "desc": "工艺与质量控制部：生产卡/补充流程、合同管理查看全部数据；生产卡可编辑",
+        "perms": [
+            "order:view", "order:edit",
+            "product:view", "product:edit",
+            "contract:view",
+        ],
+    },
+    {
+        "code": "plan_procurement_dept", "name": "计划采购部", "scope": "dept",
+        "scope_by_resource": {"prod_card_supplement": "all"},
+        "desc": "计划采购部全员：生产卡/补充流程查看全部数据",
+        "perms": [
+            "form_data:view",
+            "order:view", "product:view",
+        ],
+    },
+    {
+        "code": "plan_dispatch_dept", "name": "计划调度室", "scope": "dept",
+        "scope_by_resource": {
+            "contract": "all",
+            "prod_card_supplement": "all",
+        },
+        "desc": "计划调度室全员：合同管理、生产卡/补充流程查看全部数据",
+        "perms": [
+            "form_data:view",
+            "contract:view",
+            "order:view", "product:view",
+        ],
+    },
+    {
         "code": "procurement", "name": "采购专员", "scope": "dept",
         "desc": "采购部/外购:订单 + 产品;合同/交付只读",
         "perms": [

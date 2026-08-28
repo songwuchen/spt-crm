@@ -15,6 +15,8 @@ export const FORM_MODULE_ROUTE_CODES: Record<string, string> = {
   '/invoice-applications': 'invoice_application',
   '/payment-registrations': 'payment_registration',
   '/payment-registrations/dashboard': 'payment_registration',
+  '/contract-shipment-loans': 'contract_shipment_loan',
+  '/contract-shipment-loans/shipment-dashboard': 'contract_shipment_loan',
   '/shipment-notices': 'shipment_notice',
   '/application-fields': 'application_field',
   '/application-materials': 'application_material',
@@ -36,9 +38,10 @@ export const FORM_MODULE_ROUTE_CODES: Record<string, string> = {
 }
 
 export function formTemplateCodeForRoute(path: string): string | undefined {
-  if (FORM_MODULE_ROUTE_CODES[path]) return FORM_MODULE_ROUTE_CODES[path]
+  const normalized = path.startsWith('/m/') ? path.slice(2) : path
+  if (FORM_MODULE_ROUTE_CODES[normalized]) return FORM_MODULE_ROUTE_CODES[normalized]
   for (const [route, code] of Object.entries(FORM_MODULE_ROUTE_CODES)) {
-    if (path.startsWith(route + '/')) return code
+    if (normalized.startsWith(route + '/')) return code
   }
   return undefined
 }
