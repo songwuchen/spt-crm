@@ -335,6 +335,30 @@ async def _prod_card_supplement_pick_keyword_conds(
     return kw_conds
 
 
+def apply_contract_row_to_lookup_maps(
+    name_map: dict[str, str],
+    id_by_ref: dict[str, str],
+    *,
+    contract_id: str,
+    serial_no: str | None = None,
+    contract_no: str | None = None,
+    drawing_no: str | None = None,
+) -> None:
+    """合同主数据 → 选单展示名 + 流水号/合同号/图纸号 → UUID 反查表。"""
+    cid = str(contract_id)
+    label = (drawing_no or "").strip() or (contract_no or "").strip()
+    id_by_ref[cid] = cid
+    if label:
+        name_map[cid] = label
+    for ref in (serial_no, contract_no, drawing_no):
+        s = str(ref or "").strip()
+        if not s:
+            continue
+        id_by_ref[s] = cid
+        if label:
+            name_map[s] = label
+
+
 def _contract_label(val: Any, contract_names: dict[str, str] | None = None) -> str:
     rid = _as_id(val)
     if rid and contract_names and rid in contract_names:
@@ -437,20 +461,35 @@ def _resolve_prod_card_contract_for_outsource(
     data: dict,
     *,
     contract_names: dict[str, str] | None = None,
+    contract_id_by_ref: dict[str, str] | None = None,
 ) -> tuple[str | None, str]:
     """从生产卡 form_data 解析合同 id 与展示用图纸/合同号（对齐简道云公式字段）。"""
     from app.domains.lowcode.prod_card_contract_fill import resolve_prod_card_contract_pick
 
-    cid, _mode = resolve_prod_card_contract_pick(data)
-    if cid and contract_names and cid in contract_names:
-        return cid, contract_names[cid]
+    ref, _mode = resolve_prod_card_contract_pick(data)
+    resolved_id = None
+    if ref and contract_id_by_ref:
+        resolved_id = contract_id_by_ref.get(ref)
+    if not resolved_id and ref and _is_uuid(ref):
+        resolved_id = ref
+    contract_id = resolved_id or ref
+    names = contract_names or {}
+    for key in (ref, resolved_id, contract_id):
+        if key and key in names:
+            return contract_id, names[key]
     text = (
         _as_text(data.get("no_drawing_no"))
         or _as_text(data.get("yes_contract_no"))
-        or _contract_label(data.get("drawing_no_query"), contract_names)
-        or _contract_label(data.get("contract_no_select"), contract_names)
+        or ""
     )
-    return cid, text
+    if not text and ref and ref in names:
+        text = names[ref]
+    if not text:
+        text = (
+            _contract_label(data.get("drawing_no_query"), contract_names)
+            or _contract_label(data.get("contract_no_select"), contract_names)
+        )
+    return contract_id, text
 
 
 def build_contract_outsource_prod_card_fill(
@@ -460,12 +499,15 @@ def build_contract_outsource_prod_card_fill(
     user_names: dict[str, str] | None = None,
     dept_names: dict[str, str] | None = None,
     contract_names: dict[str, str] | None = None,
+    contract_id_by_ref: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """合同外购件等：选中生产卡/补充流程后带出字段（对齐简道云 linkDataMaps）。"""
     data = form_data if isinstance(form_data, dict) else {}
     serial = _as_text(data.get("serial_no")) or (business_no or "")
     contract_id, _drawing_label = _resolve_prod_card_contract_for_outsource(
-        data, contract_names=contract_names,
+        data,
+        contract_names=contract_names,
+        contract_id_by_ref=contract_id_by_ref,
     )
     design = data.get("design_assignees")
     if design in (None, "", []):
@@ -641,6 +683,7 @@ async def list_pickable_form_instances(
     user_ids: list[str] = []
     dept_ids: list[str] = []
     contract_ids: list[str] = []
+    prod_card_contract_refs: list[str] = []
     project_ids: list[str] = []
     for inst in rows:
         data = inst.form_data if isinstance(inst.form_data, dict) else {}
@@ -665,8 +708,10 @@ async def list_pickable_form_instances(
         if form_code == "prod_card_supplement":
             from app.domains.lowcode.prod_card_contract_fill import resolve_prod_card_contract_pick
             pcid, _ = resolve_prod_card_contract_pick(data)
-            if pcid and _is_uuid(pcid):
-                contract_ids.append(pcid)
+            if pcid:
+                prod_card_contract_refs.append(pcid)
+                if _is_uuid(pcid):
+                    contract_ids.append(pcid)
         if link_field == "prod_card_install":
             pid = _as_id(data.get("project_no"))
             if pid and _is_uuid(pid):
@@ -694,18 +739,33 @@ async def list_pickable_form_instances(
             dept_names[str(did)] = (name or "").strip() or str(did)
 
     contract_names: dict[str, str] = {}
+    contract_id_by_ref: dict[str, str] = {}
+    if form_code == "prod_card_supplement" and prod_card_contract_refs:
+        from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
+        for ref in prod_card_contract_refs:
+            if ref and not _is_uuid(ref):
+                resolved = await resolve_contract_id_for_fill(db, tenant_id, ref)
+                if resolved:
+                    contract_ids.append(resolved)
     if contract_ids:
         from app.domains.contract.models import Contract
         crows = (await db.execute(
-            select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
+            select(
+                Contract.id, Contract.serial_no, Contract.contract_no, Contract.drawing_no,
+            ).where(
                 Contract.tenant_id == tenant_id,
                 Contract.id.in_(list(dict.fromkeys(contract_ids))),
             )
         )).all()
-        for cid, no, draw in crows:
-            label = (draw or "").strip() or (no or "").strip()
-            if label:
-                contract_names[str(cid)] = label
+        for cid, serial, no, draw in crows:
+            apply_contract_row_to_lookup_maps(
+                contract_names,
+                contract_id_by_ref,
+                contract_id=str(cid),
+                serial_no=serial,
+                contract_no=no,
+                drawing_no=draw,
+            )
 
     project_codes: dict[str, str] = {}
     if project_ids:
@@ -763,6 +823,7 @@ async def list_pickable_form_instances(
                 user_names=user_names,
                 dept_names=dept_names,
                 contract_names=contract_names,
+                contract_id_by_ref=contract_id_by_ref,
             )
         out.append(item)
     return {"items": out, "total": total, "page": page, "page_size": page_size, "columns": columns}
