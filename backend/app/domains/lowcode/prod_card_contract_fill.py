@@ -89,6 +89,18 @@ def _fmt_delivery_date(raw: Any) -> str:
     return str(raw).strip()[:10]
 
 
+def prod_card_yes_contract_no(
+    *,
+    drawing_no: str | None,
+    contract_no: str | None,
+) -> str:
+    """补充单 contract_no_select 带出「（是）合同号」：对齐简道云 linkDataMaps 源字段「图纸编号」。"""
+    draw = (drawing_no or "").strip()
+    if draw:
+        return draw
+    return (contract_no or "").strip()
+
+
 def build_prod_card_fill_from_contract(
     *,
     contract_no: str | None,
@@ -118,9 +130,11 @@ def build_prod_card_fill_from_contract(
     is_export = str(reg.get("is_export") or "").strip()
 
     if mode == "contract_no_select":
-        # 简道云「合同号选择1」linkDataMaps：仅合同号 / 业务员 / 单位名称 / 评审流水号
+        # 简道云「合同号选择1」linkDataMaps：源字段为关联合同「图纸编号」（WMGF…），非 KS 内部合同号
         return {
-            "yes_contract_no": contract_no or "",
+            "yes_contract_no": prod_card_yes_contract_no(
+                drawing_no=drawing_no, contract_no=contract_no,
+            ),
             "yes_sales_person": sales,
             "yes_customer_name": unit,
             "contract_tech_review_sn": reg.get("review_sn") or "",

@@ -8,6 +8,7 @@ import dayjs from 'dayjs'
 import { printHtml, escHtml } from '@/utils/printHtml'
 import { htmlToPdfBlob, type HtmlToPdfMargins } from '@/utils/htmlToPdf'
 import { openPdfPreview, setPdfPreviewLoading, closePdfPreview } from '@/components/PdfPreviewModal'
+import { fetchProdCardContractFill } from '@/components/lowcode/fields/ContractField'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import type { FieldDefinition, WfFlowStep } from '@/types/lowcode'
@@ -156,12 +157,45 @@ export function defaultProdCardPrintMode(form: Record<string, unknown>): ProdCar
   return isSupplementForm(form) ? 'supplement' : 'notice'
 }
 
-function drawingNo(form: Record<string, unknown>): string {
-  const a = String(form.no_drawing_no ?? '').trim()
-  if (a) return a
-  const b = String(form.yes_contract_no ?? '').trim()
-  if (b) return b
+/** 生产通知单「图纸编号」：否→drawing_no_query 带出 no_drawing_no（WMGF 图纸号） */
+function noticeDrawingNo(form: Record<string, unknown>): string {
+  const fromQuery = String(form.no_drawing_no ?? '').trim()
+  if (fromQuery) return fromQuery
   return String(form.drawing_no ?? '').trim()
+}
+
+/**
+ * 生产补充卡「图纸编号」：是→contract_no_select 带出 yes_contract_no（WMGF 合同号）。
+ * 不得使用 no_drawing_no（设计卡 KS 号，与补充单选合同语义不一致）。
+ */
+export function supplementDrawingNo(form: Record<string, unknown>): string {
+  const contract = String(form.yes_contract_no ?? '').trim()
+  if (contract) return contract
+  return String(form.drawing_no ?? '').trim()
+}
+
+/** 打印前补齐补充单合同号（库内只存 contract_no_select 引用，yes_contract_no 不落库） */
+async function enrichSupplementFormForPrint(
+  form: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (!isSupplementForm(form)) return form
+  const contractIds = collectIds(form.contract_no_select)
+  if (!contractIds.length) return form
+  try {
+    const pack = await fetchProdCardContractFill(contractIds[0], 'contract_no_select')
+    const yes = String(pack.fill?.yes_contract_no ?? '').trim()
+    if (yes) return { ...form, yes_contract_no: yes }
+  } catch {
+    /* 打印不因带出失败中断 */
+  }
+  return form
+}
+
+/** 生产补充卡 PDF 文件名前缀：对齐 Word「WMGF…补充…」，补充流程优先合同号。 */
+export function supplementPrintPrefix(form: Record<string, unknown>, businessNo?: string | null): string {
+  const prefix = supplementDrawingNo(form)
+  if (prefix) return prefix
+  return processNo(form, businessNo)
 }
 
 function salesPerson(form: Record<string, unknown>, labels: Labels): string {
@@ -416,7 +450,7 @@ function buildNoticeHtml(ctx: {
   steps?: WfFlowStep[] | null
 }): string {
   const { form, fields, labels, businessNo, steps } = ctx
-  const draw = drawingNo(form)
+  const draw = noticeDrawingNo(form)
   const sales = salesPerson(form, labels)
   const flowNo = processNo(form, businessNo)
   const submitter = personName(form.submitter, labels)
@@ -568,7 +602,7 @@ function buildSupplementHtml(ctx: {
   steps?: WfFlowStep[] | null
 }): string {
   const { form, fields, labels, businessNo, steps } = ctx
-  const draw = drawingNo(form)
+  const draw = supplementDrawingNo(form)
   const flowNo = processNo(form, businessNo)
   const sales = salesPerson(form, labels)
   const dept = deptName(form.department, labels)
@@ -650,7 +684,7 @@ function buildSupplementHtml(ctx: {
     </table>`
 
   const fileTitle = sanitizePrintFileName(
-    `${draw || flowNo}补充${cardDate || dayjs().format('YYYY-MM-DD')}`,
+    `${supplementPrintPrefix(form, businessNo)}补充${cardDate || dayjs().format('YYYY-MM-DD')}`,
     '生产补充卡',
   )
   return wrapDoc(fileTitle, body, 'supplement')
@@ -769,10 +803,13 @@ export async function printProdCardInstance(opts: {
   injectApproval?: ProdCardPrintInjectApproval | null
   legacyBrowserPrint?: boolean
 }): Promise<void> {
-  const form = opts.formData || {}
+  const rawForm = opts.formData || {}
+  const mode = opts.mode || defaultProdCardPrintMode(rawForm)
+  const form = mode === 'supplement'
+    ? await enrichSupplementFormForPrint(rawForm)
+    : rawForm
   const fields = opts.fieldDefinitions || []
   const labels = await resolveLabels(form)
-  const mode = opts.mode || defaultProdCardPrintMode(form)
   const flowSteps = mergeInjectedApprovalStep(opts.flowSteps, opts.injectApproval)
   const ctx = {
     form,

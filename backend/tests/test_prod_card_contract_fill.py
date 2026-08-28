@@ -76,11 +76,25 @@ def test_build_fill_contract_no_select():
         mode="contract_no_select",
     )
     assert fill == {
-        "yes_contract_no": "C9",
+        "yes_contract_no": "D9",
         "yes_sales_person": "u2",
         "yes_customer_name": "客户B",
         "contract_tech_review_sn": "R2",
     }
+
+
+def test_build_fill_contract_no_select_falls_back_contract_no_without_drawing():
+    fill = build_prod_card_fill_from_contract(
+        contract_no="C9",
+        drawing_no="",
+        assignee_id="u2",
+        assignee_name="李四",
+        customer_name="客户B",
+        registration_json={"review_sn": "R2"},
+        key_clauses_json=[],
+        mode="contract_no_select",
+    )
+    assert fill["yes_contract_no"] == "C9"
 
 
 def test_apply_prod_card_std_room_designer_scope():
@@ -454,7 +468,7 @@ def test_build_fill_contract_no_select_falls_back_reg_customer():
         mode="contract_no_select",
     )
     assert fill["yes_customer_name"] == "登记单位甲"
-    assert fill["yes_contract_no"] == "C9"
+    assert fill["yes_contract_no"] == "D9"
 
 
 def test_build_prod_card_fill_from_tar():
