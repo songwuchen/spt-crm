@@ -1184,11 +1184,21 @@ function DetailTable({
     }),
   ]
 
+  const tableMinWidth = useMemo(() => {
+    let sum = (showRowIndex ? 56 : 0) + (readonly ? 0 : 70)
+    for (const c of cols) sum += widthOf(c)
+    return sum
+  }, [cols, colWidths, readonly, showRowIndex])
+
   return (
     <div>
       <div
         className={wrapClass}
-        style={readonly ? undefined : { height: wrapHeight }}
+        style={
+          readonly
+            ? { width: '100%', overflowX: 'auto' as const }
+            : { height: wrapHeight }
+        }
       >
         <FillHeightTable
           size="small"
@@ -1197,18 +1207,20 @@ function DetailTable({
           dataSource={rows}
           columns={columns}
           bodyHeight={false}
+          naturalHeight={readonly}
           resizableColumns={!readonly}
           onColumnWidthChange={(colKey, width) => {
             setColWidths((prev) => ({ ...prev, [colKey]: width }))
           }}
           scroll={
             readonly
-              ? { x: 'max-content' }
+              ? undefined
               : {
                   x: 'max-content',
                   ...(bodyScrollY != null ? { y: bodyScrollY } : {}),
                 }
           }
+          style={readonly ? { minWidth: tableMinWidth } : undefined}
           locale={{ emptyText: '暂无明细' }}
         />
       </div>

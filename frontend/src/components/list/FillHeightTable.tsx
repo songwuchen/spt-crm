@@ -17,6 +17,8 @@ export type FillHeightTableProps<RecordType extends object = Record<string, unkn
   resizableColumns?: boolean
   /** 优先于内部 registry：列宽松手回调 */
   onColumnWidthChange?: (colKey: string, width: number) => void
+  /** 自然高度：不传 scroll，表格随内容撑开（只读明细子表） */
+  naturalHeight?: boolean
 }
 
 function colKeyOf(c: ColumnType<unknown>): string {
@@ -63,6 +65,7 @@ export default function FillHeightTable<RecordType extends object = Record<strin
   components,
   resizableColumns = true,
   onColumnWidthChange,
+  naturalHeight = false,
   columns,
   ...rest
 }: FillHeightTableProps<RecordType>) {
@@ -102,18 +105,20 @@ export default function FillHeightTable<RecordType extends object = Record<strin
     return sumWidths(mergedColumns as ColumnsType<unknown>) + selectionW
   }, [mergedColumns, scroll?.x, rest.rowSelection, useSumScroll])
 
-  const mergedScroll = {
-    x: scrollX,
-    ...(bodyHeight === false
-      ? (scroll?.y != null ? { y: scroll.y } : {})
-      : {
-          y: typeof scroll?.y === 'number'
-            ? scroll.y
-            : (typeof bodyHeight === 'number' ? bodyHeight : DEFAULT_TABLE_BODY_HEIGHT),
-        }),
-  }
+  const mergedScroll = naturalHeight
+    ? undefined
+    : {
+        x: scrollX,
+        ...(bodyHeight === false
+          ? (scroll?.y != null ? { y: scroll.y } : {})
+          : {
+              y: typeof scroll?.y === 'number'
+                ? scroll.y
+                : (typeof bodyHeight === 'number' ? bodyHeight : DEFAULT_TABLE_BODY_HEIGHT),
+            }),
+      }
 
-  const mergedComponents = resizableColumns
+  const mergedComponents = resizableColumns && !naturalHeight
     ? {
         ...components,
         header: {
@@ -205,7 +210,7 @@ export default function FillHeightTable<RecordType extends object = Record<strin
       <Table<RecordType>
         {...rest}
         columns={mergedColumns}
-        tableLayout={useSumScroll ? 'fixed' : undefined}
+        tableLayout={naturalHeight || useSumScroll ? 'fixed' : undefined}
         scroll={mergedScroll}
         components={mergedComponents}
         className={['fill-height-table-inner', className].filter(Boolean).join(' ')}
