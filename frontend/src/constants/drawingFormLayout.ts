@@ -478,9 +478,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   // 收款登记（内勤填写对齐 JDY separator）
   payment_registration: {
     contentMaxWidth: 1080,
-    listExpandDetail: 'payment_details',
+    // 不在列表展开来款明细：展开后 flat 行数与分页 total（主单数）不一致，
+    // 用户会感觉「少了很多单」；来款/分款明细在详情页查看。
     listColumns: [
-      'payment_date', 'customer_name', 'department',
+      'payment_no', 'payment_date', 'customer_name', 'department',
       'payment_total', 'sales_person',
     ],
     sections: [
