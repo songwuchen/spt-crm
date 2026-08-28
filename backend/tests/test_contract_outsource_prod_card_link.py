@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from app.domains.lowcode.pricing_checklist_fields import (
     CONTRACT_OUTSOURCE_PROD_CARD_LINK,
+    PICKABLE_EXCLUDED_STATUSES,
     PICKABLE_FORM_CODES,
+    PROD_CARD_SUPPLEMENT_PICKABLE_EXCLUDED_STATUSES,
     _prod_card_form_contract_ref_conds,
     build_contract_outsource_prod_card_fill,
     pick_column_defs,
+    pickable_excluded_statuses,
 )
 
 
@@ -20,7 +23,23 @@ def test_pick_columns_for_contract_outsource_link():
 
 
 def test_prod_card_form_contract_ref_conds_empty():
-    assert _prod_card_form_contract_ref_conds([]) is None
+    assert _prod_card_form_contract_ref_conds([], []) is None
+
+
+def test_prod_card_form_contract_ref_conds_matches_serial_in_drawing_no_query():
+    cid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    cond = _prod_card_form_contract_ref_conds(
+        [cid],
+        ["1.2.3-2026082201503", "WMGF202608141"],
+    )
+    assert cond is not None
+
+
+def test_prod_card_supplement_pickable_allows_draft():
+    assert "draft" in PICKABLE_EXCLUDED_STATUSES
+    assert "draft" not in PROD_CARD_SUPPLEMENT_PICKABLE_EXCLUDED_STATUSES
+    assert pickable_excluded_statuses("prod_card_supplement") == ("withdrawn",)
+    assert pickable_excluded_statuses("install_drawing_notice") == PICKABLE_EXCLUDED_STATUSES
 
 
 def test_build_contract_outsource_prod_card_fill_maps_fields():

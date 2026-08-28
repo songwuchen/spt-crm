@@ -70,6 +70,14 @@ PICKABLE_FORM_CODES = {
 } | {"prod_card_supplement"}
 # 草稿、已撤回不可选；已提交/审批中/已通过可选。
 PICKABLE_EXCLUDED_STATUSES = ("draft", "withdrawn")
+# 生产卡补充：列表可见的草稿也应可被外购件等流程关联，仅排除已撤回。
+PROD_CARD_SUPPLEMENT_PICKABLE_EXCLUDED_STATUSES = ("withdrawn",)
+
+
+def pickable_excluded_statuses(form_code: str) -> tuple[str, ...]:
+    if form_code == "prod_card_supplement":
+        return PROD_CARD_SUPPLEMENT_PICKABLE_EXCLUDED_STATUSES
+    return PICKABLE_EXCLUDED_STATUSES
 
 # 弹窗列表列，对齐简道云 linkFields。
 # 生产卡「项目号选择251128」弹窗列，对齐简道云 linkFields（非核价清单 link_install）。
@@ -253,17 +261,78 @@ async def _lookup_contract_ids_for_pick_keyword(
     return [str(x) for x in rows]
 
 
-def _prod_card_form_contract_ref_conds(contract_ids: list[str]):
-    """form_data 中 drawing_no_query / contract_no_select 命中合同 id（含 {id:…} 嵌套）。"""
-    if not contract_ids:
-        return None
+def _prod_card_form_contract_ref_conds(
+    contract_ids: list[str],
+    contract_ref_texts: list[str] | None = None,
+):
+    """form_data 中 drawing_no_query / contract_no_select 命中合同 id 或流水号/合同号/图纸号。"""
     parts = []
     for cid in contract_ids:
         for key in ("drawing_no_query", "contract_no_select"):
             col = FormInstance.form_data[key]
             parts.append(col.astext == cid)
             parts.append(col["id"].astext == cid)
-    return or_(*parts)
+    for txt in contract_ref_texts or []:
+        s = str(txt or "").strip()
+        if not s:
+            continue
+        for key in ("drawing_no_query", "contract_no_select"):
+            col = FormInstance.form_data[key]
+            parts.append(col.astext == s)
+            parts.append(col["id"].astext == s)
+    return or_(*parts) if parts else None
+
+
+async def _lookup_contract_ref_texts_for_ids(
+    db: AsyncSession,
+    tenant_id: str,
+    contract_ids: list[str],
+) -> list[str]:
+    """合同 id → 流水号/合同号/图纸号，用于生产卡选单反查 drawing_no_query 存流水号的场景。"""
+    from app.domains.contract.models import Contract
+
+    ids = [x for x in contract_ids if x]
+    if not ids:
+        return []
+    rows = (await db.execute(
+        select(Contract.serial_no, Contract.contract_no, Contract.drawing_no).where(
+            Contract.tenant_id == tenant_id,
+            Contract.id.in_(ids),
+        )
+    )).all()
+    out: list[str] = []
+    seen: set[str] = set()
+    for serial, cno, dno in rows:
+        for val in (serial, cno, dno):
+            s = str(val or "").strip()
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+    return out
+
+
+async def _prod_card_supplement_pick_keyword_conds(
+    db: AsyncSession,
+    tenant_id: str,
+    keyword: str,
+) -> list:
+    kw = (keyword or "").strip()
+    if not kw:
+        return []
+    like = f"%{kw}%"
+    kw_conds = [
+        FormInstance.title.ilike(like),
+        FormInstance.business_no.ilike(like),
+        cast(FormInstance.form_data, String).ilike(like),
+    ]
+    cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, kw)
+    ref_texts = await _lookup_contract_ref_texts_for_ids(db, tenant_id, cids)
+    ref_conds = _prod_card_form_contract_ref_conds(cids, ref_texts)
+    if ref_conds is not None:
+        kw_conds.append(ref_conds)
+    for key in ("no_drawing_no", "yes_drawing_no", "yes_contract_no"):
+        kw_conds.append(FormInstance.form_data[key].astext.ilike(like))
+    return kw_conds
 
 
 def _contract_label(val: Any, contract_names: dict[str, str] | None = None) -> str:
@@ -543,20 +612,18 @@ async def list_pickable_form_instances(
         total = len(id_list)
         page, page_size = 1, max(len(id_list), 1)
     else:
-        conds.append(FormInstance.status.notin_(list(PICKABLE_EXCLUDED_STATUSES)))
+        conds.append(FormInstance.status.notin_(list(pickable_excluded_statuses(form_code))))
         kw = (keyword or "").strip()
         if kw:
-            like = f"%{kw}%"
-            kw_conds = [
-                FormInstance.title.ilike(like),
-                FormInstance.business_no.ilike(like),
-                cast(FormInstance.form_data, String).ilike(like),
-            ]
             if form_code == "prod_card_supplement":
-                cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, kw)
-                ref_conds = _prod_card_form_contract_ref_conds(cids)
-                if ref_conds is not None:
-                    kw_conds.append(ref_conds)
+                kw_conds = await _prod_card_supplement_pick_keyword_conds(db, tenant_id, kw)
+            else:
+                like = f"%{kw}%"
+                kw_conds = [
+                    FormInstance.title.ilike(like),
+                    FormInstance.business_no.ilike(like),
+                    cast(FormInstance.form_data, String).ilike(like),
+                ]
             conds.append(or_(*kw_conds))
         total = int((await db.execute(
             select(func.count()).select_from(FormInstance).where(*conds)
