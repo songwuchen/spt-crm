@@ -11,6 +11,8 @@ from app.domains.lowcode.pricing_checklist_fields import (
     build_contract_outsource_prod_card_fill,
     pick_column_defs,
     pickable_excluded_statuses,
+    resolve_prod_card_office_for_fill,
+    split_prod_card_office_tokens,
 )
 
 
@@ -54,16 +56,16 @@ def test_build_contract_outsource_prod_card_fill_maps_fields():
             "drawing_no_query": cid,
             "no_drawing_no": "WMGF202608141",
             "design_assignees": ["u1", "u2"],
-            "offices": ["d1"],
+            "offices": ["dddddddd-dddd-dddd-dddd-dddddddddddd"],
         },
         user_names={"u1": "张三", "u2": "李四"},
-        dept_names={"d1": "设计科"},
+        dept_names={"dddddddd-dddd-dddd-dddd-dddddddddddd": "设计科"},
         contract_names={cid: "WMGF202608141"},
     )
     assert fill["prod_card_serial"] == "1.2.812800001"
     assert fill["contract_no"] == cid
     assert fill["design_assign"] == ["u1", "u2"]
-    assert fill["office"] == ["d1"]
+    assert fill["office"] == ["dddddddd-dddd-dddd-dddd-dddddddddddd"]
 
 
 def test_build_contract_outsource_prod_card_fill_supplement_contract_select():
@@ -76,16 +78,16 @@ def test_build_contract_outsource_prod_card_fill_supplement_contract_select():
             "contract_no_select": cid,
             "yes_contract_no": "YJ26527",
             "design_assignees": "u9",
-            "offices": "d9",
+            "offices": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
         },
         user_names={"u9": "王五"},
-        dept_names={"d9": "工艺科"},
+        dept_names={"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee": "工艺科"},
         contract_names={cid: "YJ26527"},
     )
     assert fill["prod_card_serial"] == "1.2.812800002"
     assert fill["contract_no"] == cid
     assert fill["design_assign"] == "u9"
-    assert fill["office"] == "d9"
+    assert fill["office"] == ["eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"]
 
 
 def test_resolve_prod_card_contract_serial_ref_shows_drawing_no():
@@ -151,3 +153,40 @@ def test_build_contract_outsource_prod_card_fill_resolves_serial_ref_to_uuid():
         contract_id_by_ref=id_by_ref,
     )
     assert fill["contract_no"] == cid
+
+
+def test_split_prod_card_office_tokens_comma_text():
+    assert split_prod_card_office_tokens("设计二室, 电气组") == ["设计二室", "电气组"]
+
+
+def test_resolve_prod_card_office_for_fill_maps_names_to_ids():
+    ids = resolve_prod_card_office_for_fill(
+        "设计二室, 电气组",
+        dept_ids_by_name={
+            "设计二室": "358019e9-6e02-44e5-9a2a-17c0379bbae7",
+            "电气组": "5d866695-1199-454f-a4c3-91b2256cc2df",
+        },
+    )
+    assert ids == [
+        "358019e9-6e02-44e5-9a2a-17c0379bbae7",
+        "5d866695-1199-454f-a4c3-91b2256cc2df",
+    ]
+
+
+def test_build_contract_outsource_prod_card_fill_resolves_office_names():
+    fill = build_contract_outsource_prod_card_fill(
+        business_no="1.2.817755",
+        form_data={
+            "serial_no": "1.2.817755",
+            "offices": "设计二室, 电气组",
+            "design_assignees": ["u1", "u2"],
+        },
+        dept_ids_by_name={
+            "设计二室": "358019e9-6e02-44e5-9a2a-17c0379bbae7",
+            "电气组": "5d866695-1199-454f-a4c3-91b2256cc2df",
+        },
+    )
+    assert fill["office"] == [
+        "358019e9-6e02-44e5-9a2a-17c0379bbae7",
+        "5d866695-1199-454f-a4c3-91b2256cc2df",
+    ]

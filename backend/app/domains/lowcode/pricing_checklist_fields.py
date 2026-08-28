@@ -2,6 +2,7 @@
 """核价清单传递：关联表单选择（简道云 linkfield）+ 选中后带出。"""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from sqlalchemy import String, cast, func, or_, select
@@ -492,6 +493,67 @@ def _resolve_prod_card_contract_for_outsource(
     return contract_id, text
 
 
+def split_prod_card_office_tokens(raw: Any) -> list[str]:
+    """生产卡 offices：UUID 列表或简道云文本「设计二室, 电气组」。"""
+    if raw in (None, "", []):
+        return []
+    if isinstance(raw, list):
+        out: list[str] = []
+        for item in raw:
+            rid = _as_id(item)
+            if rid:
+                out.append(rid)
+                continue
+            text = _as_text(item).strip()
+            if text:
+                out.extend(split_prod_card_office_tokens(text))
+        return out
+    text = str(raw).strip()
+    if not text:
+        return []
+    if _is_uuid(text):
+        return [text]
+    return [part.strip() for part in re.split(r"[,，、;；]", text) if part.strip()]
+
+
+def resolve_prod_card_office_for_fill(
+    offices_raw: Any,
+    *,
+    dept_ids_by_name: dict[str, str] | None = None,
+) -> list[str] | None:
+    """科室 department_multi：名称 → 部门 UUID 数组。"""
+    tokens = split_prod_card_office_tokens(offices_raw)
+    if not tokens:
+        return None
+    name_map = dept_ids_by_name or {}
+    out: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        dept_id = token if _is_uuid(token) else name_map.get(token)
+        if dept_id and dept_id not in seen:
+            seen.add(dept_id)
+            out.append(dept_id)
+    return out or None
+
+
+async def lookup_department_ids_by_names(
+    db: AsyncSession,
+    tenant_id: str,
+    names: list[str],
+) -> dict[str, str]:
+    """部门名称 → UUID（外购件选生产卡带出科室）。"""
+    clean = [n.strip() for n in names if n and n.strip() and not _is_uuid(n.strip())]
+    if not clean:
+        return {}
+    rows = (await db.execute(
+        select(Department.id, Department.name).where(
+            Department.tenant_id == tenant_id,
+            Department.name.in_(list(dict.fromkeys(clean))),
+        )
+    )).all()
+    return {str(name): str(did) for did, name in rows}
+
+
 def build_contract_outsource_prod_card_fill(
     *,
     business_no: str | None,
@@ -500,6 +562,7 @@ def build_contract_outsource_prod_card_fill(
     dept_names: dict[str, str] | None = None,
     contract_names: dict[str, str] | None = None,
     contract_id_by_ref: dict[str, str] | None = None,
+    dept_ids_by_name: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """合同外购件等：选中生产卡/补充流程后带出字段（对齐简道云 linkDataMaps）。"""
     data = form_data if isinstance(form_data, dict) else {}
@@ -515,11 +578,15 @@ def build_contract_outsource_prod_card_fill(
     offices = data.get("offices")
     if offices in (None, "", []):
         offices = data.get("office")
+    office_ids = resolve_prod_card_office_for_fill(
+        offices, dept_ids_by_name=dept_ids_by_name,
+    )
     fill: dict[str, Any] = {
         "prod_card_serial": serial,
         "design_assign": design,
-        "office": offices,
     }
+    if office_ids:
+        fill["office"] = office_ids
     if contract_id:
         fill["contract_no"] = contract_id
     return fill
@@ -684,6 +751,7 @@ async def list_pickable_form_instances(
     dept_ids: list[str] = []
     contract_ids: list[str] = []
     prod_card_contract_refs: list[str] = []
+    prod_card_office_names: list[str] = []
     project_ids: list[str] = []
     for inst in rows:
         data = inst.form_data if isinstance(inst.form_data, dict) else {}
@@ -701,6 +769,12 @@ async def list_pickable_form_instances(
         ))
         if form_code == "prod_card_supplement":
             dept_ids.extend(_collect_ref_ids(data.get("offices"), data.get("office")))
+            prod_card_office_names.extend(
+                token for token in split_prod_card_office_tokens(
+                    data.get("offices") or data.get("office"),
+                )
+                if token and not _is_uuid(token)
+            )
         for raw in (data.get("contract_no"), data.get("drawing_no")):
             rid = _as_id(raw)
             if rid and _is_uuid(rid):
@@ -740,6 +814,11 @@ async def list_pickable_form_instances(
 
     contract_names: dict[str, str] = {}
     contract_id_by_ref: dict[str, str] = {}
+    dept_ids_by_name: dict[str, str] = {}
+    if form_code == "prod_card_supplement" and prod_card_office_names:
+        dept_ids_by_name = await lookup_department_ids_by_names(
+            db, tenant_id, prod_card_office_names,
+        )
     if form_code == "prod_card_supplement" and prod_card_contract_refs:
         from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
         for ref in prod_card_contract_refs:
@@ -824,6 +903,7 @@ async def list_pickable_form_instances(
                 dept_names=dept_names,
                 contract_names=contract_names,
                 contract_id_by_ref=contract_id_by_ref,
+                dept_ids_by_name=dept_ids_by_name,
             )
         out.append(item)
     return {"items": out, "total": total, "page": page, "page_size": page_size, "columns": columns}
