@@ -340,7 +340,10 @@ function FieldItem({
   // 这里也不能把明文渲染出去。
   const masked = state?.masked || field.masked
   return (
-    <div className="mb-4 min-w-0 max-w-full overflow-hidden" data-lc-field={field.id}>
+    <div
+      className={`mb-4 min-w-0 max-w-full${field.type === 'detail_table' ? '' : ' overflow-hidden'}`}
+      data-lc-field={field.id}
+    >
       {(field.label || required) ? (
       <div style={{ marginBottom: 4, fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
         {required && <span style={{ color: '#ff4d4f', marginRight: 4 }}>*</span>}
@@ -1051,7 +1054,7 @@ function DetailTable({
   const wrapClass = [
     'detail-table-resizable-wrap',
     rows.length === 0 ? 'detail-table-resizable-wrap--empty' : '',
-    !readonly ? 'detail-table-resizable-wrap--edit' : '',
+    readonly ? 'detail-table-resizable-wrap--readonly' : 'detail-table-resizable-wrap--edit',
   ].filter(Boolean).join(' ')
 
   if (layout === 'cards') {
@@ -1185,7 +1188,7 @@ function DetailTable({
     <div>
       <div
         className={wrapClass}
-        style={{ height: wrapHeight }}
+        style={readonly ? undefined : { height: wrapHeight }}
       >
         <FillHeightTable
           size="small"
@@ -1194,14 +1197,18 @@ function DetailTable({
           dataSource={rows}
           columns={columns}
           bodyHeight={false}
-          resizableColumns
+          resizableColumns={!readonly}
           onColumnWidthChange={(colKey, width) => {
             setColWidths((prev) => ({ ...prev, [colKey]: width }))
           }}
-          scroll={{
-            x: 'max-content',
-            ...(bodyScrollY != null ? { y: bodyScrollY } : {}),
-          }}
+          scroll={
+            readonly
+              ? { x: 'max-content' }
+              : {
+                  x: 'max-content',
+                  ...(bodyScrollY != null ? { y: bodyScrollY } : {}),
+                }
+          }
           locale={{ emptyText: '暂无明细' }}
         />
       </div>

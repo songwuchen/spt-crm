@@ -730,18 +730,40 @@ input, textarea, select {
   background: rgba(19, 127, 236, 0.65);
 }
 
-/* 表单明细子表：高度随行数自适应（空表紧凑；有数据随内容增高，超出 max 后表内滚动） */
+/* 表单明细子表：编辑态封顶+表内滚动；只读态不封顶，随详情区滚动并支持横滑 */
 .detail-table-resizable-wrap {
-  overflow: hidden;
-  min-height: 72px;
-  max-height: 560px;
   margin-bottom: 4px;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 .detail-table-resizable-wrap--edit {
-  resize: vertical;
   overflow: auto;
+  min-height: 72px;
+  max-height: 560px;
+  resize: vertical;
+}
+.detail-table-resizable-wrap--readonly {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
+  min-height: 0;
+}
+.detail-table-resizable-wrap .fill-height-table-wrap {
+  min-width: min-content;
+  width: 100%;
+}
+.detail-table-resizable-wrap--readonly .ant-table-wrapper,
+.detail-table-resizable-wrap--readonly .ant-table,
+.detail-table-resizable-wrap--readonly .ant-table-container,
+.detail-table-resizable-wrap--readonly .ant-table-content,
+.detail-table-resizable-wrap--readonly .ant-table-body {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.detail-table-resizable-wrap--edit .ant-table-content,
+.detail-table-resizable-wrap--edit .ant-table-body {
+  overflow-x: auto !important;
 }
 .detail-table-resizable-wrap--empty .ant-table-placeholder .ant-table-cell {
   padding: 12px 8px !important;
@@ -751,9 +773,6 @@ input, textarea, select {
 }
 .detail-table-resizable-wrap--empty .ant-empty-description {
   margin-top: 4px;
-}
-.detail-table-resizable-wrap .fill-height-table-wrap {
-  min-width: min-content;
 }
 .detail-table-resizable-wrap .ant-table-cell {
   vertical-align: top;
