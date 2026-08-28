@@ -912,23 +912,6 @@ function isBlankDetailRow(row: unknown): boolean {
   )
 }
 
-const DETAIL_TABLE_HEADER_H = 40
-const DETAIL_TABLE_ROW_H = 40
-const DETAIL_TABLE_EMPTY_H = 72
-const DETAIL_TABLE_MAX_H = 560
-
-/** 明细子表外层高度：空表紧凑，有数据随行数增高，封顶后表体滚动 */
-function detailTableWrapMetrics(rowCount: number) {
-  const natural = rowCount <= 0
-    ? DETAIL_TABLE_EMPTY_H
-    : DETAIL_TABLE_HEADER_H + rowCount * DETAIL_TABLE_ROW_H + 4
-  const height = Math.min(DETAIL_TABLE_MAX_H, Math.max(DETAIL_TABLE_EMPTY_H, natural))
-  const bodyScrollY = rowCount > 0 && natural > DETAIL_TABLE_MAX_H
-    ? DETAIL_TABLE_MAX_H - DETAIL_TABLE_HEADER_H - 4
-    : undefined
-  return { height, bodyScrollY }
-}
-
 function DetailTable({
   field, readonly, value, onChange, onPatch, formValues = {}, rules = [], fields = [], layout = 'table', createFill = true,
 }: {
@@ -1050,11 +1033,10 @@ function DetailTable({
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const widthOf = (c: FieldDefinition) => colWidths[c.id] ?? defaultColWidth(c)
 
-  const { height: wrapHeight, bodyScrollY } = detailTableWrapMetrics(rows.length)
   const wrapClass = [
     'detail-table-resizable-wrap',
+    'detail-table-resizable-wrap--auto',
     rows.length === 0 ? 'detail-table-resizable-wrap--empty' : '',
-    readonly ? 'detail-table-resizable-wrap--readonly' : 'detail-table-resizable-wrap--edit',
   ].filter(Boolean).join(' ')
 
   if (layout === 'cards') {
@@ -1129,7 +1111,7 @@ function DetailTable({
   }
 
   const opColumn: ColumnType<Record<string, unknown>>[] = readonly ? [] : [{
-    title: '操作', key: '__op', width: 70, fixed: 'left' as const,
+    title: '操作', key: '__op', width: 70,
     render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
       <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(idx)} />
     ),
@@ -1139,7 +1121,6 @@ function DetailTable({
     title: '序号',
     key: '__row_index',
     width: 56,
-    fixed: 'left' as const,
     align: 'center' as const,
     render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
       <span className="text-slate-600">{idx + 1}</span>
@@ -1194,11 +1175,7 @@ function DetailTable({
     <div>
       <div
         className={wrapClass}
-        style={
-          readonly
-            ? { width: '100%', overflowX: 'auto' as const }
-            : { height: wrapHeight }
-        }
+        style={{ width: '100%', overflowX: 'auto' as const }}
       >
         <FillHeightTable
           size="small"
@@ -1207,20 +1184,12 @@ function DetailTable({
           dataSource={rows}
           columns={columns}
           bodyHeight={false}
-          naturalHeight={readonly}
+          naturalHeight
           resizableColumns={!readonly}
           onColumnWidthChange={(colKey, width) => {
             setColWidths((prev) => ({ ...prev, [colKey]: width }))
           }}
-          scroll={
-            readonly
-              ? undefined
-              : {
-                  x: 'max-content',
-                  ...(bodyScrollY != null ? { y: bodyScrollY } : {}),
-                }
-          }
-          style={readonly ? { minWidth: tableMinWidth } : undefined}
+          style={{ minWidth: tableMinWidth }}
           locale={{ emptyText: '暂无明细' }}
         />
       </div>

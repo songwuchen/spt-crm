@@ -118,7 +118,7 @@ export default function FillHeightTable<RecordType extends object = Record<strin
             }),
       }
 
-  const mergedComponents = resizableColumns && !naturalHeight
+  const mergedComponents = resizableColumns
     ? {
         ...components,
         header: {
