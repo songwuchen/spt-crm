@@ -489,6 +489,35 @@ def test_resolve_contract_id_for_fill_by_serial(monkeypatch):
     assert n >= 1
 
 
+def test_resolve_contract_id_for_fill_by_registration_json_serial():
+    import asyncio
+
+    from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
+
+    calls = {"n": 0}
+    target = "aa11bb22-cc33-dd44-ee55-ff6677889900"
+
+    async def fake_execute(_stmt):
+        calls["n"] += 1
+        hit = calls["n"] == 6  # uuid + 5 cols fail, 6th = registration_json
+
+        class R:
+            def scalar_one_or_none(self_inner):
+                return target if hit else None
+
+        return R()
+
+    class FakeDb:
+        async def execute(self, stmt):
+            return await fake_execute(stmt)
+
+    cid = asyncio.run(resolve_contract_id_for_fill(
+        FakeDb(), "00000000-0000-0000-0000-000000000001", "1.2.3-2026081901475",
+    ))
+    assert cid == target
+    assert calls["n"] == 6
+
+
 def test_build_fill_contract_no_select_falls_back_reg_customer():
     fill = build_prod_card_fill_from_contract(
         contract_no="C9",

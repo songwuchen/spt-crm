@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Table, Input, InputNumber, DatePicker, Button, Select, Radio, Space } from 'antd'
+import type { ColumnType } from 'antd/es/table'
 import { PlusOutlined, DeleteOutlined, TableOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import DataView, { formatMoney, formatScalar } from './DataView'
 import ContractSectionTitle from './ContractSectionTitle'
 import DetailQuickFillModal from './DetailQuickFillModal'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition } from '@/types/lowcode'
@@ -170,6 +172,25 @@ function useDetailColumns(
 }
 
 const SUM_KEY = 'amount'
+
+function defaultLineColWidth(f: FieldSpec): number {
+  if (typeof f.width === 'number' && f.width > 0) return f.width
+  if (f.key === 'standard' || (f.label || '').includes('技术参数')) return 200
+  if (f.key === 'name' || f.key === 'spec') return 160
+  return 140
+}
+
+function lineColWraps(f: FieldSpec): boolean {
+  return f.key === 'name' || f.key === 'spec' || f.key === 'standard' || f.key === 'line_remark'
+}
+
+function detailTableWrapClass(empty: boolean): string {
+  return [
+    'detail-table-resizable-wrap',
+    'detail-table-resizable-wrap--auto',
+    empty ? 'detail-table-resizable-wrap--empty' : '',
+  ].filter(Boolean).join(' ')
+}
 
 function resolve(row: Row, f: FieldSpec): unknown {
   if (row[f.key] != null && row[f.key] !== '') return row[f.key]
@@ -439,6 +460,9 @@ function EditableTermsTable({
   quickFill?: boolean
 }) {
   const [qfOpen, setQfOpen] = useState(false)
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const widthOfOp = colWidths.__op ?? 44
+  const widthOf = (f: FieldSpec) => colWidths[f.key] ?? defaultLineColWidth(f)
   const emit = (next: Row[]) => {
     onChange(next)
     onTotalChange?.(sumLineAmounts(next))
@@ -476,49 +500,74 @@ function EditableTermsTable({
   })
 
   const cols = [
-    ...visibleFields.map((f) => ({
-      title: f.required ? (
-        <span><span className="text-red-500 mr-0.5">*</span>{f.label}</span>
-      ) : f.label,
-      key: f.key,
-      width: f.width,
-      align: f.align,
-      render: (_: unknown, _r: Row, i: number) => {
-        const row = rows[i]
-        if (f.showWhen && !rowShows(f, row)) {
-          return <span className="text-slate-300">—</span>
-        }
-        return (
-          <CellEditor
-            f={f}
-            value={row[f.key]}
-            row={row}
-            onChange={(v) => update(i, f.key, v)}
-          />
-        )
-      },
-    })),
+    ...visibleFields.map((f) => {
+      const w = widthOf(f)
+      const wrap = lineColWraps(f)
+      return {
+        title: f.required ? (
+          <span><span className="text-red-500 mr-0.5">*</span>{f.label}</span>
+        ) : f.label,
+        key: f.key,
+        width: w,
+        align: f.align,
+        ellipsis: !wrap,
+        onHeaderCell: () => ({ width: w, colKey: f.key }),
+        onCell: wrap ? () => ({ className: 'detail-cell-wrap' }) : undefined,
+        render: (_: unknown, _r: Row, i: number) => {
+          const row = rows[i]
+          if (f.showWhen && !rowShows(f, row)) {
+            return <span className="text-slate-300">—</span>
+          }
+          return (
+            <CellEditor
+              f={f}
+              value={row[f.key]}
+              row={row}
+              onChange={(v) => update(i, f.key, v)}
+            />
+          )
+        },
+      }
+    }),
     {
       title: '',
       key: '__op',
-      width: 44,
+      width: widthOfOp,
+      onHeaderCell: () => ({ width: widthOfOp, colKey: '__op' }),
       render: (_: unknown, _r: Row, i: number) => (
         <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => delRow(i)} />
       ),
     },
   ]
 
+  const tableMinWidth = useMemo(() => {
+    let sum = widthOfOp
+    for (const f of visibleFields) sum += widthOf(f)
+    return sum
+  }, [visibleFields, colWidths, widthOfOp])
+
   return (
     <div>
-      <Table
-        size="small"
-        rowKey={(_r, i) => String(i)}
-        dataSource={rows}
-        columns={cols}
-        pagination={false}
-        scroll={{ x: 'max-content' }}
-        locale={{ emptyText: '暂无明细，点击下方「添加一行」' }}
-      />
+      <div
+        className={detailTableWrapClass(rows.length === 0)}
+        style={{ width: '100%', overflowX: 'auto' }}
+      >
+        <FillHeightTable
+          size="small"
+          rowKey={(_r, i) => String(i)}
+          dataSource={rows}
+          columns={cols as ColumnType<Row>[]}
+          pagination={false}
+          bodyHeight={false}
+          naturalHeight
+          resizableColumns
+          onColumnWidthChange={(colKey, width) => {
+            setColWidths((prev) => ({ ...prev, [colKey]: width }))
+          }}
+          style={{ minWidth: tableMinWidth }}
+          locale={{ emptyText: '暂无明细，点击下方「添加一行」' }}
+        />
+      </div>
       <Space className="mt-2">
         <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addRow}>添加一行</Button>
         {quickFill && (

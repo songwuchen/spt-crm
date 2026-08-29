@@ -239,7 +239,13 @@ async def resolve_contract_id_for_fill(
         ).scalar_one_or_none()
         if row:
             return str(row)
-    for col in (Contract.serial_no, Contract.contract_no, Contract.drawing_no):
+    for col in (
+        Contract.serial_no,
+        Contract.contract_no,
+        Contract.drawing_no,
+        Contract.peer_contract_no,
+        Contract.external_key,
+    ):
         row = (
             await db.execute(
                 select(Contract.id).where(
@@ -250,6 +256,17 @@ async def resolve_contract_id_for_fill(
         ).scalar_one_or_none()
         if row:
             return str(row)
+    # 简道云迁移：生产卡 link 字段存的是旧登记表流水号，CRM 重分配 serial_no 后原号在 registration_json
+    row = (
+        await db.execute(
+            select(Contract.id).where(
+                Contract.tenant_id == tenant_id,
+                Contract.registration_json["serial_no"].as_string() == raw,
+            ).order_by(Contract.updated_at.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    if row:
+        return str(row)
     return None
 
 
