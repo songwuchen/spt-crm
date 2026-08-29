@@ -28,8 +28,13 @@ def test_contract_detail_tables_in_catalog():
     assert pay_ids == ["due_date", "kind", "ratio", "amount", "remind", "note"]
     fx_price = next(c for c in by_id["line_items"]["detail_table_columns"] if c["id"] == "fx_price")
     assert fx_price["props"]["show_when"] == {"field": "is_fx", "equals": ["是"]}
+    assert fx_price.get("required") is True
     assert fx_price["props"].get("system_column") is True
     assert "_widget_" in (fx_price["props"].get("aliases") or [""])[0]
+    assert by_id["project_name"].get("required") is True
+    assert by_id["peer_contract_no"].get("required") is True
+    assert by_id["payment_desc"].get("required") is True
+    assert by_id["application_field"].get("required") is True
 
     merged = merge_native_overrides("contract", [{
         "id": "line_items", "native": True,
@@ -751,3 +756,25 @@ async def test_readonly_native_field_ignores_user_write(
     assert after["remark"] == "原始备注", "只读原生字段的写入必须被后端丢弃"
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
+
+
+def test_validate_detail_table_rows_contract_lines():
+    from app.common.exceptions import BusinessException
+    from app.domains.lowcode.field_permission import _validate_detail_table_rows
+    from app.domains.lowcode.native_field_catalog import get_native_fields
+
+    cols = next(f for f in get_native_fields("contract") if f["id"] == "line_items")["detail_table_columns"]
+
+    with pytest.raises(BusinessException) as exc:
+        _validate_detail_table_rows("合同明细", [], cols)
+    assert "合同明细" in exc.value.message
+
+    with pytest.raises(BusinessException) as exc2:
+        _validate_detail_table_rows("合同明细", [{
+            "is_fx": "否", "product_type": "复频筛", "name": "筛", "spec": "X", "unit": "台", "qty": 1,
+        }], cols)
+    assert "单价" in exc2.value.message
+
+    _validate_detail_table_rows("合同明细", [{
+        "is_fx": "否", "product_type": "复频筛", "name": "筛", "spec": "X", "unit": "台", "qty": 1, "price": 100,
+    }], cols)

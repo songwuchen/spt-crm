@@ -362,6 +362,7 @@ export default function EmbeddedLowcodeFormModal({
             )}
             side={(
               <WfFlowDynamics
+                fillParent
                 steps={wfDetail?.flow_steps || []}
                 comments={wfDetail?.comments || []}
                 onSubmitComment={wfDetail ? handleWfComment : undefined}

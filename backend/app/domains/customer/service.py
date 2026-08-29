@@ -91,6 +91,9 @@ async def resubmit_customer_review(
     if reuse and reuse.initiator_id == user.get("sub"):
         try:
             inst = await eng.resubmit(reuse.id, user)
+            for old in stale_insts:
+                if old.id != reuse.id:
+                    await eng._cancel_initiator_revise_todos(old.id)
             await _apply_customer_review_flow(db, tenant_id, customer, inst, user)
             await db.refresh(customer)
             await log_action(

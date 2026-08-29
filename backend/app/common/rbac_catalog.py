@@ -311,6 +311,7 @@ STANDARD_ROLES = [
         "desc": "对齐简道云设计指派人选（JDY role 63815e3a7fb607000acc9195）；方案/图纸/生产卡等「设计指派」字段",
         "perms": [
             "customer:view", "project:view", "quote:view", "contract:view", "product:view",
+            "contract_review:view", "tech_agreement_review:view",
             "solution:view",
             "approval:approve", "approval:decide",
         ],

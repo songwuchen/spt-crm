@@ -96,11 +96,12 @@ export default function TechAgreementReviewViewBody({
       </div>
       {showFlowPane && (
         <div
-          className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
+          className="w-[300px] shrink-0 h-full min-h-0 overflow-hidden rounded-md border border-slate-200 flex flex-col"
           style={{ maxHeight: '70vh' }}
         >
           {wfInstance ? (
             <WfFlowDynamics
+              fillParent
               steps={wfInstance.flow_steps || []}
               comments={wfInstance.comments || []}
               onSubmitComment={onSubmitComment}

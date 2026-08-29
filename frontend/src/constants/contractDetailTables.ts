@@ -19,9 +19,10 @@ function col(
   type: FieldDefinition['type'] = 'text',
   props: Record<string, unknown> = {},
   options?: SimpleOption[],
+  required = false,
 ): FieldDefinition {
   const fd: FieldDefinition = {
-    id, label, type, required: false,
+    id, label, type, required,
     props: { system_column: true, ...props },
   }
   if (options) fd.options = options
@@ -30,17 +31,54 @@ function col(
 
 const FX_SHOW = { field: 'is_fx', equals: ['是'] }
 
+function isBlank(v: unknown): boolean {
+  if (v == null || v === '') return true
+  if (Array.isArray(v) && v.length === 0) return true
+  return false
+}
+
+function colVisible(col: FieldDefinition, row: Record<string, unknown>): boolean {
+  const showWhen = (col.props as { show_when?: { field: string; equals: string[] } } | undefined)?.show_when
+  if (!showWhen?.field) return true
+  const v = row[showWhen.field]
+  return showWhen.equals.includes(v == null ? '' : String(v))
+}
+
+/** 校验合同明细行必填列；通过返回 null，否则返回提示文案。 */
+export function validateContractLineRows(
+  rows: Record<string, unknown>[],
+  columns: FieldDefinition[],
+  tableLabel = '合同明细',
+): string | null {
+  const nonEmpty = rows.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
+  if (!nonEmpty.length) return `请填写${tableLabel}`
+  for (let i = 0; i < nonEmpty.length; i++) {
+    const row = nonEmpty[i]
+    for (const c of columns) {
+      if (c.type === 'formula') continue
+      if ((c.props as { computed?: boolean } | undefined)?.computed) continue
+      if (c.available_on_create === false || c.fill_stage === 'approver') continue
+      if (!c.required) continue
+      if (!colVisible(c, row)) continue
+      if (isBlank(row[c.id])) {
+        return `「${tableLabel}」第 ${i + 1} 行「${c.label || c.id}」为必填项`
+      }
+    }
+  }
+  return null
+}
+
 /** 与目录 line_items.detail_table_columns 对齐 */
 export const FALLBACK_LINE_COLUMNS: FieldDefinition[] = [
-  col('is_fx', '是否外币合同', 'radio', { aliases: ['_widget_1621411268784'], width: 120, align: 'center' }, LINE_YES_NO_OPTS),
-  col('product_type', '产品类型', 'select', { aliases: ['_widget_1561431500162'], width: 130 }, LINE_PRODUCT_TYPE_OPTS),
-  col('name', '产品名称', 'text', { aliases: ['_widget_1561431500376'], width: 140 }),
-  col('spec', '规格型号', 'text', { aliases: ['_widget_1561431500392'], width: 120 }),
-  col('unit', '单位', 'text', { aliases: ['_widget_1561431500419'], width: 70, align: 'center' }),
-  col('qty', '数量', 'number', { aliases: ['_widget_1561431500458'], width: 90, align: 'right' }),
-  col('fx_price', '外币单价', 'number', { aliases: ['_widget_1621411268153'], width: 110, align: 'right', show_when: FX_SHOW }),
-  col('fx_rate', '汇率', 'number', { aliases: ['_widget_1621411269220'], width: 90, align: 'right', show_when: FX_SHOW }),
-  col('price', '单价', 'amount', { aliases: ['_widget_1561431500490'], width: 120, align: 'right' }),
+  col('is_fx', '是否外币合同', 'radio', { aliases: ['_widget_1621411268784'], width: 120, align: 'center' }, LINE_YES_NO_OPTS, true),
+  col('product_type', '产品类型', 'select', { aliases: ['_widget_1561431500162'], width: 130 }, LINE_PRODUCT_TYPE_OPTS, true),
+  col('name', '产品名称', 'text', { aliases: ['_widget_1561431500376'], width: 140 }, undefined, true),
+  col('spec', '规格型号', 'text', { aliases: ['_widget_1561431500392'], width: 120 }, undefined, true),
+  col('unit', '单位', 'text', { aliases: ['_widget_1561431500419'], width: 70, align: 'center' }, undefined, true),
+  col('qty', '数量', 'number', { aliases: ['_widget_1561431500458'], width: 90, align: 'right' }, undefined, true),
+  col('fx_price', '外币单价', 'number', { aliases: ['_widget_1621411268153'], width: 110, align: 'right', show_when: FX_SHOW }, undefined, true),
+  col('fx_rate', '汇率', 'number', { aliases: ['_widget_1621411269220'], width: 90, align: 'right', show_when: FX_SHOW }, undefined, true),
+  col('price', '单价', 'amount', { aliases: ['_widget_1561431500490'], width: 120, align: 'right' }, undefined, true),
   col('amount', '总价', 'amount', { aliases: ['_widget_1561431500514'], width: 130, align: 'right', computed: true }),
   col('fx_amount', '外币总价', 'number', { aliases: ['_widget_1621411268210'], width: 120, align: 'right', computed: true, show_when: FX_SHOW }),
   col('elec_ctrl', '电控装置', 'select', { aliases: ['_widget_1561431500595'], width: 150 }, LINE_ELEC_CTRL_OPTS),

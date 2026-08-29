@@ -2338,6 +2338,10 @@ class WorkflowEngine:
         if inst.biz_type and inst.biz_id:
             from app.domains.lowcode.wf_biz_writeback import writeback
             await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, status, reason=reason)
+            if status == "completed":
+                await self._cancel_biz_stale_revise(
+                    inst.biz_type, inst.biz_id, keep_process_id=inst.id,
+                )
         # outbox 领域事件必须在 commit 之前入队
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(
@@ -2819,6 +2823,10 @@ class WorkflowEngine:
 
         # 清掉发起人修订待办（若从「我发起的」直接重提，也可能仍挂着）
         await self._cancel_initiator_revise_todos(inst.id)
+        if inst.biz_type and inst.biz_id:
+            await self._cancel_biz_stale_revise(
+                inst.biz_type, inst.biz_id, keep_process_id=inst.id,
+            )
 
         # 防重：同一表单/业务已有其它进行中流程则直接返回
         if inst.form_instance_id:

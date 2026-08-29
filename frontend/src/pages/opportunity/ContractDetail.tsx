@@ -18,7 +18,7 @@ import {
   toCanonicalRows, sumLineAmounts, resolveLineColumns, resolvePayColumns,
   ContractSubtableTitle,
 } from '@/components/ContractTerms'
-import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
+import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID, validateContractLineRows } from '@/constants/contractDetailTables'
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 
 function linkedOpportunityName(c: ContractItem): string | undefined {
@@ -197,6 +197,12 @@ export default function ContractDetail() {
           if (name?.length) {
             editForm.scrollToField(name, { behavior: 'smooth', block: 'center' })
           }
+          return
+        }
+        const { lineCols } = await loadContractDetailColumns()
+        const lineErr = validateContractLineRows(editLines, lineCols)
+        if (lineErr) {
+          message.warning(lineErr)
           return
         }
       } else {

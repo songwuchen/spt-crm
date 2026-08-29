@@ -432,6 +432,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     # 字段级权限：丢弃用户对不可编辑/隐藏/脱敏扩展字段的写入，并校验必填
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+        validate_entity_detail_tables,
     )
     cfj = await sanitize_entity_write(
         db, tenant_id, "contract", data.custom_fields_json, None, user.get("roles"))
@@ -452,6 +453,12 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     native = await enforce_native_field_policy(
         db, tenant_id, "contract", native_payload, None, user.get("roles"),
         required_scope="payload",
+        skip_required=as_draft,
+    )
+    await validate_entity_detail_tables(
+        db, tenant_id, "contract",
+        {"key_clauses_json": data.key_clauses_json},
+        user.get("roles"),
         skip_required=as_draft,
     )
 
@@ -952,6 +959,14 @@ async def submit_version_for_approval(
     version = await get_version(db, tenant_id, version_id, user)
     if version.status in ("approved", "signed"):
         raise BusinessException(code=BUSINESS_ERROR, message=f"当前版本状态「{version.status}」不可再提交审批")
+
+    from app.domains.lowcode.field_permission import validate_entity_detail_tables
+    await validate_entity_detail_tables(
+        db, tenant_id, "contract",
+        {"key_clauses_json": version.key_clauses_json},
+        user.get("roles"),
+        skip_required=False,
+    )
 
     await _ensure_contract_version_default_flow(db, tenant_id)
 

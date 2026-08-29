@@ -349,6 +349,81 @@ async def enforce_native_field_policy(
     return payload
 
 
+def _detail_row_has_value(row: dict) -> bool:
+    return any(v is not None and v != "" for v in row.values())
+
+
+def _detail_col_visible(col: dict, row: dict) -> bool:
+    props = col.get("props") or {}
+    show_when = props.get("show_when")
+    if not isinstance(show_when, dict):
+        return True
+    field = show_when.get("field")
+    if not field:
+        return True
+    equals = show_when.get("equals") or []
+    val = row.get(field)
+    s = "" if val is None else str(val)
+    return s in [str(x) for x in equals]
+
+
+def _validate_detail_table_rows(table_label: str, rows: Any, columns: list[dict]) -> None:
+    from app.common.error_codes import VALIDATION_ERROR
+    from app.common.exceptions import BusinessException
+
+    if not isinstance(rows, list):
+        rows = []
+    non_empty = [r for r in rows if isinstance(r, dict) and _detail_row_has_value(r)]
+    if not non_empty:
+        raise BusinessException(code=VALIDATION_ERROR, message=f"请填写{table_label}")
+    for i, row in enumerate(non_empty):
+        for col in columns:
+            if col.get("type") == "formula":
+                continue
+            props = col.get("props") or {}
+            if props.get("computed"):
+                continue
+            if col.get("available_on_create") is False or col.get("fill_stage") == "approver":
+                continue
+            if not col.get("required"):
+                continue
+            if not _detail_col_visible(col, row):
+                continue
+            cid = col.get("id")
+            if _is_blank(row.get(cid)):
+                label = col.get("label") or cid
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=f"「{table_label}」第 {i + 1} 行「{label}」为必填项",
+                )
+
+
+async def validate_entity_detail_tables(
+    db, tenant_id: str, entity_type: str, payload: dict, user_roles,
+    *, skip_required: bool = False,
+) -> None:
+    """校验业务实体明细子表列必填（key_clauses_json 等 JSON 列）。"""
+    from app.domains.lowcode.native_field_catalog import has_native_catalog
+    from app.domains.lowcode.service import get_entity_form_schema
+
+    if skip_required or is_system_principal(user_roles):
+        return
+    if not has_native_catalog(entity_type):
+        return
+    schema = await get_entity_form_schema(db, tenant_id, entity_type)
+    for fd in schema["native_fields"]:
+        if fd.get("type") != "detail_table":
+            continue
+        storage = fd.get("entity_storage")
+        if not storage:
+            continue
+        rows = payload.get(storage)
+        cols = fd.get("detail_table_columns") or []
+        if not cols:
+            continue
+        _validate_detail_table_rows(fd.get("label") or storage, rows, cols)
+
+
 async def sanitize_entity_write(db, tenant_id: str, entity_type: str, incoming: Any, prior: Any, user_roles) -> Any:
     """丢弃用户对不可编辑/隐藏扩展字段的写入，保留原值（写入路径，后端权威边界）。"""
     if incoming is None or not isinstance(incoming, dict):

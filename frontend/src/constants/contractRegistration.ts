@@ -163,8 +163,8 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
         availableOnCreate: true,
         placeholder: '从合同图纸对应表选择',
       },
-      { key: 'project_name', label: '项目名称', source: 'reg', widget: 'text' },
-      { key: 'peer_contract_no', label: '对方合同号', source: 'native', widget: 'text' },
+      { key: 'project_name', label: '项目名称', source: 'reg', widget: 'text', required: true },
+      { key: 'peer_contract_no', label: '对方合同号', source: 'native', widget: 'text', required: true },
       { key: 'tax_included', label: '是否含税', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       { key: 'is_export', label: '设备是否出口', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       {
@@ -207,7 +207,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '抖店', label: '抖店' },
         ],
       },
-      { key: 'standard_delivery', label: '是否标准交付', source: 'reg', widget: 'radio', options: YES_NO },
+      { key: 'standard_delivery', label: '是否标准交付', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       {
         key: 'delivery_mode', label: '方式', source: 'reg', widget: 'radio',
         options: [
@@ -219,7 +219,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
         showWhen: { field: 'standard_delivery', source: 'reg', equals: ['是'] },
         requiredWhen: { field: 'standard_delivery', source: 'reg', equals: ['是'] },
       },
-      { key: 'is_rotary_sieve', label: '是否为旋振筛', source: 'reg', widget: 'radio', options: YES_NO },
+      { key: 'is_rotary_sieve', label: '是否为旋振筛', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       {
         key: 'fill_code', label: '填写代码', source: 'reg', widget: 'text',
         showWhen: { field: 'is_rotary_sieve', source: 'reg', equals: ['是'] },
@@ -233,7 +233,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
       { key: 'tech_requirements', label: '技术参数及要求', source: 'reg', widget: 'textarea' },
       { key: 'packaging', label: '包装情况', source: 'reg', widget: 'text' },
       {
-        key: 'paint_req', label: '油漆要求', source: 'reg', widget: 'radio',
+        key: 'paint_req', label: '油漆要求', source: 'reg', widget: 'radio', required: true,
         options: [
           { value: '有协议指定要求', label: '有协议指定要求' },
           { value: '待定', label: '待定' },
@@ -243,7 +243,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
         ],
       },
       {
-        key: 'workload', label: '工作量', source: 'reg', widget: 'radio',
+        key: 'workload', label: '工作量', source: 'reg', widget: 'radio', required: true,
         options: [
           { value: '设备', label: '设备' },
           { value: '备件', label: '备件' },
@@ -267,7 +267,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '现金', label: '现金' },
         ],
       },
-      { key: 'payment_desc', label: '付款方式文字描述', source: 'reg', widget: 'text' },
+      { key: 'payment_desc', label: '付款方式文字描述', source: 'reg', widget: 'text', required: true },
       { key: 'delivery_date', label: '合同交货期', source: 'native', widget: 'date', required: true },
       { key: 'delivery_clause', label: '交货期条款', source: 'reg', widget: 'text' },
     ],
@@ -305,8 +305,8 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '出口', label: '出口' },
         ],
       },
-      { key: 'application_field', label: '应用领域', source: 'reg', widget: 'select', lookupFormCode: 'application_field' },
-      { key: 'application_material', label: '应用物料', source: 'reg', widget: 'select', lookupFormCode: 'application_material' },
+      { key: 'application_field', label: '应用领域', source: 'reg', widget: 'select', lookupFormCode: 'application_field', required: true },
+      { key: 'application_material', label: '应用物料', source: 'reg', widget: 'select', lookupFormCode: 'application_material', required: true },
       { key: 'has_intelligence', label: '是否含智能化', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       {
         key: 'smart_points', label: '智能点', source: 'reg', widget: 'checkbox',

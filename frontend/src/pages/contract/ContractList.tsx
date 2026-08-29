@@ -22,7 +22,7 @@ import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import ContractRegistrationFields from '@/components/ContractRegistrationFields'
 import ContractAttachmentSlots, { flushPendingAttachments, type PendingAttachments } from '@/components/ContractAttachmentSlots'
 import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
-import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
+import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID, FALLBACK_LINE_COLUMNS, validateContractLineRows } from '@/constants/contractDetailTables'
 import dayjs from 'dayjs'
 import { formatFormDate, isValidFormDate } from '@/utils/formDate'
 import { downloadFile } from '@/utils/download'
@@ -147,6 +147,11 @@ export default function ContractList() {
       const cfError = customFieldsRef.current?.validate()
       if (cfError) {
         message.error(cfError)
+        return
+      }
+      const lineErr = validateContractLineRows(createLines, FALLBACK_LINE_COLUMNS)
+      if (lineErr) {
+        message.warning(lineErr)
         return
       }
     } else {

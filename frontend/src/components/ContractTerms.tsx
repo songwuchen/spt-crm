@@ -30,6 +30,7 @@ export interface FieldSpec {
   key: string
   label: string
   kind: Kind
+  required?: boolean
   aliases?: string[]
   width?: number
   align?: Align
@@ -60,6 +61,7 @@ export function columnsToFieldSpecs(columns: FieldDefinition[]): FieldSpec[] {
       key: c.id,
       label: c.label,
       kind: typeToKind(c.type, props),
+      required: c.required,
       aliases: Array.isArray(aliases) ? aliases : undefined,
       width,
       align,
@@ -475,7 +477,9 @@ function EditableTermsTable({
 
   const cols = [
     ...visibleFields.map((f) => ({
-      title: f.label,
+      title: f.required ? (
+        <span><span className="text-red-500 mr-0.5">*</span>{f.label}</span>
+      ) : f.label,
       key: f.key,
       width: f.width,
       align: f.align,
