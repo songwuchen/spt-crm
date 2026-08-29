@@ -3,6 +3,8 @@
 from httpx import AsyncClient
 import datetime
 
+from tests.contract_helpers import contract_submit_payload, contract_registration_payload
+
 
 async def test_contract_peek_drawing_no(client: AsyncClient, auth_headers: dict):
     """新建合同登记可预览图纸编号（默认 WMGF）。"""
@@ -173,6 +175,7 @@ async def test_contract_full_flow(client: AsyncClient, auth_headers: dict):
     # Create contract（合同号必填，测试显式传入）
     c_resp = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={
         "contract_no": f"CT-TEST-{proj_id[:8].upper()}",
+        **contract_submit_payload(amount_total=1000),
     }, headers=h)
     assert c_resp.json()["code"] == 0
     contract_id = c_resp.json()["data"]["contract"]["id"]
@@ -261,7 +264,11 @@ async def test_masked_contract_amount_cannot_be_overwritten(client: AsyncClient,
         "name": "脱敏合同商机", "customer_id": cust_id, "stage_code": "S1",
     }, headers=h)).json()["data"]["id"]
     contract_id = (await client.post(f"/api/v1/projects/{proj_id}/contracts",
-                                     json={"contract_no": f"CT-MASK-{proj_id[:8].upper()}", "amount_total": 88888}, headers=h)
+                                     json={
+                                         "contract_no": f"CT-MASK-{proj_id[:8].upper()}",
+                                         "amount_total": 88888,
+                                         **contract_submit_payload(amount_total=88888),
+                                     }, headers=h)
                    ).json()["data"]["contract"]["id"]
 
     try:
@@ -294,6 +301,7 @@ async def test_contract_customer_id_required(client: AsyncClient, auth_headers: 
         "contract_no": f"CT-NOCUST-{datetime.datetime.now().strftime('%H%M%S%f')}",
         "drawing_no": peek,
         "as_draft": False,
+        **contract_submit_payload(),
     }, headers=h)
     assert missing.json()["code"] != 0
     assert "关联客户" in (missing.json().get("message") or "")
@@ -308,6 +316,7 @@ async def test_contract_customer_id_required(client: AsyncClient, auth_headers: 
     blocked = await client.put(f"/api/v1/contracts/{cid}", json={
         "as_draft": False,
         "customer_id": None,
+        **contract_registration_payload(),
     }, headers=h)
     assert blocked.json()["code"] != 0
     assert "关联客户" in (blocked.json().get("message") or "")
@@ -318,6 +327,7 @@ async def test_contract_customer_id_required(client: AsyncClient, auth_headers: 
     ok = await client.put(f"/api/v1/contracts/{cid}", json={
         "as_draft": False,
         "customer_id": cust_id,
+        **contract_registration_payload(),
     }, headers=h)
     assert ok.json()["code"] == 0, ok.text
 

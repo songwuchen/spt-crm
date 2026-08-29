@@ -415,9 +415,9 @@ async def validate_entity_detail_tables(
         if fd.get("type") != "detail_table":
             continue
         storage = fd.get("entity_storage")
-        if not storage:
+        if not storage or storage not in payload:
             continue
-        rows = payload.get(storage)
+        rows = payload[storage]
         cols = fd.get("detail_table_columns") or []
         if not cols:
             continue

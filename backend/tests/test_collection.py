@@ -3,6 +3,8 @@
 import datetime
 from httpx import AsyncClient
 
+from tests.contract_helpers import contract_submit_payload
+
 
 async def test_ar_aging(client: AsyncClient, auth_headers: dict):
     h = auth_headers
@@ -12,7 +14,9 @@ async def test_ar_aging(client: AsyncClient, auth_headers: dict):
     proj = await client.post("/api/v1/projects", json={"name": "账龄商机", "customer_id": cust_id}, headers=h)
     proj_id = proj.json()["data"]["id"]
     c = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={
-        "contract_no": f"CT-AGING-{proj_id[:8].upper()}", "amount_total": 100000,
+        "contract_no": f"CT-AGING-{proj_id[:8].upper()}",
+        "amount_total": 100000,
+        **contract_submit_payload(amount_total=100000),
     }, headers=h)
     contract_id = c.json()["data"]["contract"]["id"]
     await client.post(f"/api/v1/contracts/{contract_id}/sign", json={"signed_date": today}, headers=h)
