@@ -625,12 +625,29 @@ input, textarea, select {
 .spt-record-detail-body__side {
   width: 300px;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
 }
-.spt-record-detail-body--fill .spt-record-detail-body__side {
+
+/* 审批抽屉 · 占满视口，右侧流程动态在组件内滚动 */
+.wf-approve-drawer-root .ant-drawer-content-wrapper {
+  height: 100%;
+}
+.wf-approve-drawer-root .ant-drawer-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.wf-approve-drawer .ant-drawer-body {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 简道云式 · 记录侧边详情（列表仍可见左侧） */

@@ -19,20 +19,24 @@ export default function RecordDetailBodyLayout({
   showSide?: boolean
 }) {
   const stretch = fillHeight ?? fullscreen ?? false
+  const paneH = contentMaxH
+    ? { height: contentMaxH, maxHeight: contentMaxH, minHeight: 0 }
+    : undefined
   return (
     <div
       className={`spt-record-detail-body${stretch ? ' spt-record-detail-body--fill' : ''}`}
+      style={stretch && paneH ? { minHeight: 0, flex: 1 } : undefined}
     >
       <div
         className="spt-record-detail-body__main"
-        style={contentMaxH ? { maxHeight: contentMaxH } : undefined}
+        style={paneH}
       >
         {main}
       </div>
       {showSide && side ? (
         <div
           className="spt-record-detail-body__side"
-          style={contentMaxH ? { maxHeight: contentMaxH } : undefined}
+          style={paneH}
         >
           {side}
         </div>

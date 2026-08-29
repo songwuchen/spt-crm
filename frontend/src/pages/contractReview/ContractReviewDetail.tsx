@@ -205,10 +205,11 @@ export default function ContractReviewDetail() {
       <div className="flex gap-4 items-start">
         {main}
         <aside
-          className="w-[300px] shrink-0 sticky top-4 hidden md:block self-start rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
+          className="w-[300px] shrink-0 sticky top-4 hidden md:flex md:flex-col self-start rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white min-h-0"
           style={{ height: 'calc(100vh - 140px)', maxHeight: 840 }}
         >
           <WfFlowDynamics
+            fillParent
             steps={wfInstance?.flow_steps || []}
             comments={wfInstance?.comments || []}
             onSubmitComment={wfInstance ? handleWfComment : undefined}
@@ -219,10 +220,11 @@ export default function ContractReviewDetail() {
       </div>
 
       <div
-        className="md:hidden mt-4 rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
+        className="md:hidden mt-4 rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white flex flex-col min-h-0"
         style={{ height: 420 }}
       >
         <WfFlowDynamics
+          fillParent
           steps={wfInstance?.flow_steps || []}
           comments={wfInstance?.comments || []}
           onSubmitComment={wfInstance ? handleWfComment : undefined}

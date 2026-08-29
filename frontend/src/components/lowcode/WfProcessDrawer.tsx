@@ -1151,8 +1151,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           </div>
 
           {/* 右侧/下方：流程动态（始终展示，避免 hidden md:block 在窄屏/缩放时整栏消失） */}
-          <div className="w-full lg:w-[320px] shrink-0 flex flex-col min-h-[280px] lg:min-h-0 lg:self-stretch border-t lg:border-t-0 lg:border-l border-slate-200 overflow-hidden bg-slate-50">
+          <div className="w-full lg:w-[320px] shrink-0 flex flex-col min-h-[280px] lg:min-h-0 lg:h-full lg:self-stretch border-t lg:border-t-0 lg:border-l border-slate-200 overflow-hidden bg-slate-50">
             <WfFlowDynamics
+              fillParent
               steps={detail.flow_steps || []}
               comments={detail.comments || []}
               tab={sideTab}
