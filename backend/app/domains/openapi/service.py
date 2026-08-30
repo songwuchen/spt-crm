@@ -1186,6 +1186,23 @@ async def _import_jdy_flow_history(
             },
         ))
 
+    # 进行中：补一条仅展示用的「流程进行中」节点（无 pending 任务 → 不进收件箱待办）。
+    # 中台 flow_logs 只有已办完步骤，否则侧栏会看起来像已走完。
+    if flow_status == "running":
+        cur_start = max(times) if times else started_at
+        db.add(WfNodeInstance(
+            id=generate_uuid(),
+            tenant_id=ctx.tenant_id,
+            process_instance_id=inst.id,
+            node_def_id="jdy_import_current",
+            node_type="approval",
+            node_name="流程进行中",
+            status="running",
+            config={"source": "jdy", "display_only": True},
+            started_at=cur_start,
+            completed_at=None,
+        ))
+
     await db.flush()
     return inst.id
 
