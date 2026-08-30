@@ -3456,6 +3456,33 @@ def _flow_is_jdy_contract_outsource_early(nodes: list | None) -> bool:
     return "设计指派" in names and "采购安排" in names and "approval" in types and len(nodes or []) >= 5
 
 
+def _flow_outsource_biz_mgr_needs_dept_head(nodes: list | None) -> bool:
+    """用户画布「业务部门经理」误配 direct_supervisor（按发起人上级）→ 应按表单部门负责人。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if "业务部门经理" not in str(n.get("name") or ""):
+            continue
+        rule = n.get("approver_rule") or {}
+        return isinstance(rule, dict) and rule.get("type") == "direct_supervisor"
+    return False
+
+
+def apply_contract_outsource_biz_dept_head(nodes: list | None) -> bool:
+    """合同外购件：业务部门经理按表单 department 的部门负责人审批（dept_head）。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if "业务部门经理" not in str(n.get("name") or ""):
+            continue
+        rule = n.get("approver_rule") or {}
+        if isinstance(rule, dict) and rule.get("type") == "direct_supervisor":
+            n["approver_rule"] = {"type": "dept_head", "exclude_initiator": True}
+            changed = True
+    return changed
+
+
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
     """旧生成器把部门主管写成 department_leader，需升级为 dept_head。"""
     for n in nodes or []:
@@ -5026,6 +5053,20 @@ async def _upgrade_drawing_form_flow_if_needed(
                 "补回安排设计1→物料编码(transfer_packaging为空)",
             )
             return
+    # 合同外购件：业务部门经理须按表单「部门」负责人，不能用 direct_supervisor（发起人上级）
+    if form_code == "contract_outsource_early":
+        version = await _published_version(db, tenant_id, d.id)
+        if version and _flow_outsource_biz_mgr_needs_dept_head(version.node_definitions):
+            import copy
+            patched_nodes = copy.deepcopy(version.node_definitions or [])
+            if apply_contract_outsource_biz_dept_head(patched_nodes):
+                await _publish_system_default_upgrade(
+                    db, tenant_id, d, version,
+                    patched_nodes, version.route_definitions,
+                    d.description or DRAWING_FORM_FLOW_DESC,
+                    "业务部门经理改为按表单部门负责人(dept_head)",
+                )
+                return
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
     if d.code not in (

@@ -3,6 +3,8 @@ from app.domains.lowcode.builtin_templates import get_builtin, list_builtin
 from app.domains.lowcode.workflow_service import (
     _flow_is_jdy_contract_outsource_early,
     _flow_is_jdy_tech_agreement_feedback,
+    _flow_outsource_biz_mgr_needs_dept_head,
+    apply_contract_outsource_biz_dept_head,
 )
 
 
@@ -42,3 +44,14 @@ def test_contract_outsource_early_builtin_pack():
     pack = TECH_FEEDBACK_OUTSOURCE_JDY["contract_outsource_early"]
     nodes = pack.get("flow_nodes") or []
     assert _flow_is_jdy_contract_outsource_early(nodes)
+
+
+def test_contract_outsource_biz_mgr_upgrades_to_dept_head():
+    nodes = [{
+        "id": "aphpkw2", "type": "approval", "name": "业务部门经理",
+        "approver_rule": {"type": "direct_supervisor"},
+    }]
+    assert _flow_outsource_biz_mgr_needs_dept_head(nodes)
+    assert apply_contract_outsource_biz_dept_head(nodes)
+    assert nodes[0]["approver_rule"] == {"type": "dept_head", "exclude_initiator": True}
+    assert not _flow_outsource_biz_mgr_needs_dept_head(nodes)
