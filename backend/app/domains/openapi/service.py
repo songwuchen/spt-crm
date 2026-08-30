@@ -836,7 +836,10 @@ _FLOW_ACTION_ALIASES = {
     "reject": "reject",
     "back": "reject",
     "return": "return",
-    "cc": "comment",
+    "cc": "cc",
+    "transfer": "transfer",
+    "batch_transfer": "transfer",
+    "auto_transfer": "auto_transfer",
     "auto": "auto_approve",
     "提交": "submit",
     "发起": "submit",
@@ -847,9 +850,13 @@ _FLOW_ACTION_ALIASES = {
     "收录/袭击": "approve",
     "驳回": "reject",
     "回退": "reject",
+    "转交": "transfer",
+    "抄送": "cc",
     "approve": "approve",
     "approved": "approve",
 }
+# 节点内保存/编辑不进入流程动态（简道云 UI 也不当审批步展示）。
+_FLOW_ACTION_SKIP = frozenset({"save", "edit", "update"})
 _JDY_IMPORT_BIZ_NO = "jdy-import"
 
 
@@ -1105,15 +1112,25 @@ async def _import_jdy_flow_history(
     await db.flush()
 
     for idx, step in enumerate(ordered):
-        node_name = (_flow_step_get(step, "node_name") or "").strip() or f"节点{idx + 1}"
-        action = _normalize_flow_action(_flow_step_get(step, "action"))
-        opinion = (_flow_step_get(step, "opinion") or "").strip() or None
         raw_action = (_flow_step_get(step, "action") or "").strip()
+        if raw_action.lower() in _FLOW_ACTION_SKIP:
+            continue
+        node_name = (_flow_step_get(step, "node_name") or "").strip() or f"节点{idx + 1}"
+        action = _normalize_flow_action(raw_action)
+        opinion = (_flow_step_get(step, "opinion") or "").strip() or None
         if raw_action and raw_action not in _FLOW_ACTION_ALIASES and action == "approve":
             opinion = f"{raw_action}" + (f"；{opinion}" if opinion else "")
         node_status = "rejected" if action in ("reject", "auto_reject", "return") else "completed"
-        node_type = "start" if idx == 0 and ("递呈" in node_name or "发起" in node_name) else "approval"
+        if action == "cc":
+            node_type = "cc"
+        elif "递呈" in node_name or "发起" in node_name:
+            node_type = "start"
+        else:
+            node_type = "approval"
         handler_name = _flow_step_get(step, "handler_name")
+        # 简道云系统账号 / 纯数字占位不展示成「处理人」
+        if isinstance(handler_name, str) and handler_name.strip().isdigit() and len(handler_name.strip()) >= 12:
+            handler_name = "系统"
         actor_id, actor_name = await resolve_actor(handler_name)
         n_started = _flow_step_get(step, "started_at") or _flow_step_get(step, "completed_at") or started_at
         n_completed = _flow_step_get(step, "completed_at") or _flow_step_get(step, "started_at") or n_started
