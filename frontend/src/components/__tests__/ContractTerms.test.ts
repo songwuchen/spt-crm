@@ -12,7 +12,7 @@ describe('合同明细列（与目录对齐）', () => {
   it('FALLBACK 列 id 与简道云/目录一致', () => {
     expect(FALLBACK_LINE_COLUMNS.map((c) => c.id)).toEqual([
       'is_fx', 'product_type', 'name', 'spec', 'unit', 'qty',
-      'fx_price', 'fx_rate', 'price', 'amount', 'fx_amount',
+      'price', 'amount', 'fx_price', 'fx_rate', 'fx_amount',
       'elec_ctrl', 'standard', 'line_remark',
     ])
     expect(FALLBACK_PAY_COLUMNS.map((c) => c.id)).toEqual([

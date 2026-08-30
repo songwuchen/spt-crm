@@ -708,6 +708,9 @@ async def sync_builtin_form_fields(
     if key == "payment_registration":
         from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
         apply_payment_registration_fields(want)
+    if key in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
+        from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
+        apply_bonus_contract_fields(want, key)
     if key == "invoice_application":
         from app.domains.lowcode.invoice_application_fields import apply_invoice_application_fields
         apply_invoice_application_fields(want)
@@ -1720,6 +1723,9 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     if tpl_code == "payment_registration":
         from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
         apply_payment_registration_fields(field_defs)
+    if tpl_code in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
+        from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
+        apply_bonus_contract_fields(field_defs, tpl_code)
     if tpl_code == "shipment_notice":
         from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
         apply_shipment_notice_fields(field_defs)

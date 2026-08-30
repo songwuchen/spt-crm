@@ -232,6 +232,7 @@ def test_apply_xunhan_and_prod_card_roles():
     assert _flow_prod_card_supplement_needs_approver_fix(pnodes)
     assert apply_prod_card_supplement_approvers(pnodes)
     assert pnodes[0]["approver_rule"]["value"] == "prod_material_code"
+    assert not pnodes[0]["approver_rule"].get("exclude_initiator")
     assert pnodes[1]["approver_rule"]["value"] == "prod_elec_workshop"
     assert pnodes[2]["approver_rule"]["value"] == "legal"
     assert not apply_prod_card_supplement_approvers(pnodes)
@@ -247,6 +248,27 @@ def test_apply_xunhan_and_prod_card_roles():
     }
     assert not apply_prod_card_notify_production_cc(pnodes)
     assert not _flow_prod_card_notify_cc_needs_fix(pnodes)
+
+
+def test_prod_card_material_allows_initiator():
+    from app.domains.lowcode.workflow_service import (
+        _flow_prod_card_material_excludes_initiator,
+        apply_prod_card_material_allow_initiator,
+    )
+    nodes = [{
+        "id": "n5",
+        "name": "物料编码",
+        "approver_rule": {
+            "type": "specified_role",
+            "value": "prod_material_code",
+            "exclude_initiator": True,
+        },
+    }]
+    assert _flow_prod_card_material_excludes_initiator(nodes)
+    assert apply_prod_card_material_allow_initiator(nodes)
+    assert not nodes[0]["approver_rule"].get("exclude_initiator")
+    assert not _flow_prod_card_material_excludes_initiator(nodes)
+    assert not apply_prod_card_material_allow_initiator(nodes)
 
 
 def test_apply_correspondence_office_role():

@@ -23,7 +23,7 @@ def test_contract_detail_tables_in_catalog():
     # 与简道云/旧 ContractTerms 字段 id 对齐（前端 FALLBACK_* 须同序同 id）
     assert line_ids == [
         "is_fx", "product_type", "name", "spec", "unit", "qty",
-        "fx_price", "fx_rate", "price", "amount", "fx_amount",
+        "price", "amount", "fx_price", "fx_rate", "fx_amount",
         "elec_ctrl", "standard", "line_remark",
     ]
     assert pay_ids == ["due_date", "kind", "ratio", "amount", "remind", "note"]

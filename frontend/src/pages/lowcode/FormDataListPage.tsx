@@ -56,7 +56,9 @@ import {
   DRAWING_FORM_LAYOUT, applyDrawingFormLayout,
   resolveListExpandDetails, resolveListColumnIds,
   resolveListColumnWidths, resolveListColumnLabels, resolveListFullText,
+  resolveListFixedRightKeys,
 } from '@/constants/drawingFormLayout'
+import { clampColWidth } from '@/components/list/columnResize'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
@@ -118,10 +120,40 @@ const COL_STORAGE_PREFIX = 'spt_formlist_cols_v3_'
 function loadColState(storageKey: string): ColumnState {
   try {
     const s = localStorage.getItem(storageKey)
-    return s ? JSON.parse(s) : { hidden: [], order: [], shown: [] }
+    return s ? JSON.parse(s) : { hidden: [], order: [], shown: [], widths: {} }
   } catch {
-    return { hidden: [], order: [], shown: [] }
+    return { hidden: [], order: [], shown: [], widths: {} }
   }
+}
+
+function applyListColumnResize<T extends object>(
+  cols: ColumnsType<T>,
+  widths: Record<string, number>,
+): ColumnsType<T> {
+  return cols.map((col) => {
+    if (!col || typeof col !== 'object') return col
+    if ('children' in col && Array.isArray((col as { children?: ColumnsType<T> }).children)) {
+      return {
+        ...col,
+        children: applyListColumnResize((col as { children: ColumnsType<T> }).children, widths),
+      }
+    }
+    const c = col as ColumnsType<T>[number] & { key?: string; dataIndex?: string; width?: number }
+    const k = String(c.key ?? c.dataIndex ?? '')
+    if (!k) return col
+    const baseW = typeof c.width === 'number' ? c.width : 140
+    const width = typeof widths[k] === 'number' ? widths[k] : baseW
+    return {
+      ...c,
+      width,
+      onHeaderCell: () => ({
+        width,
+        colKey: k,
+        'data-col-key': k,
+        'data-resizable': '1',
+      }),
+    }
+  }) as ColumnsType<T>
 }
 
 function listFilterMemoryKey(templateCode?: string, id?: string) {
@@ -727,7 +759,7 @@ export default function FormDataListPage({
   }, [colStorageKey])
 
   const resetColumns = useCallback(() => {
-    setColState({ hidden: [], order: [], shown: [] })
+    setColState({ hidden: [], order: [], shown: [], widths: {} })
   }, [setColState])
 
   const defaultColIdSet = useMemo(() => new Set(defaultColIds), [defaultColIds])
@@ -1537,6 +1569,17 @@ export default function FormDataListPage({
 
   const listColWidths = useMemo(() => resolveListColumnWidths(templateCode) || {}, [templateCode])
   const listFullText = useMemo(() => resolveListFullText(templateCode), [templateCode])
+  const listFixedRightKeys = useMemo(() => resolveListFixedRightKeys(templateCode), [templateCode])
+
+  const fixRight = useCallback((key: string): 'right' | undefined => {
+    if (listFixedRightKeys) {
+      return listFixedRightKeys.includes(key) ? 'right' : undefined
+    }
+    if (key === 'initiator_name') return 'right'
+    if (key === 'created_at') return listFullText ? undefined : 'right'
+    if (key === 'status' || key === 'current_node_name' || key === 'op') return 'right'
+    return undefined
+  }, [listFixedRightKeys, listFullText])
 
   const colWidth = (f: FieldDefinition) => {
     if (listColWidths[f.id]) return listColWidths[f.id]
@@ -1689,7 +1732,7 @@ export default function FormDataListPage({
         })),
         {
           title: '提交人', dataIndex: 'initiator_name', key: 'initiator_name',
-          width: 100, fixed: 'right' as const,
+          width: 100, fixed: fixRight('initiator_name'),
           ellipsis: { showTitle: true } as const,
           render: (v: string | null | undefined) => v || '—',
         },
@@ -1697,7 +1740,7 @@ export default function FormDataListPage({
           title: '提交时间', dataIndex: 'created_at', key: 'created_at',
           width: listFullText ? 178 : 160,
           ellipsis: { showTitle: true } as const,
-          fixed: listFullText ? undefined : ('right' as const),
+          fixed: fixRight('created_at'),
           render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
         },
         ...(listFullText ? [{
@@ -1712,7 +1755,7 @@ export default function FormDataListPage({
           },
         }] : []),
         {
-          title: '流程状态', dataIndex: 'status', key: 'status', width: 100, fixed: 'right' as const,
+          title: '流程状态', dataIndex: 'status', key: 'status', width: 100, fixed: fixRight('status'),
           render: (s: string) => {
             const t = STATUS_TAG[s] || { color: 'default', text: s }
             return <Tag color={t.color}>{t.text}</Tag>
@@ -1720,16 +1763,28 @@ export default function FormDataListPage({
         },
         {
           title: '当前节点', dataIndex: 'current_node_name', key: 'current_node_name',
-          width: 120, fixed: 'right' as const,
+          width: 120, fixed: fixRight('current_node_name'),
           ellipsis: { showTitle: true } as const,
           render: (_: unknown, r: FormInstance | DetailFlatRow) =>
             renderCurrentNodeCell(('record' in r ? r.record : r) as FormInstance),
         },
         {
-          title: '操作', key: 'op', width: 72, fixed: 'right' as const,
+          title: '操作', key: 'op', width: 72, fixed: fixRight('op'),
           render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),
         },
       ]
+
+  const onColumnWidthChange = useCallback((colKey: string, width: number) => {
+    setColState((prev) => ({
+      ...prev,
+      widths: { ...(prev.widths || {}), [colKey]: clampColWidth(width) },
+    }))
+  }, [setColState])
+
+  const tableColumns = useMemo(
+    () => applyListColumnResize(columns, colState.widths || {}),
+    [columns, colState.widths],
+  )
 
   const tableScrollX = useMemo(() => {
     const biz = colFields.reduce((n, f) => n + colWidth(f), 0)
@@ -1931,7 +1986,8 @@ export default function FormDataListPage({
       <FillHeightTable
           rowKey={expandDetails.length ? 'key' : 'id'}
           loading={loading}
-          columns={columns}
+          columns={tableColumns}
+          onColumnWidthChange={onColumnWidthChange}
           dataSource={(flatRows || items) as (FormInstance | DetailFlatRow)[]}
           size="small"
           scroll={{ x: tableScrollX }}

@@ -5,6 +5,7 @@ from app.domains.lowcode.pricing_checklist_fields import (
     apply_pricing_checklist_fields,
     build_pricing_checklist_fill,
     pick_column_defs,
+    resolve_design_office_department_id,
 )
 
 
@@ -74,6 +75,7 @@ def test_builtin_pricing_checklist_link_install_select_data():
     assert by["apply_datetime"]["props"]["default_today"] is True
     assert by["designer"].get("required") is True
     assert by["office"].get("required") is True
+    assert by["pricing_qty"].get("default_value") == 1
     assert by["process_name"].get("required") is True
     assert by["link_install"].get("required") is True
     for fid in ("summary_serial_no", "design_card_no", "contract_no", "order_person", "applicant", "business_dept"):
@@ -104,3 +106,17 @@ def test_pick_columns_match_jdy_link_fields():
     assert "install_drawing_notice" in PICK_COLUMNS
     prod = {c["key"] for c in pick_column_defs("install_drawing_notice", "prod_card_install")}
     assert prod == {"project_no_print", "customer_name", "sales_person", "matter"}
+
+
+def test_resolve_design_office_department_id_prefers_design_room():
+    rows = [
+        ("d-sales", "冶金矿山装备销售事业部"),
+        ("d-room", "设计一室"),
+    ]
+    assert resolve_design_office_department_id(rows) == "d-room"
+
+
+def test_apply_pricing_checklist_pricing_qty_default():
+    fields = [{"id": "pricing_qty", "type": "number", "label": "核价单数量"}]
+    apply_pricing_checklist_fields(fields)
+    assert fields[0]["default_value"] == 1

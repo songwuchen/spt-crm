@@ -215,6 +215,41 @@ def bonus_fill_clear_keys(form_key: str) -> list[str]:
     return list(BONUS_FILL_CLEAR.get(form_key) or BONUS_FILL_CLEAR["biz_bonus_transfer"])
 
 
+_BONUS_PAYMENT_LINE_DATE_COL = {
+    "biz_bonus_transfer": "field_9",
+    "biz_bonus_biz_initiate": "field_10",
+}
+
+
+def _apply_date_only(field: dict) -> None:
+    """对齐简道云：日期字段只选到日，不选时分。"""
+    props = dict(field.get("props") or {})
+    props["show_time"] = False
+    props["date_only"] = True
+    field["type"] = "date"
+    field["props"] = props
+
+
+def _apply_bonus_payment_line_date_only(defs: list, form_key: str) -> None:
+    col_id = _BONUS_PAYMENT_LINE_DATE_COL.get(form_key)
+    if not col_id:
+        return
+    for f in defs:
+        if not isinstance(f, dict) or f.get("id") != "payment_lines":
+            continue
+        for col in f.get("detail_table_columns") or []:
+            if not isinstance(col, dict) or col.get("id") != col_id:
+                continue
+            _apply_date_only(col)
+            if (col.get("label") or "").strip() in ("", "日期时间"):
+                col["label"] = "来款日期"
+        break
+    for f in defs:
+        if isinstance(f, dict) and f.get("id") == "bonus_date":
+            _apply_date_only(f)
+            break
+
+
 def apply_bonus_contract_fields(defs: list, form_key: str) -> None:
     """图纸编号/合同号 → 合同选择；带出字段只读展示。"""
     contract_field = "drawing_no" if form_key != "commission_database" else "contract_no"
@@ -254,3 +289,5 @@ def apply_bonus_contract_fields(defs: list, form_key: str) -> None:
                 f["available_on_create"] = True
                 f["fill_stage"] = "initiator"
                 f["description"] = f.get("description") or "由所选合同自动带出，不可手改。"
+    if form_key in _BONUS_PAYMENT_LINE_DATE_COL:
+        _apply_bonus_payment_line_date_only(defs, form_key)

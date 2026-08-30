@@ -170,6 +170,12 @@ def apply_pricing_checklist_fields(field_defs: list[dict[str, Any]]) -> None:
             fd["props"] = props
             fd["description"] = fd.get("description") or "由所选关联单据自动带出，不可手改。"
             continue
+        if fid == "pricing_qty":
+            fd["default_value"] = 1
+            props = dict(fd.get("props") or {})
+            props.setdefault("min", 1)
+            fd["props"] = props
+            continue
         if fid in ("designer", "office", "process_name"):
             # 简道云 allowBlank=false：设计员 / 科室 / 流程名称提交必填
             fd["required"] = True
@@ -554,6 +560,44 @@ def resolve_prod_card_office_for_fill(
             seen.add(dept_id)
             out.append(dept_id)
     return out or None
+
+
+def resolve_design_office_department_id(
+    dept_rows: list[tuple[str, str]],
+) -> str | None:
+    """设计员所属科室：优先名称含「设计」且含「室/科」，否则取第一个编制部门。"""
+    for did, name in dept_rows:
+        n = (name or "").strip()
+        if "设计" in n and ("室" in n or "科" in n):
+            return did
+    return dept_rows[0][0] if dept_rows else None
+
+
+async def lookup_user_design_office_department_id(
+    db: AsyncSession,
+    tenant_id: str,
+    user_id: str,
+) -> str | None:
+    """按用户 id 解析其设计科室（核价清单：选设计员带出科室）。"""
+    from app.domains.organization.models import UserDepartment
+
+    uid = str(user_id or "").strip()
+    if not uid:
+        return None
+    rows = (
+        await db.execute(
+            select(Department.id, Department.name)
+            .join(UserDepartment, UserDepartment.department_id == Department.id)
+            .where(
+                UserDepartment.tenant_id == tenant_id,
+                UserDepartment.user_id == uid,
+                Department.tenant_id == tenant_id,
+            )
+            .order_by(Department.name)
+        )
+    ).all()
+    pairs = [(str(did), str(name or "")) for did, name in rows if did]
+    return resolve_design_office_department_id(pairs)
 
 
 async def lookup_department_ids_by_names(

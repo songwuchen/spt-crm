@@ -9387,6 +9387,12 @@ async def get_instance_detail(
                         apply_payment_registration_fields(form_fields)
                     except Exception:
                         pass
+                if form_tpl_code in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
+                    try:
+                        from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
+                        apply_bonus_contract_fields(form_fields, form_tpl_code)
+                    except Exception:
+                        pass
                 if form_tpl_code == "shipment_notice":
                     try:
                         from app.domains.lowcode.shipment_notice_fields import (

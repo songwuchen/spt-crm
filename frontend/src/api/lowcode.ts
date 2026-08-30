@@ -151,4 +151,11 @@ export const lowcodeApi = {
       '/api/v1/lc/form-templates/workflow-visible-codes',
       { headers: { 'X-Silent-Error': '1' } },
     ),
+
+  /** 核价清单：设计员 → 所属科室 id */
+  userDesignOffice: (userId: string) =>
+    client.get<unknown, ApiResponse<{ user_id: string; department_id: string | null }>>(
+      '/api/v1/lc/user-design-office',
+      { params: { user_id: userId } },
+    ),
 }

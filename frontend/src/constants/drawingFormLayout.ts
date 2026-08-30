@@ -34,6 +34,11 @@ export type DrawingFormLayoutSpec = {
    * 列表单元格不截断省略号，横向滚动看全（对齐简道云数据管理）。
    */
   listFullText?: boolean
+  /**
+   * 列表右侧冻结列 key（如 status / current_node_name / op）。
+   * 未配置时保持默认：提交人、提交时间与流程状态等一并冻结。
+   */
+  listFixedRightKeys?: string[]
   /** 明细子列展示上限（默认 8；产品明细可调高） */
   listDetailMaxCols?: number
 }
@@ -836,9 +841,19 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   pricing_checklist_hjqd: {
     contentMaxWidth: 1080,
     listColumns: [
-      'serial_no', 'process_name', 'contract_no', 'order_person',
-      'applicant', 'business_dept', 'design_card_no', 'apply_datetime',
+      'serial_no', 'designer', 'office', 'process_name', 'contract_no',
+      'order_person', 'design_card_no', 'apply_datetime',
     ],
+    listColumnWidths: {
+      serial_no: 150,
+      designer: 100,
+      office: 110,
+      process_name: 140,
+      contract_no: 160,
+      design_card_no: 130,
+      apply_datetime: 150,
+    },
+    listFixedRightKeys: ['status', 'current_node_name', 'op'],
     sections: [
       {
         title: '基本信息',
@@ -1453,6 +1468,12 @@ export function resolveListColumnLabels(templateCode?: string): Record<string, s
 export function resolveListFullText(templateCode?: string): boolean {
   if (!templateCode) return false
   return !!DRAWING_FORM_LAYOUT[templateCode]?.listFullText
+}
+
+export function resolveListFixedRightKeys(templateCode?: string): string[] | undefined {
+  if (!templateCode) return undefined
+  const keys = DRAWING_FORM_LAYOUT[templateCode]?.listFixedRightKeys
+  return keys?.length ? keys : undefined
 }
 
 /** 解析列表应展开的明细表（可多个，对齐简道云多子表横向分组） */

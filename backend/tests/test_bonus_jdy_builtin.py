@@ -21,6 +21,24 @@ def test_bonus_transfer_pack():
     assert len(pack["flow_nodes"]) >= 7
 
 
+def test_bonus_transfer_payment_line_date_only():
+    from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
+
+    defs = [{
+        "id": "payment_lines",
+        "type": "detail_table",
+        "detail_table_columns": [
+            {"id": "field_9", "type": "datetime", "label": "日期时间"},
+        ],
+    }]
+    apply_bonus_contract_fields(defs, "biz_bonus_transfer")
+    col = defs[0]["detail_table_columns"][0]
+    assert col["type"] == "date"
+    assert col["props"]["date_only"] is True
+    assert col["props"]["show_time"] is False
+    assert col["label"] == "来款日期"
+
+
 def test_commission_database_pack():
     from app.domains.lowcode._bonus_jdy_generated import BONUS_JDY
     pack = BONUS_JDY["commission_database"]

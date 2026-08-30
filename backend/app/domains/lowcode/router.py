@@ -270,6 +270,20 @@ async def lookup_salesperson_region(
     return ok(data)
 
 
+@router.get("/user-design-office")
+async def lookup_user_design_office(
+    user_id: str = Query(..., description="设计员用户 id"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """核价清单：选设计员后带出所属科室（优先设计室/设计科）。"""
+    from app.domains.lowcode.pricing_checklist_fields import lookup_user_design_office_department_id
+
+    dept_id = await lookup_user_design_office_department_id(db, tenant_id, user_id)
+    return ok({"user_id": user_id, "department_id": dept_id})
+
+
 @router.get("/base-lookups")
 async def base_form_lookups(
     type: str = Query(..., description="application_field | application_material | material_name"),

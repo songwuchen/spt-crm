@@ -48,6 +48,7 @@ import {
   recomputeDetailRowOnColChange,
 } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
+import { lowcodeApi } from '@/api/lowcode'
 import { fetchCustomerFormFill, needsCustomerFormFill, clearCustomerFormFillPatch, pickShipAddressFill } from '@/utils/customerFormFill'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import type { ColumnType } from 'antd/es/table'
@@ -439,10 +440,28 @@ function FieldWidget({
     case 'person_multi': {
       const scope = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope
       const useDeptFilter = !readonly && shouldFilterByDeptFields(scope, field.id)
+      const hasPricingOffice = field.id === 'designer'
+        && !readonly
+        && onPatch
+        && fields.some((f) => f.id === 'office')
+        && fields.some((f) => f.id === 'process_name')
+      const handlePersonChange = (v: unknown) => {
+        onChange(v)
+        if (!hasPricingOffice || field.type === 'person_multi') return
+        const uid = v == null || v === '' ? '' : String(v)
+        if (!uid) {
+          onPatch?.({ office: undefined })
+          return
+        }
+        void lowcodeApi.userDesignOffice(uid).then((res) => {
+          const deptId = res.data?.department_id
+          if (deptId) onPatch?.({ office: deptId })
+        }).catch(() => { /* ignore */ })
+      }
       return (
         <PersonField
           value={value}
-          onChange={onChange}
+          onChange={hasPricingOffice ? handlePersonChange : onChange}
           multi={field.type === 'person_multi'}
           readonly={readonly}
           placeholder={ph}
