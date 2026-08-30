@@ -753,9 +753,12 @@ export default function FormDataListPage({
     setFieldFilters(loadAppliedFilters(filterMemoryKey))
   }, [colStorageKey, filterMemoryKey])
 
-  const setColState = useCallback((cs: ColumnState) => {
-    setColStateRaw(cs)
-    try { localStorage.setItem(colStorageKey, JSON.stringify(cs)) } catch { /* ignore */ }
+  const setColState = useCallback((cs: ColumnState | ((prev: ColumnState) => ColumnState)) => {
+    setColStateRaw((prev) => {
+      const next = typeof cs === 'function' ? cs(prev) : cs
+      try { localStorage.setItem(colStorageKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
   }, [colStorageKey])
 
   const resetColumns = useCallback(() => {
