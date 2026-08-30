@@ -1178,7 +1178,12 @@ async def _import_jdy_flow_history(
             actor_name=actor_name or handler_name,
             action=log_action,
             opinion=opinion,
-            extra={"source": "jdy", "raw_action": raw_action or None},
+            extra={
+                "source": "jdy",
+                "raw_action": raw_action or None,
+                "finished_at": n_completed.isoformat() if hasattr(n_completed, "isoformat") else str(n_completed),
+                "started_at": n_started.isoformat() if hasattr(n_started, "isoformat") else str(n_started),
+            },
         ))
 
     await db.flush()

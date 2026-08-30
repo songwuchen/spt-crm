@@ -2257,7 +2257,6 @@ def apply_prod_card_notify_production_cc(nodes: list[dict] | None) -> bool:
 _PROD_MATERIAL_ROLE = {
     "type": "specified_role",
     "value": "prod_material_code",
-    "exclude_initiator": True,
     "jdy_role_hint": "1.2.8生产卡/补充流程-物料编码",
 }
 _PROD_LEGAL_ROLE = {
@@ -2313,6 +2312,35 @@ def apply_prod_card_supplement_approvers(nodes: list[dict]) -> bool:
         if _approver_rule_matches(cur, want):
             continue
         n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+def _is_prod_card_material_node(n: dict) -> bool:
+    return str(n.get("name") or "").strip() == "物料编码" or str(n.get("id") or "") == "n5"
+
+
+def _flow_prod_card_material_excludes_initiator(nodes: list | None) -> bool:
+    """物料编码不应 exclude_initiator：发起人若在角色内也应有待办。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or not _is_prod_card_material_node(n):
+            continue
+        if (n.get("approver_rule") or {}).get("exclude_initiator"):
+            return True
+    return False
+
+
+def apply_prod_card_material_allow_initiator(nodes: list | None) -> bool:
+    """物料编码：去掉 exclude_initiator，发起人在 prod_material_code 内可自审。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or not _is_prod_card_material_node(n):
+            continue
+        cur = n.get("approver_rule") or {}
+        want = dict(_PROD_MATERIAL_ROLE)
+        if _approver_rule_matches(cur, want) and not cur.get("exclude_initiator"):
+            continue
+        n["approver_rule"] = want
         changed = True
     return changed
 
@@ -5038,6 +5066,22 @@ async def _upgrade_drawing_form_flow_if_needed(
     # 用户画布版生产卡也须补路由回归（205 等环境 category=user_designed）
     if form_code == "prod_card_supplement":
         version = await _published_version(db, tenant_id, d.id)
+        if version and _flow_prod_card_material_excludes_initiator(version.node_definitions):
+            import copy
+            from app.common.rbac_sync import ensure_prod_material_code_role_members
+            await ensure_prod_material_code_role_members(db, tenant_id)
+            patched = copy.deepcopy(version.node_definitions or [])
+            if apply_prod_card_material_allow_initiator(patched):
+                await _publish_system_default_upgrade(
+                    db, tenant_id, d, version,
+                    patched, version.route_definitions,
+                    d.description or DRAWING_FORM_FLOW_DESC,
+                    "物料编码：发起人在角色内可审批",
+                )
+                n_bf = await _backfill_prod_material_initiator_pending_tasks(db, tenant_id)
+                if n_bf:
+                    await db.commit()
+                return
         if version and _flow_missing_prod_card_design1_material_route(
             version.node_definitions, version.route_definitions,
         ):
@@ -5374,6 +5418,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         from app.domains.lowcode.wf_node_actions import apply_prod_card_material_code_node_actions
         if apply_prod_card_material_code_node_actions(patched):
             tags.append("物料编码关闭转交")
+        if apply_prod_card_material_allow_initiator(patched):
+            tags.append("物料编码发起人可审")
         if tags:
             _prod_card_routes_ready_for_publish(patched, patched_routes)
             await _publish_system_default_upgrade(
@@ -5381,6 +5427,9 @@ async def _upgrade_drawing_form_flow_if_needed(
                 patched, patched_routes,
                 DRAWING_FORM_FLOW_DESC, "+".join(tags),
             )
+            n_bf = await _backfill_prod_material_initiator_pending_tasks(db, tenant_id)
+            if n_bf:
+                await db.commit()
             return
     # 客服领图：研管办→郑志颖；部门指派节点填写项对齐图纸领用
     if (
@@ -6482,6 +6531,85 @@ async def _resolve_legal_sup_user(db, tenant_id: str) -> tuple[str | None, str |
     if row:
         return row[0], row[1]
     return None, None
+
+
+async def _backfill_prod_material_initiator_pending_tasks(db, tenant_id: str) -> int:
+    """在途「物料编码」：发起人在 prod_material_code 角色但无待办 → 补 pending。"""
+    from app.domains.auth.models import Role
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
+
+    role_id = (
+        await db.execute(
+            select(Role.id).where(
+                Role.tenant_id == tenant_id,
+                Role.code == "prod_material_code",
+            )
+        )
+    ).scalar_one_or_none()
+    if not role_id:
+        return 0
+
+    rows = (await db.execute(text("""
+        SELECT pi.id AS pid, pi.initiator_id::text AS initiator_id,
+               ni.id AS node_instance_id, fi.business_no
+        FROM wf_process_instance pi
+        JOIN wf_node_instance ni ON ni.process_instance_id = pi.id
+        JOIN lc_form_instance fi ON fi.id = pi.form_instance_id
+        JOIN wf_process_definition d ON d.id = pi.process_definition_id
+        WHERE pi.tenant_id = :tid
+          AND pi.status = 'running'
+          AND d.code = 'SYS_PROD_CARD_SUPPLEMENT'
+          AND ni.node_name = '物料编码'
+          AND ni.status = 'running'
+          AND EXISTS (
+            SELECT 1 FROM user_roles ur
+            WHERE ur.user_id = pi.initiator_id AND ur.role_id = :rid
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM wf_task_instance t
+            WHERE t.process_instance_id = pi.id
+              AND t.node_instance_id = ni.id
+              AND t.assignee_id = pi.initiator_id
+              AND t.status IN ('pending', 'waiting', 'claimed')
+          )
+    """), {"tid": tenant_id, "rid": role_id})).mappings().all()
+    if not rows:
+        return 0
+
+    engine = WorkflowEngine(db, tenant_id)
+    added = 0
+    for r in rows:
+        inst = await db.get(WfProcessInstance, r["pid"])
+        if not inst:
+            continue
+        max_order = (
+            await db.execute(
+                select(func.max(WfTaskInstance.task_order)).where(
+                    WfTaskInstance.node_instance_id == r["node_instance_id"],
+                )
+            )
+        ).scalar() or 0
+        tid = generate_uuid()
+        db.add(WfTaskInstance(
+            id=tid,
+            tenant_id=tenant_id,
+            process_instance_id=r["pid"],
+            node_instance_id=r["node_instance_id"],
+            assignee_id=r["initiator_id"],
+            status="pending",
+            task_order=int(max_order) + 1,
+        ))
+        await db.flush()
+        engine._queue("tasks_created", [tid], inst)
+        logger.info(
+            "物料编码补待办 %s → 发起人 %s",
+            r["business_no"] or r["pid"], r["initiator_id"],
+        )
+        added += 1
+    if added:
+        await engine.flush_notifications(wait=True)
+    return added
 
 
 async def _reassign_pending_legal_sup_tasks(db, tenant_id: str) -> int:
@@ -8622,6 +8750,7 @@ async def _build_flow_steps(
     by_node: dict[str, list] = {}
     for t in tasks:
         by_node.setdefault(t.node_instance_id, []).append(t)
+    tasks_by_id = {t.id: t for t in tasks if getattr(t, "id", None)}
     logs_by_node: dict[str, list] = {}
     for l in logs:
         if l.node_instance_id:
@@ -8825,7 +8954,23 @@ async def _build_flow_steps(
             # 仅有日志、无 wf_process_cc 时：仍展示抄送卡（无名单）
             if act == "cc":
                 actor = actor or "系统"
-            done_at = lg.created_at
+            # 办理完成时间：优先任务 action_at / 节点 completed_at（简道云导入落在这两处），
+            # 勿用日志 created_at（那是写入 CRM 的时间，会导致「耗时上千天」）。
+            linked = tasks_by_id.get(getattr(lg, "task_instance_id", None) or "")
+            extra = lg.extra if isinstance(getattr(lg, "extra", None), dict) else {}
+            done_at = None
+            if linked is not None and getattr(linked, "action_at", None):
+                done_at = linked.action_at
+            if done_at is None and extra.get("finished_at"):
+                raw_fin = extra.get("finished_at")
+                if isinstance(raw_fin, str) and raw_fin.strip():
+                    try:
+                        from datetime import datetime as _dt
+                        done_at = _dt.fromisoformat(raw_fin.replace("Z", "+00:00"))
+                    except ValueError:
+                        done_at = None
+            if done_at is None:
+                done_at = n.completed_at or lg.created_at
             step = _step(
                 step_key=f"{n.id}:log:{getattr(lg, 'id', id(lg))}",
                 n=n,
