@@ -173,3 +173,93 @@ async def list_pickable_contracts_page(
         "page_size": page_size,
         "columns": columns,
     }
+
+
+def _scalar_person_ref(raw: Any) -> tuple[str | None, str | None]:
+    """从 registration_json 等位置解析 person 字段（uuid / 姓名 / {id,name}）。"""
+    if raw is None or raw == "":
+        return None, None
+    if isinstance(raw, dict):
+        pid = raw.get("id") or raw.get("value") or raw.get("user_id")
+        pname = raw.get("name") or raw.get("label") or raw.get("real_name")
+        return (
+            str(pid).strip() if pid not in (None, "") else None,
+            str(pname).strip() if pname not in (None, "") else None,
+        )
+    if isinstance(raw, list) and raw:
+        return _scalar_person_ref(raw[0])
+    text = str(raw).strip()
+    if not text:
+        return None, None
+    # uuid 形态
+    if len(text) == 36 and text.count("-") == 4:
+        return text, None
+    return None, text
+
+
+async def resolve_contract_assignee_id(
+    db: AsyncSession,
+    tenant_id: str,
+    contract: Contract,
+) -> str | None:
+    """选合同带出业务员：列 assignee_id 优先，否则按姓名/登记 JSON 反查用户。"""
+    from app.domains.auth.models import User as AuthUser
+    from app.domains.openapi.service import resolve_owner_id
+
+    raw_id = (contract.assignee_id or "").strip()
+    if raw_id:
+        exists = (await db.execute(
+            select(AuthUser.id).where(
+                AuthUser.id == raw_id,
+                AuthUser.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
+        if exists:
+            return raw_id
+
+    reg = contract.registration_json if isinstance(contract.registration_json, dict) else {}
+    candidates: list[tuple[str | None, str | None]] = []
+    for id_key, name_key in (
+        ("assignee_id", "assignee_name"),
+        ("owner_id", "owner_name"),
+        ("sales_person", None),
+        ("salesperson", None),
+        ("业务人员", None),
+        ("业务员", None),
+    ):
+        rid, rname = _scalar_person_ref(reg.get(id_key))
+        if name_key:
+            _, n2 = _scalar_person_ref(reg.get(name_key))
+            rname = rname or n2
+        elif rid is None and rname is None:
+            rid, rname = _scalar_person_ref(reg.get(id_key))
+        candidates.append((rid, rname))
+    candidates.append((None, (contract.assignee_name or "").strip() or None))
+
+    for owner_id, owner_name in candidates:
+        uid = await resolve_owner_id(
+            db, tenant_id, owner_id=owner_id, owner_name=owner_name,
+        )
+        if uid:
+            return uid
+    return None
+
+
+async def resolve_contract_sales_person_ref(
+    db: AsyncSession,
+    tenant_id: str,
+    contract: Contract,
+) -> str | None:
+    """选合同带出业务员：优先 CRM 用户 id；无法匹配时回落姓名字符串（只读人员字段可展示）。"""
+    uid = await resolve_contract_assignee_id(db, tenant_id, contract)
+    if uid:
+        return uid
+    name = (contract.assignee_name or "").strip()
+    if name:
+        return name
+    reg = contract.registration_json if isinstance(contract.registration_json, dict) else {}
+    for key in ("assignee_name", "owner_name", "sales_person", "salesperson", "业务人员", "业务员"):
+        _, rname = _scalar_person_ref(reg.get(key))
+        if rname:
+            return rname
+    return None

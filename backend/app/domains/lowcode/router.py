@@ -759,12 +759,15 @@ async def pickable_contract_prod_card_fill(
                 customer_name = str(raw).strip()
                 break
 
+    from app.domains.lowcode.contract_pick import resolve_contract_sales_person_ref
+    assignee_id = await resolve_contract_sales_person_ref(db, tenant_id, c)
+
     if mode == "invoice_application":
         fill = build_invoice_fill_from_contract(
             contract_no=c.contract_no,
             drawing_no=c.drawing_no,
             peer_contract_no=c.peer_contract_no,
-            assignee_id=c.assignee_id,
+            assignee_id=assignee_id,
             customer_name=customer_name,
             customer_code=customer_code,
             amount_total=c.amount_total,
@@ -810,7 +813,7 @@ async def pickable_contract_prod_card_fill(
             contract_no=c.contract_no,
             drawing_no=c.drawing_no,
             peer_contract_no=c.peer_contract_no,
-            assignee_id=c.assignee_id,
+            assignee_id=assignee_id,
             department_id=c.department_id,
             customer_name=customer_name,
             amount_total=c.amount_total,
@@ -823,7 +826,7 @@ async def pickable_contract_prod_card_fill(
             contract_id=c.id,
             contract_no=c.contract_no,
             drawing_no=c.drawing_no,
-            assignee_id=c.assignee_id,
+            assignee_id=assignee_id,
             department_id=c.department_id,
             customer_id=cust_id,
             key_clauses_json=ver.key_clauses_json if ver else None,
@@ -833,7 +836,7 @@ async def pickable_contract_prod_card_fill(
         fill = build_bonus_fill_from_contract(
             contract_no=c.contract_no,
             drawing_no=c.drawing_no,
-            assignee_id=c.assignee_id,
+            assignee_id=assignee_id,
             department_id=c.department_id,
             customer_name=customer_name,
             amount_total=c.amount_total,

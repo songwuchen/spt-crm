@@ -84,6 +84,20 @@ def test_line_amount_stays_editable():
     assert amount["form_editable"] is True
 
 
+def test_sales_person_is_form_editable():
+    defs = [
+        {"id": "drawing_no_select", "type": "text", "label": "选择合同号"},
+        {"id": "sales_person", "type": "person", "label": "业务员",
+         "required": True, "form_editable": False},
+    ]
+    apply_invoice_application_fields(defs)
+    sp = next(f for f in defs if f["id"] == "sales_person")
+    assert sp["form_editable"] is True
+    assert sp["available_on_create"] is True
+    assert sp["fill_stage"] == "initiator"
+    assert "可手改" in (sp.get("description") or "")
+
+
 def test_customer_name_visible_on_create():
     defs = [
         {"id": "drawing_no_select", "type": "text", "label": "选择图纸编号"},

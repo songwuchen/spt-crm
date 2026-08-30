@@ -354,10 +354,12 @@ async def load_prod_card_fill_for_contract(
             from app.common.list_enrich import customer_names_map
             customer_name = (await customer_names_map(db, tenant_id, [cust_id])).get(cust_id)
 
+    from app.domains.lowcode.contract_pick import resolve_contract_sales_person_ref
+
     fill = build_prod_card_fill_from_contract(
         contract_no=c.contract_no,
         drawing_no=c.drawing_no,
-        assignee_id=c.assignee_id,
+        assignee_id=await resolve_contract_sales_person_ref(db, tenant_id, c),
         assignee_name=c.assignee_name,
         customer_name=customer_name,
         delivery_date=str(c.delivery_date) if c.delivery_date else None,

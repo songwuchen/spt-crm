@@ -711,6 +711,14 @@ async def sync_builtin_form_fields(
     if key == "invoice_application":
         from app.domains.lowcode.invoice_application_fields import apply_invoice_application_fields
         apply_invoice_application_fields(want)
+        # 业务员须可手改（离职等）；勿被租户旧版 form_editable=false 永久盖住
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") == "sales_person":
+                fd["form_editable"] = True
+                fd["available_on_create"] = True
+                fd["fill_stage"] = "initiator"
+                fd["description"] = "选择合同号后自动带出；业务员离职等情况可手改。"
+                break
     if key == "quote_management":
         from app.domains.lowcode.quote_management_fields import apply_quote_management_fields
         apply_quote_management_fields(want)
@@ -2176,13 +2184,16 @@ def _instance_list_conds(
     form_dept_name_literals: list[str] | None = None,
     scope_viewer_id: str | None = None,
     workflow_participant_user_id: str | None = None,
+    keyword_clause=None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
         FormInstance.template_id == template_id,
         FormInstance.is_deleted == False,  # noqa: E712
     ]
-    if keyword:
+    if keyword_clause is not None:
+        conds.append(keyword_clause)
+    elif keyword:
         like = f"%{keyword}%"
         conds.append(or_(
             FormInstance.title.ilike(like),
@@ -2525,6 +2536,23 @@ async def _owner_person_field_for_template(
     return fields[0] if fields else None
 
 
+async def _resolve_instance_keyword_clause(
+    db: AsyncSession,
+    tenant_id: str,
+    template_code: str | None,
+    keyword: str | None,
+):
+    kw = (keyword or "").strip()
+    if not kw:
+        return None
+    if template_code == "prod_card_supplement":
+        from app.domains.lowcode.pricing_checklist_fields import (
+            prod_card_supplement_list_keyword_clause,
+        )
+        return await prod_card_supplement_list_keyword_clause(db, tenant_id, kw)
+    return None
+
+
 async def list_instances(
     db: AsyncSession, tenant_id: str, template_id: str,
     page_no: int, page_size: int,
@@ -2550,6 +2578,9 @@ async def list_instances(
             )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     viewer_id = (user or {}).get("sub") if user else None
+    keyword_clause = await _resolve_instance_keyword_clause(
+        db, tenant_id, template_code, keyword,
+    )
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
@@ -2560,6 +2591,7 @@ async def list_instances(
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
         workflow_participant_user_id=viewer_id if owner_ids is not None else None,
+        keyword_clause=keyword_clause,
     )
 
     total = (await db.execute(
@@ -2635,6 +2667,9 @@ async def form_instance_summary(
             )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     viewer_id = (user or {}).get("sub") if user else None
+    keyword_clause = await _resolve_instance_keyword_clause(
+        db, tenant_id, template_code, keyword,
+    )
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
@@ -2645,6 +2680,7 @@ async def form_instance_summary(
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
         workflow_participant_user_id=viewer_id if owner_ids is not None else None,
+        keyword_clause=keyword_clause,
     )
     txt = FormInstance.form_data.op("->>")(sum_field)
     safe_num = case(
@@ -2765,6 +2801,9 @@ async def export_instances(
             )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     viewer_id = (user or {}).get("sub") if user else None
+    keyword_clause = await _resolve_instance_keyword_clause(
+        db, tenant_id, template_code, keyword,
+    )
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
@@ -2775,6 +2814,7 @@ async def export_instances(
         form_dept_name_literals=form_dept_name_literals,
         scope_viewer_id=viewer_id,
         workflow_participant_user_id=viewer_id if owner_ids is not None else None,
+        keyword_clause=keyword_clause,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)

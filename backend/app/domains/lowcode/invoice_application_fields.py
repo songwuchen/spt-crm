@@ -329,8 +329,10 @@ def apply_invoice_application_fields(defs: list) -> None:
                 c["description"] = "默认数量 × 单价，可手改。"
             f["detail_table_columns"] = cols
         elif fid == "sales_person":
-            f["form_editable"] = False
-            f["description"] = "由选择合同号带出合同业务员，不可编辑。"
+            f["form_editable"] = True
+            f["available_on_create"] = True
+            f["fill_stage"] = "initiator"
+            f["description"] = "选择合同号后自动带出；业务员离职等情况可手改。"
 
     # 4) 插入开票信息字段（紧跟业务员之后）
     missing = [fd for fd in _invoice_info_fields() if fd["id"] not in ids]

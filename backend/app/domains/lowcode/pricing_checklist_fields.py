@@ -256,6 +256,8 @@ async def _lookup_contract_ids_for_pick_keyword(
                 Contract.drawing_no.ilike(like),
                 Contract.contract_no.ilike(like),
                 Contract.peer_contract_no.ilike(like),
+                Contract.serial_no.ilike(like),
+                Contract.registration_json["serial_no"].as_string().ilike(like),
             ),
         ).limit(200)
     )).scalars().all()
@@ -296,20 +298,38 @@ async def _lookup_contract_ref_texts_for_ids(
     if not ids:
         return []
     rows = (await db.execute(
-        select(Contract.serial_no, Contract.contract_no, Contract.drawing_no).where(
+        select(
+            Contract.serial_no, Contract.contract_no, Contract.drawing_no,
+            Contract.registration_json,
+        ).where(
             Contract.tenant_id == tenant_id,
             Contract.id.in_(ids),
         )
     )).all()
     out: list[str] = []
     seen: set[str] = set()
-    for serial, cno, dno in rows:
+    for serial, cno, dno, reg in rows:
         for val in (serial, cno, dno):
             s = str(val or "").strip()
             if s and s not in seen:
                 seen.add(s)
                 out.append(s)
+        if isinstance(reg, dict):
+            rs = str(reg.get("serial_no") or "").strip()
+            if rs and rs not in seen:
+                seen.add(rs)
+                out.append(rs)
     return out
+
+
+async def prod_card_supplement_list_keyword_clause(
+    db: AsyncSession,
+    tenant_id: str,
+    keyword: str,
+):
+    """生产卡列表 keyword：反查关联合同图纸号/流水号（form_data 仅存合同引用）。"""
+    parts = await _prod_card_supplement_pick_keyword_conds(db, tenant_id, keyword)
+    return or_(*parts) if parts else None
 
 
 async def _prod_card_supplement_pick_keyword_conds(
