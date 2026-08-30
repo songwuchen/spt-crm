@@ -969,12 +969,17 @@ async def _import_jdy_flow_history(
     steps,
     approver_rule: dict | None = None,
     flow_finished: bool | None = None,
+    form_instance_id: str | None = None,
+    process_definition=None,
 ) -> str | None:
-    """Shared JianDaoYun → CRM WF import (lead / customer / contract_version).
+    """Shared JianDaoYun → CRM WF import (lead / customer / contract_version / form).
 
     ``flow_finished``:
       - True / None → 已结束（rejected 或 completed；None 兼容历史调用）
       - False → 进行中（status=running，供合同列表「审批中」）
+
+    低代码表单传入 ``form_instance_id`` + ``process_definition``（按 form_template 绑定的流程），
+    详情页按 form_instance_id 展示「流程动态」。
     """
     if not steps:
         return None
@@ -988,34 +993,43 @@ async def _import_jdy_flow_history(
     )
     from app.database import utcnow
 
-    rule = approver_rule or {
-        "type": "specified_role", "value": "admin", "exclude_initiator": True,
-    }
-    await ensure_default_definition(
-        db, ctx.tenant_id, biz_type=biz_type, code=flow_code, name=flow_name,
-        approver_rule=rule,
-        multi_mode="or_sign", empty_strategy="auto_approve",
-    )
-    d = (await db.execute(select(WfProcessDefinition).where(
-        WfProcessDefinition.tenant_id == ctx.tenant_id,
-        WfProcessDefinition.biz_type == biz_type,
-        WfProcessDefinition.status == "published",
-        WfProcessDefinition.is_deleted == False,  # noqa: E712
-    ).order_by(
-        WfProcessDefinition.sort_order.asc(), WfProcessDefinition.created_at.asc()
-    ).limit(1))).scalar_one_or_none()
+    d = process_definition
+    if d is None:
+        rule = approver_rule or {
+            "type": "specified_role", "value": "admin", "exclude_initiator": True,
+        }
+        await ensure_default_definition(
+            db, ctx.tenant_id, biz_type=biz_type, code=flow_code, name=flow_name,
+            approver_rule=rule,
+            multi_mode="or_sign", empty_strategy="auto_approve",
+        )
+        d = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == ctx.tenant_id,
+            WfProcessDefinition.biz_type == biz_type,
+            WfProcessDefinition.status == "published",
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).order_by(
+            WfProcessDefinition.sort_order.asc(), WfProcessDefinition.created_at.asc()
+        ).limit(1))).scalar_one_or_none()
     if not d:
         return None
     version = await _published_version(db, ctx.tenant_id, d.id)
     if not version:
         return None
 
-    olds = (await db.execute(select(WfProcessInstance).where(
-        WfProcessInstance.tenant_id == ctx.tenant_id,
-        WfProcessInstance.biz_type == biz_type,
-        WfProcessInstance.biz_id == biz_id,
-        WfProcessInstance.business_no == _JDY_IMPORT_BIZ_NO,
-    ))).scalars().all()
+    if form_instance_id:
+        olds = (await db.execute(select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == ctx.tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
+            WfProcessInstance.business_no == _JDY_IMPORT_BIZ_NO,
+        ))).scalars().all()
+    else:
+        olds = (await db.execute(select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == ctx.tenant_id,
+            WfProcessInstance.biz_type == biz_type,
+            WfProcessInstance.biz_id == biz_id,
+            WfProcessInstance.business_no == _JDY_IMPORT_BIZ_NO,
+        ))).scalars().all()
     for old in olds:
         await _delete_wf_instance_tree(db, ctx.tenant_id, old.id)
 
@@ -1075,6 +1089,7 @@ async def _import_jdy_flow_history(
         tenant_id=ctx.tenant_id,
         process_definition_id=d.id,
         process_version_id=version.id,
+        form_instance_id=form_instance_id,
         biz_type=biz_type,
         biz_id=biz_id,
         business_no=_JDY_IMPORT_BIZ_NO,
@@ -1151,6 +1166,71 @@ async def _import_jdy_flow_history(
 
     await db.flush()
     return inst.id
+
+
+async def import_form_instance_flow_history(
+    db: AsyncSession, ctx, form_instance, template_code: str, steps,
+    flow_finished: bool | None = None,
+) -> str | None:
+    """把简道云表单流程动态挂到 lc_form_instance，供详情页「流程动态」展示。"""
+    if not steps or form_instance is None:
+        return None
+    from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessInstance
+    from app.domains.lowcode.workflow_service import (
+        FORM_DEFAULT_SPECS, ensure_default_form_definition,
+    )
+
+    d = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == ctx.tenant_id,
+        WfProcessDefinition.form_template_id == form_instance.template_id,
+        WfProcessDefinition.status == "published",
+        WfProcessDefinition.is_deleted == False,  # noqa: E712
+    ).limit(1))).scalar_one_or_none()
+    if not d:
+        spec = next((s for s in FORM_DEFAULT_SPECS if s["form_code"] == template_code), None)
+        if spec:
+            await ensure_default_form_definition(
+                db, ctx.tenant_id, form_instance.template_id,
+                code=spec["code"], name=spec["name"],
+                approver_rule=spec.get("approver_rule"),
+                multi_mode=spec.get("multi_mode", "or_sign"),
+                empty_strategy=spec.get("empty_strategy", "auto_approve"),
+            )
+            d = (await db.execute(select(WfProcessDefinition).where(
+                WfProcessDefinition.tenant_id == ctx.tenant_id,
+                WfProcessDefinition.form_template_id == form_instance.template_id,
+                WfProcessDefinition.status == "published",
+                WfProcessDefinition.is_deleted == False,  # noqa: E712
+            ).limit(1))).scalar_one_or_none()
+    if not d:
+        return None
+
+    code = (template_code or "").strip() or "form"
+    title = f"简道云流程: {(form_instance.title or '').strip() or code}"
+    initiator_id = form_instance.initiator_id or ctx.app_id
+    inst_id = await _import_jdy_flow_history(
+        db, ctx,
+        biz_type=code,
+        biz_id=form_instance.id,
+        title=title,
+        flow_code=d.code or f"jdy_{code}",
+        flow_name=d.name or title,
+        initiator_id=initiator_id,
+        department_id=form_instance.initiator_dept_id,
+        steps=steps,
+        flow_finished=flow_finished,
+        form_instance_id=form_instance.id,
+        process_definition=d,
+    )
+    if not inst_id:
+        return None
+    form_instance.process_instance_id = inst_id
+    pinst = await db.get(WfProcessInstance, inst_id)
+    if pinst and pinst.status:
+        form_instance.status = pinst.status
+    await db.commit()
+    await db.refresh(form_instance)
+    return inst_id
 
 
 async def import_contract_version_flow_history(
@@ -2515,6 +2595,9 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
     if initiator_id:
         user["sub"] = initiator_id
 
+    flow_history = getattr(data, "flow_history", None)
+    flow_finished = getattr(data, "flow_finished", None)
+
     existing = await _find_form_instance_by_external_key(db, ctx.tenant_id, tpl.id, external_key)
     if existing:
         merged = dict(existing.form_data or {})
@@ -2526,17 +2609,25 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
         )
         patch_user = {**user, "openapi_form_patch": True}
         inst = await lc_service.update_instance(db, ctx.tenant_id, existing.id, upd, patch_user)
-        return {**_form_instance_to_openapi_dto(inst), "upsert": "updated"}
+        upsert = "updated"
+    else:
+        create = lc_schemas.FormInstanceCreate(
+            template_id=tpl.id,
+            title=data.title,
+            remark=data.remark,
+            form_data=form_data,
+            as_draft=bool(data.as_draft),
+        )
+        inst = await lc_service.create_instance(db, ctx.tenant_id, create, user)
+        upsert = "created"
 
-    create = lc_schemas.FormInstanceCreate(
-        template_id=tpl.id,
-        title=data.title,
-        remark=data.remark,
-        form_data=form_data,
-        as_draft=bool(data.as_draft),
-    )
-    inst = await lc_service.create_instance(db, ctx.tenant_id, create, user)
-    return {**_form_instance_to_openapi_dto(inst), "upsert": "created"}
+    if flow_history:
+        await import_form_instance_flow_history(
+            db, ctx, inst, code, flow_history, flow_finished=flow_finished,
+        )
+        await db.refresh(inst)
+
+    return {**_form_instance_to_openapi_dto(inst), "upsert": upsert}
 
 
 # ============================================================ webhook ops

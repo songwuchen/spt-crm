@@ -328,6 +328,9 @@ class OpenFormInstanceUpsert(BaseModel):
     Intended for middleware push from 简道云. Upsert key: tenant + template_code +
     ``external_key`` (stored in form_data._external_key). Default ``as_draft=true``
     so historical sync does not re-trigger CRM approval.
+
+    ``flow_history``：简道云流程动态；服务端挂到该表单实例的「流程动态」时间线。
+    ``flow_finished``：对应简道云 flow_finished_at；False 表示审批中。
     """
     template_code: str = Field(..., min_length=1, max_length=64)
     external_key: str = Field(..., min_length=1, max_length=128)
@@ -335,6 +338,8 @@ class OpenFormInstanceUpsert(BaseModel):
     remark: Optional[str] = Field(None, max_length=2000)
     as_draft: bool = True
     form_data: dict[str, Any] = Field(default_factory=dict)
+    flow_history: Optional[List[OpenFlowHistoryStep]] = None
+    flow_finished: Optional[bool] = None
 
 
 class OpenOrderStatusUpdate(BaseModel):
