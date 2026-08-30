@@ -44,7 +44,7 @@ describe('detailQuickFill', () => {
   it('网格转行并过滤空行', () => {
     const pasteable = getPasteableFields(fields)
     const rows = gridToRows([
-      ['否', '复频筛', '筛机A', 'GF-1', '台', '2', '', '', '10000'],
+      ['否', '复频筛', '筛机A', 'GF-1', '台', '2', '10000', '', ''],
       ['', '', '', '', '', '', '', '', ''],
     ], pasteable)
     expect(rows).toHaveLength(1)
