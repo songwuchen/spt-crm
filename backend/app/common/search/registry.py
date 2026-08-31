@@ -151,6 +151,7 @@ def _build_registry() -> dict:
                   options=[("new", "新增"), ("change", "变动")]),
         TextField("acquire_method", "获取方式", Contract.acquire_method),
         NumberField("amount_total", "合同金额", Contract.amount_total),
+        DateField("card_date", "下卡日期", Contract.card_date),
         DateField("signed_date", "签署日期", Contract.signed_date),
         DateField("delivery_date", "合同交货期", Contract.delivery_date),
         DateField("end_date", "到期日期", Contract.end_date),

@@ -510,3 +510,63 @@ async def test_contract_export_excel(client: AsyncClient, auth_headers: dict):
     resp = await client.get("/api/v1/contracts/export/excel", headers=auth_headers)
     assert resp.status_code == 200
     assert "spreadsheet" in resp.headers.get("content-type", "")
+
+
+def test_contract_search_schema_includes_card_date():
+    """合同高级筛选应暴露下卡日期区间查询。"""
+    from app.common.search import get_schema
+
+    schema = get_schema("contract")
+    assert schema is not None
+    by_key = {f["key"]: f for f in schema.schema_dict()["fields"]}
+    assert "card_date" in by_key
+    assert by_key["card_date"]["label"] == "下卡日期"
+    assert by_key["card_date"]["type"] == "date"
+    assert "between" in by_key["card_date"]["operators"]
+
+
+async def test_contract_list_filter_by_card_date_between(client: AsyncClient, auth_headers: dict):
+    """合同列表高级筛选：下卡日期区间。"""
+    import json
+    import uuid
+
+    h = auth_headers
+    suffix = uuid.uuid4().hex[:10]
+    today = datetime.date.today().isoformat()
+    old_day = "2020-01-15"
+
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    in_range = (await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "contract_no": f"CT-CARD-{suffix}-A",
+        "drawing_no": peek,
+        "card_date": today,
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    out_range = (await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "contract_no": f"CT-CARD-{suffix}-B",
+        "drawing_no": (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"],
+        "card_date": old_day,
+    }, headers=h)).json()["data"]["contract"]["id"]
+
+    detail_in = (await client.get(f"/api/v1/contracts/{in_range}", headers=h)).json()["data"]
+    detail_out = (await client.get(f"/api/v1/contracts/{out_range}", headers=h)).json()["data"]
+    assert detail_in.get("card_date") == today
+    assert detail_out.get("card_date") == old_day
+
+    filt = json.dumps({
+        "match": "all",
+        "rules": [
+            {"field": "contract_no", "op": "contains", "value": f"CT-CARD-{suffix}"},
+            {"field": "card_date", "op": "between", "value": [today, today]},
+        ],
+    })
+    hit = await client.get("/api/v1/contracts", params={"pageNo": 1, "pageSize": 50, "filter": filt}, headers=h)
+    assert hit.json()["code"] == 0, hit.text
+    ids = {x["id"] for x in hit.json()["data"]["items"]}
+    assert in_range in ids
+    assert out_range not in ids
+
+    for cid in (in_range, out_range):
+        await client.delete(f"/api/v1/contracts/{cid}", headers=h)
