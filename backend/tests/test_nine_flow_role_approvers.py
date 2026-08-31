@@ -112,6 +112,23 @@ def test_plan_dispatch_dept_role_catalog():
     assert PLAN_DISPATCH_DEPT_NAMES == ("计划调度室",)
 
 
+def test_contract_registration_dept_role_catalog():
+    from app.common.rbac_catalog import STANDARD_ROLES, role_perm_codes
+    from app.common.rbac_sync import CONTRACT_REGISTRATION_DEPT_NAMES
+
+    role = next(r for r in STANDARD_ROLES if r["code"] == "contract_registration_dept")
+    assert role["name"] == "合同登记（部门）"
+    assert role["scope"] == "all"
+    assert (role.get("scope_by_resource") or {}).get("contract") == "all"
+    perms = set(role_perm_codes(role))
+    assert "contract:view" in perms
+    assert "contract:create" in perms
+    assert "contract:edit" in perms
+    assert "project:view" in perms
+    assert "customer:view" in perms
+    assert CONTRACT_REGISTRATION_DEPT_NAMES == ("财务部", "采购部", "行政中心")
+
+
 def test_legal_member_roster():
     from app.common.rbac_catalog import STANDARD_ROLES
     from app.common.rbac_sync import LEGAL_MEMBER_REAL_NAMES, LEGAL_MEMBER_USERNAMES

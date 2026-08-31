@@ -527,6 +527,16 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "contract_registration_dept", "name": "合同登记（部门）", "scope": "all",
+        "scope_by_resource": {"contract": "all"},
+        "desc": "财务部/采购部/行政中心：合同登记查看、新建、编辑",
+        "perms": [
+            "customer:view",
+            "project:view",
+            "contract:view", "contract:create", "contract:edit",
+        ],
+    },
+    {
         "code": "procurement", "name": "采购专员", "scope": "dept",
         "desc": "采购部/外购:订单 + 产品;合同/交付只读",
         "perms": [

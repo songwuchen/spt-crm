@@ -1013,6 +1013,7 @@ async def ensure_legal_role_members(db, tenant_id: str) -> dict:
 PROD_QUALITY_CONTROL_DEPT_NAMES: tuple[str, ...] = ("工艺与质量控制部",)
 PLAN_PROCUREMENT_DEPT_NAMES: tuple[str, ...] = ("计划采购部",)
 PLAN_DISPATCH_DEPT_NAMES: tuple[str, ...] = ("计划调度室",)
+CONTRACT_REGISTRATION_DEPT_NAMES: tuple[str, ...] = ("财务部", "采购部", "行政中心")
 
 
 async def ensure_prod_quality_control_dept_role(db, tenant_id: str) -> dict:
@@ -1161,6 +1162,68 @@ async def ensure_plan_dispatch_dept_role(db, tenant_id: str) -> dict:
             select(Department).where(
                 Department.tenant_id == tenant_id,
                 Department.name.in_(PLAN_DISPATCH_DEPT_NAMES),
+            )
+        )
+    ).scalars().all()
+
+    rules_added = 0
+    for d in depts:
+        exists = (
+            await db.execute(
+                select(DeptRoleRule.id).where(
+                    DeptRoleRule.tenant_id == tenant_id,
+                    DeptRoleRule.department_id == d.id,
+                    DeptRoleRule.role_id == role.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(DeptRoleRule(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            department_id=d.id,
+            role_id=role.id,
+            include_children=True,
+            enabled=True,
+        ))
+        rules_added += 1
+    await db.flush()
+
+    stats = await apply_dept_role_rules_bulk(db, tenant_id, commit=False)
+    await invalidate_tenant_auth_cache(tenant_id)
+    return {
+        "role_code": role.code,
+        "role_name": role.name,
+        "scope_by_resource": dict(role.scope_by_resource or {}),
+        "dept_rules_added": rules_added,
+        "depts": [{"id": d.id, "name": d.name, "path": d.path} for d in depts],
+        "apply": stats,
+    }
+
+
+async def ensure_contract_registration_dept_role(db, tenant_id: str) -> dict:
+    """确保 contract_registration_dept 角色存在，并挂给财务部/采购部/行政中心成员。"""
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    from app.common.dept_role_auto import apply_dept_role_rules_bulk
+    from app.domains.organization.models import Department, DeptRoleRule
+
+    await ensure_business_roles(db, tenant_id, ["contract_registration_dept"])
+    role = (
+        await db.execute(
+            select(Role).where(
+                Role.tenant_id == tenant_id, Role.code == "contract_registration_dept",
+            )
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return {"error": "role_not_found"}
+
+    depts = (
+        await db.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id,
+                Department.name.in_(CONTRACT_REGISTRATION_DEPT_NAMES),
             )
         )
     ).scalars().all()
