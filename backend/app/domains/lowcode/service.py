@@ -127,7 +127,8 @@ async def _ensure_cdm_drawing_no(
 # 表单填报未传 title 时，从模板名 + 关键业务字段拼审批标题（对齐合同评审/线索「有意义的标题」）
 _TITLE_FIELD_IDS = (
     "apply_reason", "apply_or_change", "apply_reason_star",
-    "contract_no", "drawing_no", "company_name", "title", "reason",
+    "contract_no", "contract_no_select", "drawing_no_query", "drawing_no",
+    "company_name", "title", "reason",
     "applicant_name", "orderer_name", "remark",
 )
 _TITLE_LABEL_HINTS = (
@@ -348,6 +349,8 @@ async def resolve_form_title_labels(
         ("purchaser", "person"),
         ("applicant", "person"),
         ("contract_no", "contract"),
+        ("contract_no_select", "contract"),
+        ("drawing_no_query", "contract"),
     ):
         type_by_id.setdefault(fid, ftype)
 
@@ -373,7 +376,7 @@ async def resolve_form_title_labels(
                 customer_ids.add(i)
             else:
                 person_ids.add(i)
-    for fid in ("contract_no",):
+    for fid in ("contract_no", "contract_no_select", "drawing_no_query"):
         for i in _collect_title_ref_ids(data.get(fid)):
             if _UUID_RE.match(i):
                 contract_ids.add(i)

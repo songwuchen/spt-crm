@@ -38,3 +38,12 @@ def test_presale_weak_title_only_template_name():
 
 def test_presale_detected_by_field_defs():
     assert _is_presale_template(None, _PRESALE_DEFS)
+
+
+def test_prod_card_title_from_contract_no_select():
+    """生产卡选合同路径：标题应带出合同图纸号，避免待办列表仅显示模板名。"""
+    data = {"contract_no_select": "6dafebcf-70fc-4020-886f-b976ceb7afa9"}
+    labels = {"6dafebcf-70fc-4020-886f-b976ceb7afa9": "WMGF202607130"}
+    title = derive_form_instance_title("生产卡/补充流程", data, None, labels)
+    assert title == "生产卡/补充流程: WMGF202607130"
+    assert not is_weak_form_title(title, "生产卡/补充流程")
