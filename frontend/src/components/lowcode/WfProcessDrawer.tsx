@@ -37,7 +37,6 @@ import { isQuoteManagementForm, printQuoteInstance } from '@/pages/quote/quotePr
 import {
   BIZ_BONUS_PRINT_MODE_LABELS,
   defaultBizBonusPrintMode,
-  isBizBonusApproveAndPrintNode,
   isBizBonusForm,
   printBizBonusInstance,
   type BizBonusPrintMode,
@@ -286,7 +285,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const approveAndPrint = canAct && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
-    || (canPrintBonus && (isBizBonusApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
   )
 
   const handlePrintScheme = async (prodMode?: ProdCardPrintMode, bonusMode?: BizBonusPrintMode) => {
@@ -453,7 +451,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         && (
           (canPrintScheme && isDrawingApproveAndPrintNode(ct?.node_name))
           || (canPrintProdCard && isProdCardApproveAndPrintNode(ct?.node_name))
-          || (canPrintBonus && isBizBonusApproveAndPrintNode(ct?.node_name))
         )
       await workflowApi.act(effectiveTaskId, {
         action, opinion: opinion.trim() || undefined,
@@ -481,14 +478,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               flowSteps: detail?.flow_steps,
               mode: defaultProdCardPrintMode(mergedForm),
               injectApproval: inject,
-            })
-          } else if (canPrintBonus) {
-            await printBizBonusInstance({
-              formData: mergedForm,
-              fieldDefinitions: fields,
-              businessNo: detail?.business_no,
-              flowSteps: detail?.flow_steps,
-              mode: defaultBizBonusPrintMode(),
             })
           } else {
             await printSchemeInstance({
