@@ -35,6 +35,8 @@ def test_contract_review_finance_dir_only_zhangguang():
     assert n["approver_rule"]["type"] == "specified_user"
     assert n["approver_rule"]["value"] == "0433406811775721"
     assert n.get("multi_mode", "or_sign") == "or_sign"
+    fp = {p["field"] for p in (n.get("field_perms") or [])}
+    assert {"drawing_no", "opinion_exec"}.issubset(fp)
     assert _contract_review_finance_dir_aligned(nodes)
     # 旧会签配置应对齐失败
     bad = [{

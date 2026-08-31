@@ -4250,11 +4250,12 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "approval_finance_dir", "财务总监意见", u["finance_dir"],
             # 业务确认仅张光审批（或签）；简道云原为李晋+张光会签已按业务调整
             multi_mode="or_sign",
-            # 简道云：财务/采购风险 + 账期/结论描述
+            # 简道云：财务/采购风险 + 账期/结论 + 合同签订（图纸编号/意见执行）
             field_perms=_fp(
                 ("finance_risk", "required"), ("finance_risk_desc", "editable"),
                 ("purchase_risk", "required"), ("purchase_risk_desc", "editable"),
                 ("payment_term", "required"), ("conclusion", "editable"),
+                ("drawing_no", "editable"), ("opinion_exec", "editable"),
             ),
         ),
         _user_approval_node(
@@ -6408,6 +6409,8 @@ def _contract_review_risk_perms_aligned(nodes: list | None) -> bool:
     if "finance_risk" not in fin_dir or "purchase_risk" not in fin_dir:
         return False
     if "payment_term" not in fin_dir or "conclusion" not in fin_dir:
+        return False
+    if "drawing_no" not in fin_dir or "opinion_exec" not in fin_dir:
         return False
     if "purchase_risk" in fields_of("approval_procurement"):
         return False
