@@ -68,6 +68,59 @@ def test_plain_contains_still_works_for_text():
 
 
 @pytest.mark.asyncio
+async def test_contains_does_not_match_unrelated_form_fields(db):
+    """「包含」只匹配目标 field，不因 form_data 其它键含相同片段而误命中。"""
+    token = generate_uuid()[:8]
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-contains-fp-{token}", code=f"ut_cf_fp_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[
+            {"id": "no_drawing_no", "type": "text", "label": "图纸编号"},
+        ],
+        layout_definition={}, rule_definitions=[],
+    )
+    miss_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="miss", status="running", initiator_id="ut-admin",
+        form_data={
+            "no_drawing_no": "WMGF202608001",
+            "remark_prod_card": "历史单号 1.2.3-2026081501456 备注",
+        },
+        field_definitions=[],
+    )
+    hit_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="hit", status="running", initiator_id="ut-admin",
+        form_data={"no_drawing_no": "1.2.3-2026081501458"},
+        field_definitions=[],
+    )
+    db.add_all([tpl, ver, miss_inst, hit_inst])
+    await db.commit()
+    try:
+        filt = {"match": "all", "rules": [
+            {"field": "no_drawing_no", "op": "contains", "value": "202608150"},
+        ]}
+        rows, total = await list_instances(db, DEMO_TENANT, tpl.id, 1, 20, filters=filt)
+        ids = {r.id for r in rows}
+        assert hit_inst.id in ids
+        assert miss_inst.id not in ids
+        assert total == 1
+    finally:
+        await db.delete(hit_inst)
+        await db.delete(miss_inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_radio_eq_does_not_match_other_fields_with_same_value(db):
     """radio eq「否」不应因其它字段值为「否」而误命中（如 is_after_sales=是 但 is_reship=否）。"""
     token = generate_uuid()[:8]

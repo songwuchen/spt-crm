@@ -1917,6 +1917,21 @@ def _form_data_json_kv_match(field: str, val: str):
     )
 
 
+def _form_data_json_field_contains(field: str, needle: str):
+    """明细子表等同 field id：只在 JSON 该键的字符串值里做包含匹配。
+
+    不用整份 form_data 全文 ILIKE，避免「图纸编号」筛选误命中 remark/明细其它列。
+    """
+    s = str(needle or "")
+    if not s:
+        return False
+    blob = cast(FormInstance.form_data, String)
+    return or_(
+        blob.ilike(f'%"{field}": "%{s}%"'),
+        blob.ilike(f'%"{field}":"%{s}%"'),
+    )
+
+
 def _form_data_scalar_eq(field: str, val: str):
     txt = _form_data_field_text(field)
     empty = _form_data_field_empty_expr(field)
@@ -1945,12 +1960,10 @@ def _form_data_filter_clause(rule: dict):
     if op == "ne":
         return not_(_form_data_scalar_eq(field, str(value)))
     if op == "contains":
-        return or_(txt.ilike(f"%{value}%"), blob.ilike(f"%{value}%"))
+        return or_(txt.ilike(f"%{value}%"), _form_data_json_field_contains(field, str(value)))
     if op == "not_contains":
-        return and_(
-            or_(txt.is_(None), not_(txt.ilike(f"%{value}%"))),
-            or_(blob.is_(None), not_(blob.ilike(f"%{value}%"))),
-        )
+        hit = or_(txt.ilike(f"%{value}%"), _form_data_json_field_contains(field, str(value)))
+        return not_(hit)
     if op == "in":
         vals = value if isinstance(value, list) else [value]
         parts = [
@@ -1977,7 +1990,7 @@ def _form_data_filter_clause(rule: dict):
         return and_(txt.isnot(None), txt < str(value))
     if op == "lte":
         return and_(txt.isnot(None), txt <= str(value))
-    return or_(txt.ilike(f"%{value}%"), blob.ilike(f"%{value}%"))
+    return or_(txt.ilike(f"%{value}%"), _form_data_json_field_contains(field, str(value)))
 
 
 def _form_data_ids_match_clause(field: str, ids: list[str]):
@@ -2149,26 +2162,27 @@ async def _form_data_filter_clause_resolved(
 
     txt = FormInstance.form_data.op("->>")(field)
     id_hit = _form_data_ids_match_clause(field, ids) if ids else False
-    # 名称也可能嵌在 JSON 文本里（{id,name} / 明细行），保留原文包含
-    blob = cast(FormInstance.form_data, String)
-    name_parts = []
-    for v in values:
-        name_parts.append(txt.ilike(f"%{v}%"))
-        name_parts.append(blob.ilike(f"%{v}%"))
+    # 名称也可能嵌在 JSON 文本里（{id,name} / 明细行），仅匹配本 field 键
+    name_parts = [txt.ilike(f"%{v}%") for v in values]
     name_hit = or_(*name_parts) if name_parts else False
+    detail_parts = [
+        _form_data_json_field_contains(field, v)
+        for v in values if str(v or "").strip()
+    ]
+    detail_hit = or_(*detail_parts) if detail_parts else False
 
     if op == "contains":
-        return or_(id_hit, name_hit)
+        return or_(id_hit, name_hit, detail_hit)
     if op == "not_contains":
         miss = not_(id_hit) if ids else True
-        return and_(miss, or_(txt.is_(None), not_(name_hit)))
+        return and_(miss, or_(txt.is_(None), not_(or_(name_hit, detail_hit))))
     if op == "eq":
-        return or_(id_hit, name_hit)
+        return or_(id_hit, name_hit, detail_hit)
     if op == "ne":
         miss = not_(id_hit) if ids else True
-        return and_(miss, or_(txt.is_(None), not_(name_hit)))
+        return and_(miss, or_(txt.is_(None), not_(or_(name_hit, detail_hit))))
     if op == "in":
-        return or_(id_hit, name_hit)
+        return or_(id_hit, name_hit, detail_hit)
     return _form_data_filter_clause(rule)
 
 
@@ -2335,10 +2349,23 @@ async def _instance_list_filter_bundle(
     if not rules:
         return None
     field_types = await _template_field_type_map(db, tenant_id, template_id)
+    template_code = await _template_code_for(db, tenant_id, template_id)
     clauses = []
     for r in rules:
         if r["field"] == _SYS_INITIATOR_FIELD:
             clauses.append(await _initiator_filter_clause(db, tenant_id, r))
+        elif template_code == "prod_card_supplement" and r["field"] in (
+            "no_drawing_no", "yes_drawing_no", "yes_contract_no",
+            "drawing_no_query", "contract_no_select",
+        ):
+            from app.domains.lowcode.pricing_checklist_fields import (
+                prod_card_supplement_list_filter_clause,
+            )
+            clauses.append(
+                await prod_card_supplement_list_filter_clause(
+                    db, tenant_id, r, field_types.get(r["field"]),
+                )
+            )
         else:
             clauses.append(
                 await _form_data_filter_clause_resolved(

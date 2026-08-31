@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, cast, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.auth.models import User
@@ -326,6 +326,56 @@ async def _lookup_contract_ref_texts_for_ids(
                 seen.add(rs)
                 out.append(rs)
     return out
+
+
+async def prod_card_supplement_list_filter_clause(
+    db: AsyncSession,
+    tenant_id: str,
+    rule: dict,
+    field_type: str | None,
+):
+    """生产卡「图纸编号」等：顶层字段 + 选合同引用反查，不做整表 JSON 误命中。"""
+    from app.domains.lowcode.service import (
+        _form_data_filter_clause,
+        _form_data_filter_clause_resolved,
+        _form_data_json_field_contains,
+    )
+
+    field = rule["field"]
+    op = rule.get("op")
+    ftype = (field_type or "").strip()
+
+    if field in ("drawing_no_query", "contract_no_select") or ftype == "contract":
+        return await _form_data_filter_clause_resolved(db, tenant_id, rule, ftype or "contract")
+
+    if op == "contains":
+        needle = str(rule.get("value") or "").strip()
+        if not needle:
+            return False
+        txt = FormInstance.form_data.op("->>")(field)
+        parts = [
+            txt.ilike(f"%{needle}%"),
+            _form_data_json_field_contains(field, needle),
+        ]
+        cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, needle)
+        ref_texts = await _lookup_contract_ref_texts_for_ids(db, tenant_id, cids)
+        ref = _prod_card_form_contract_ref_conds(cids, ref_texts)
+        if ref is not None:
+            parts.append(ref)
+        return or_(*parts)
+
+    if op == "not_contains":
+        needle = str(rule.get("value") or "").strip()
+        if not needle:
+            return True
+        pos = await prod_card_supplement_list_filter_clause(
+            db, tenant_id, {**rule, "op": "contains"}, field_type,
+        )
+        return not_(pos)
+
+    if ftype in ("department", "department_multi", "person", "person_multi"):
+        return await _form_data_filter_clause_resolved(db, tenant_id, rule, ftype)
+    return _form_data_filter_clause(rule)
 
 
 async def prod_card_supplement_list_keyword_clause(
