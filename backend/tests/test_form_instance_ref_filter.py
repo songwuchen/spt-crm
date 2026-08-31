@@ -121,6 +121,132 @@ async def test_contains_does_not_match_unrelated_form_fields(db):
 
 
 @pytest.mark.asyncio
+async def test_no_drawing_no_filter_ignores_other_json_fields(db):
+    """图纸编号 contains 不应因车间/附件等其它字段含相同片段而误命中。"""
+    from sqlalchemy import select
+
+    from app.domains.lowcode.pricing_checklist_fields import prod_card_supplement_list_filter_clause
+
+    token = generate_uuid()[:8]
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-pc-dn-{token}", code=f"ut_pc_dn_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[
+            {"id": "no_drawing_no", "type": "text", "label": "图纸编号"},
+        ],
+        layout_definition={}, rule_definitions=[],
+    )
+    miss_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="miss", status="running", initiator_id="ut-admin",
+        form_data={
+            "drawing_no_query": f"1.2.3-UT{token}2026082401512",
+            "std_room_fill": [{"spec_model": "WFPS（WMGF202608150）"}],
+            "attachments": [{"name": "WMGF202608150技术协议.pdf"}],
+        },
+        field_definitions=[],
+    )
+    hit_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="hit", status="running", initiator_id="ut-admin",
+        form_data={"drawing_no_query": f"1.2.3-UT{token}2026081501458"},
+        field_definitions=[],
+    )
+    db.add_all([tpl, ver, miss_inst, hit_inst])
+    await db.commit()
+    try:
+        clause = await prod_card_supplement_list_filter_clause(
+            db, DEMO_TENANT,
+            {"field": "no_drawing_no", "op": "contains", "value": "202608150"},
+            "text",
+        )
+        ids = set((await db.execute(
+            select(FormInstance.id).where(
+                FormInstance.tenant_id == DEMO_TENANT,
+                FormInstance.id.in_([miss_inst.id, hit_inst.id]),
+                clause,
+            )
+        )).scalars().all())
+        assert hit_inst.id in ids
+        assert miss_inst.id not in ids
+        assert ids == {hit_inst.id}
+    finally:
+        await db.delete(hit_inst)
+        await db.delete(miss_inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_no_drawing_no_filter_ignores_contract_no_select_serial(db):
+    """筛图纸编号时不应仅因 contract_no_select 流水号含日期段而命中。"""
+    from sqlalchemy import select
+
+    from app.domains.lowcode.pricing_checklist_fields import prod_card_supplement_list_filter_clause
+
+    token = generate_uuid()[:8]
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-pc-csel-{token}", code=f"ut_pc_csel_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[
+            {"id": "no_drawing_no", "type": "text", "label": "图纸编号"},
+        ],
+        layout_definition={}, rule_definitions=[],
+    )
+    miss_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="miss", status="running", initiator_id="ut-admin",
+        form_data={"contract_no_select": "1.2.3-2026081501455"},
+        field_definitions=[],
+    )
+    hit_inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="hit", status="running", initiator_id="ut-admin",
+        form_data={"no_drawing_no": "WMGF202608150"},
+        field_definitions=[],
+    )
+    db.add_all([tpl, ver, miss_inst, hit_inst])
+    await db.commit()
+    try:
+        clause = await prod_card_supplement_list_filter_clause(
+            db, DEMO_TENANT,
+            {"field": "no_drawing_no", "op": "contains", "value": "202608150"},
+            "text",
+        )
+        ids = set((await db.execute(
+            select(FormInstance.id).where(
+                FormInstance.tenant_id == DEMO_TENANT,
+                FormInstance.id.in_([miss_inst.id, hit_inst.id]),
+                clause,
+            )
+        )).scalars().all())
+        assert hit_inst.id in ids
+        assert miss_inst.id not in ids
+        assert ids == {hit_inst.id}
+    finally:
+        await db.delete(hit_inst)
+        await db.delete(miss_inst)
+        await db.delete(ver)
+        await db.delete(tpl)
+        await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_radio_eq_does_not_match_other_fields_with_same_value(db):
     """radio eq「否」不应因其它字段值为「否」而误命中（如 is_after_sales=是 但 is_reship=否）。"""
     token = generate_uuid()[:8]

@@ -273,11 +273,13 @@ async def _lookup_contract_ids_for_pick_keyword(
 def _prod_card_form_contract_ref_conds(
     contract_ids: list[str],
     contract_ref_texts: list[str] | None = None,
+    *,
+    keys: tuple[str, ...] = ("drawing_no_query", "contract_no_select"),
 ):
     """form_data 中 drawing_no_query / contract_no_select 命中合同 id 或流水号/合同号/图纸号。"""
     parts = []
     for cid in contract_ids:
-        for key in ("drawing_no_query", "contract_no_select"):
+        for key in keys:
             col = FormInstance.form_data[key]
             parts.append(col.astext == cid)
             parts.append(col["id"].astext == cid)
@@ -285,11 +287,36 @@ def _prod_card_form_contract_ref_conds(
         s = str(txt or "").strip()
         if not s:
             continue
-        for key in ("drawing_no_query", "contract_no_select"):
+        for key in keys:
             col = FormInstance.form_data[key]
             parts.append(col.astext == s)
             parts.append(col["id"].astext == s)
     return or_(*parts) if parts else None
+
+
+async def _lookup_contract_ids_for_drawing_keyword(
+    db: AsyncSession,
+    tenant_id: str,
+    keyword: str,
+) -> list[str]:
+    """图纸编号筛选反查合同：仅 drawing_no / contract_no，不含流水号日期段误命中。"""
+    from app.domains.contract.models import Contract
+
+    kw = (keyword or "").strip()
+    if not kw:
+        return []
+    like = f"%{kw}%"
+    rows = (await db.execute(
+        select(Contract.id).where(
+            Contract.tenant_id == tenant_id,
+            or_(
+                Contract.drawing_no.ilike(like),
+                Contract.contract_no.ilike(like),
+                Contract.peer_contract_no.ilike(like),
+            ),
+        ).limit(200)
+    )).scalars().all()
+    return [str(x) for x in rows]
 
 
 async def _lookup_contract_ref_texts_for_ids(
@@ -352,14 +379,25 @@ async def prod_card_supplement_list_filter_clause(
         needle = str(rule.get("value") or "").strip()
         if not needle:
             return False
+        like = f"%{needle}%"
         txt = FormInstance.form_data.op("->>")(field)
         parts = [
-            txt.ilike(f"%{needle}%"),
+            txt.ilike(like),
             _form_data_json_field_contains(field, needle),
         ]
-        cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, needle)
+        if field == "no_drawing_no":
+            parts.append(FormInstance.form_data["drawing_no_query"].astext.ilike(like))
+            cids = await _lookup_contract_ids_for_drawing_keyword(db, tenant_id, needle)
+            ref_keys: tuple[str, ...] = ("drawing_no_query",)
+        elif field in ("yes_drawing_no", "yes_contract_no"):
+            parts.append(FormInstance.form_data["contract_no_select"].astext.ilike(like))
+            cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, needle)
+            ref_keys = ("contract_no_select",)
+        else:
+            cids = await _lookup_contract_ids_for_pick_keyword(db, tenant_id, needle)
+            ref_keys = ("drawing_no_query", "contract_no_select")
         ref_texts = await _lookup_contract_ref_texts_for_ids(db, tenant_id, cids)
-        ref = _prod_card_form_contract_ref_conds(cids, ref_texts)
+        ref = _prod_card_form_contract_ref_conds(cids, ref_texts, keys=ref_keys)
         if ref is not None:
             parts.append(ref)
         return or_(*parts)

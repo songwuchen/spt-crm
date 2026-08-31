@@ -1920,16 +1920,17 @@ def _form_data_json_kv_match(field: str, val: str):
 def _form_data_json_field_contains(field: str, needle: str):
     """明细子表等同 field id：只在 JSON 该键的字符串值里做包含匹配。
 
-    不用整份 form_data 全文 ILIKE，避免「图纸编号」筛选误命中 remark/明细其它列。
+    不用整份 form_data 全文 ILIKE，且 ILIKE 的 % 不能跨键跨字段；用正则限定在同一引号字符串内。
     """
+    import re
+
     s = str(needle or "")
-    if not s:
+    fid = str(field or "").strip()
+    if not s or not fid:
         return False
     blob = cast(FormInstance.form_data, String)
-    return or_(
-        blob.ilike(f'%"{field}": "%{s}%"'),
-        blob.ilike(f'%"{field}":"%{s}%"'),
-    )
+    pat = rf'"{re.escape(fid)}"\s*:\s*"[^"]*{re.escape(s)}[^"]*"'
+    return blob.op("~*")(pat)
 
 
 def _form_data_scalar_eq(field: str, val: str):
