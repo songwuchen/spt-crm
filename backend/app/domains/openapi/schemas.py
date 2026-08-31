@@ -322,6 +322,20 @@ class OpenContractCreate(BaseModel):
         return self
 
 
+class OpenDataLogChange(BaseModel):
+    old: Any = None
+    new: Any = None
+
+
+class OpenDataLogEntry(BaseModel):
+    """简道云数据日志一条（list_changes 归档）。changes 的 key 多为 _widget_*。"""
+    op: Optional[str] = None
+    operator: Optional[str] = None
+    log_time: Optional[str] = None
+    jdy_log_id: Optional[str] = None
+    changes: Optional[dict[str, OpenDataLogChange]] = None
+
+
 class OpenFormInstanceUpsert(BaseModel):
     """Upsert a low-code form instance (e.g. 合同图纸领用 / 安装图设计通知).
 
@@ -331,6 +345,7 @@ class OpenFormInstanceUpsert(BaseModel):
 
     ``flow_history``：简道云流程动态；服务端挂到该表单实例的「流程动态」时间线。
     ``flow_finished``：对应简道云 flow_finished_at；False 表示审批中。
+    ``data_logs``：简道云数据日志（字段级 create/update）；写入 CRM 数据日志侧栏。
     """
     template_code: str = Field(..., min_length=1, max_length=64)
     external_key: str = Field(..., min_length=1, max_length=128)
@@ -340,6 +355,7 @@ class OpenFormInstanceUpsert(BaseModel):
     form_data: dict[str, Any] = Field(default_factory=dict)
     flow_history: Optional[List[OpenFlowHistoryStep]] = None
     flow_finished: Optional[bool] = None
+    data_logs: Optional[List[OpenDataLogEntry]] = None
 
 
 class OpenOrderStatusUpdate(BaseModel):

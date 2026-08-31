@@ -1272,6 +1272,178 @@ async def import_form_instance_flow_history(
     return inst_id
 
 
+def _jdy_widget_field_map(field_defs: list | None) -> dict[str, tuple[str, str]]:
+    """jdy_widget / aliases → (field_id, label)."""
+    out: dict[str, tuple[str, str]] = {}
+    for fd in field_defs or []:
+        if not isinstance(fd, dict):
+            continue
+        fid = str(fd.get("id") or "").strip()
+        if not fid:
+            continue
+        label = str(fd.get("label") or fid)
+        widgets: list[str] = []
+        jw = fd.get("jdy_widget")
+        if isinstance(jw, str) and jw.strip():
+            widgets.append(jw.strip())
+        aliases = fd.get("aliases") or []
+        if isinstance(aliases, list):
+            for a in aliases:
+                if isinstance(a, str) and a.strip():
+                    widgets.append(a.strip())
+        for w in widgets:
+            out[w] = (fid, label)
+        # also allow looking up by CRM field id itself
+        out[fid] = (fid, label)
+    return out
+
+
+def _parse_jdy_log_time(raw: str | None):
+    from datetime import datetime
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip().replace("Z", "+00:00")
+    # hub sometimes returns without timezone offset fraction
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        try:
+            dt = datetime.fromisoformat(s.split(".")[0])
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        from datetime import timezone
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+async def import_form_instance_data_logs(
+    db: AsyncSession, ctx, form_instance, field_defs: list | None, entries,
+) -> int:
+    """把简道云数据日志写入 audit_logs（资源 form_instance），供详情「数据日志」Tab。
+
+    幂等：删除该实例上 source=jdy 的旧数据日志后整批重写；保留 CRM 本地产生的日志。
+    """
+    if not entries or form_instance is None:
+        return 0
+    from app.domains.auth.models import User
+    from app.domains.audit.models import AuditLog
+    from app.common.audit_diff import enrich_changes_with_labels, serialize_value
+    from app.common.audit_display import enrich_form_changes_for_display
+    from app.domains.audit.service import _compute_content_hash, _sanitize_for_json
+    from app.database import generate_uuid
+
+    widget_map = _jdy_widget_field_map(field_defs)
+
+    # wipe prior jdy-imported data logs for this form instance
+    olds = (await db.execute(select(AuditLog).where(
+        AuditLog.tenant_id == ctx.tenant_id,
+        AuditLog.resource_type == "form_instance",
+        AuditLog.resource_id == form_instance.id,
+    ))).scalars().all()
+    for row in olds:
+        detail = row.detail if isinstance(row.detail, dict) else {}
+        if detail.get("source") == "jdy":
+            await db.delete(row)
+    await db.flush()
+
+    name_cache: dict[str, str] = {}
+
+    async def resolve_user(name: str | None) -> tuple[str, str | None]:
+        display = (name or "").strip() or None
+        if not display:
+            return ctx.app_id, None
+        if display in name_cache:
+            return name_cache[display], display
+        u = (await db.execute(select(User).where(
+            User.tenant_id == ctx.tenant_id,
+            User.is_active == True,  # noqa: E712
+            or_(User.real_name == display, User.username == display),
+        ).limit(1))).scalar_one_or_none()
+        uid = u.id if u else ctx.app_id
+        name_cache[display] = uid
+        return uid, display
+
+    written = 0
+    for entry in entries:
+        if hasattr(entry, "model_dump"):
+            raw = entry.model_dump()
+        elif isinstance(entry, dict):
+            raw = entry
+        else:
+            raw = {
+                "op": getattr(entry, "op", None),
+                "operator": getattr(entry, "operator", None),
+                "log_time": getattr(entry, "log_time", None),
+                "jdy_log_id": getattr(entry, "jdy_log_id", None),
+                "changes": getattr(entry, "changes", None),
+            }
+        op = (raw.get("op") or "update").strip().lower()
+        if op not in ("create", "update", "delete"):
+            op = "update"
+        operator = (raw.get("operator") or "").strip() or None
+        jdy_log_id = (raw.get("jdy_log_id") or "").strip() or None
+        log_time = _parse_jdy_log_time(raw.get("log_time"))
+        changes_in = raw.get("changes") or {}
+        mapped: dict[str, dict] = {}
+        for widget_key, ch in changes_in.items():
+            if hasattr(ch, "model_dump"):
+                ch = ch.model_dump()
+            if not isinstance(ch, dict):
+                continue
+            fid, label = widget_map.get(str(widget_key), (str(widget_key), str(widget_key)))
+            mapped[fid] = {
+                "old": serialize_value(ch.get("old")),
+                "new": serialize_value(ch.get("new")),
+                "label": label,
+            }
+        if not mapped and op == "update":
+            # still record empty update? skip noise
+            continue
+        labeled = enrich_changes_with_labels(
+            mapped, {k: v["label"] for k, v in mapped.items()},
+        )
+        displayed = await enrich_form_changes_for_display(
+            db, ctx.tenant_id, labeled, field_defs,
+        )
+        uid, uname = await resolve_user(operator)
+        summary = {
+            "create": "创建（简道云）",
+            "update": "修改（简道云）",
+            "delete": "删除（简道云）",
+        }.get(op, "修改（简道云）")
+        if uname:
+            summary = f"{summary} · {uname}"
+        detail = {
+            "source": "jdy",
+            "jdy_log_id": jdy_log_id,
+            "changes": displayed,
+        }
+        safe_detail = _sanitize_for_json(detail)
+        content_hash = _compute_content_hash(
+            ctx.tenant_id, uid, op, "form_instance", form_instance.id, summary, safe_detail,
+        )
+        log = AuditLog(
+            id=generate_uuid(),
+            tenant_id=ctx.tenant_id,
+            user_id=uid,
+            user_name=uname or operator or "简道云",
+            action=op,
+            resource_type="form_instance",
+            resource_id=form_instance.id,
+            summary=summary[:500],
+            detail=safe_detail,
+            content_hash=content_hash,
+        )
+        if log_time is not None:
+            log.created_at = log_time
+        db.add(log)
+        written += 1
+
+    await db.commit()
+    return written
+
+
 async def import_contract_version_flow_history(
     db: AsyncSession, ctx, version: ContractVersion, contract: Contract, steps,
     flow_finished: bool | None = None,
@@ -2636,6 +2808,7 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
 
     flow_history = getattr(data, "flow_history", None)
     flow_finished = getattr(data, "flow_finished", None)
+    data_logs = getattr(data, "data_logs", None)
 
     existing = await _find_form_instance_by_external_key(db, ctx.tenant_id, tpl.id, external_key)
     if existing:
@@ -2665,6 +2838,11 @@ async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict
             db, ctx, inst, code, flow_history, flow_finished=flow_finished,
         )
         await db.refresh(inst)
+
+    if data_logs:
+        await import_form_instance_data_logs(
+            db, ctx, inst, field_defs, data_logs,
+        )
 
     return {**_form_instance_to_openapi_dto(inst), "upsert": upsert}
 
