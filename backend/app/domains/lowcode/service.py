@@ -731,6 +731,39 @@ async def sync_builtin_form_fields(
     if key == "shipment_notice":
         from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
         apply_shipment_notice_fields(want)
+    if key == "contract_outsource_early":
+        from app.domains.lowcode.contract_outsource_early_fields import (
+            apply_contract_outsource_early_fields,
+        )
+        raw_by = {
+            f["id"]: f
+            for f in (bt.get("field_definitions") or [])
+            if isinstance(f, dict) and f.get("id")
+        }
+        for fd in want:
+            if not isinstance(fd, dict):
+                continue
+            raw = raw_by.get(fd.get("id"))
+            if not raw:
+                continue
+            for k in ("available_on_create", "fill_stage", "required", "form_editable"):
+                if k in raw:
+                    fd[k] = raw[k]
+            raw_cols = {
+                c["id"]: c
+                for c in (raw.get("detail_table_columns") or [])
+                if isinstance(c, dict) and c.get("id")
+            }
+            for col in fd.get("detail_table_columns") or []:
+                if not isinstance(col, dict):
+                    continue
+                rc = raw_cols.get(col.get("id"))
+                if not rc:
+                    continue
+                for k in ("required", "available_on_create", "fill_stage"):
+                    if k in rc:
+                        col[k] = rc[k]
+        apply_contract_outsource_early_fields(want)
     if key == "drawing_requisition":
         from app.domains.lowcode.drawing_requisition_fields import (
             apply_drawing_requisition_fields,

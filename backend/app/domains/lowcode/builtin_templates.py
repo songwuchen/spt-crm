@@ -699,6 +699,11 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] in ("biz_bonus_transfer", "biz_bonus_biz_initiate", "commission_database"):
             from app.domains.lowcode.bonus_contract_fill import apply_bonus_contract_fields
             apply_bonus_contract_fields(defs, t["key"])
+        if t["key"] == "contract_outsource_early":
+            from app.domains.lowcode.contract_outsource_early_fields import (
+                apply_contract_outsource_early_fields,
+            )
+            apply_contract_outsource_early_fields(defs)
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":

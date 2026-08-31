@@ -3511,6 +3511,57 @@ def apply_contract_outsource_biz_dept_head(nodes: list | None) -> bool:
     return changed
 
 
+def _contract_outsource_designer_equipment_perms(nodes: list | None) -> list[dict] | None:
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if str(n.get("name") or "") != "设计员":
+            continue
+        perms = [p for p in (n.get("field_perms") or []) if isinstance(p, dict)]
+        by_field = {p.get("field"): p for p in perms if p.get("field")}
+        want = {
+            "designer_single": by_field.get("designer_single") or {
+                "field": "designer_single", "access": "editable",
+            },
+            "equipment_details": {"field": "equipment_details", "access": "editable"},
+        }
+        merged = list(want.values())
+        if merged != perms:
+            return merged
+        return None
+    return None
+
+
+def _contract_outsource_designer_equipment_perms_aligned(nodes: list | None) -> bool:
+    want = _contract_outsource_designer_equipment_perms(nodes)
+    if want is None:
+        return False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if str(n.get("name") or "") != "设计员":
+            continue
+        return _field_perms_equal(n.get("field_perms"), want)
+    return False
+
+
+def apply_contract_outsource_designer_equipment_perms(nodes: list | None) -> bool:
+    """设计员节点可填设备明细（含子表设计员）。"""
+    want = _contract_outsource_designer_equipment_perms(nodes)
+    if want is None:
+        return False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if str(n.get("name") or "") != "设计员":
+            continue
+        if _field_perms_equal(n.get("field_perms"), want):
+            return False
+        n["field_perms"] = want
+        return True
+    return False
+
+
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
     """旧生成器把部门主管写成 department_leader，需升级为 dept_head。"""
     for n in nodes or []:
@@ -5101,15 +5152,20 @@ async def _upgrade_drawing_form_flow_if_needed(
     # 合同外购件：业务部门经理须按表单「部门」负责人，不能用 direct_supervisor（发起人上级）
     if form_code == "contract_outsource_early":
         version = await _published_version(db, tenant_id, d.id)
-        if version and _flow_outsource_biz_mgr_needs_dept_head(version.node_definitions):
+        if version:
             import copy
             patched_nodes = copy.deepcopy(version.node_definitions or [])
-            if apply_contract_outsource_biz_dept_head(patched_nodes):
+            changed = False
+            if _flow_outsource_biz_mgr_needs_dept_head(patched_nodes):
+                changed = apply_contract_outsource_biz_dept_head(patched_nodes) or changed
+            if not _contract_outsource_designer_equipment_perms_aligned(patched_nodes):
+                changed = apply_contract_outsource_designer_equipment_perms(patched_nodes) or changed
+            if changed:
                 await _publish_system_default_upgrade(
                     db, tenant_id, d, version,
                     patched_nodes, version.route_definitions,
                     d.description or DRAWING_FORM_FLOW_DESC,
-                    "业务部门经理改为按表单部门负责人(dept_head)",
+                    "合同外购件：设计员节点可填设备明细",
                 )
                 return
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:

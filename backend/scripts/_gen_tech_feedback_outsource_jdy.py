@@ -128,6 +128,7 @@ TECH_APPROVER_FILL = frozenset({"business_feedback", "feedback_suggestion"})
 OUTSOURCE_APPROVER_FILL = frozenset({
     "design_assign", "transfer_dept_heads", "transfer_dept_head",
     "designer_single", "designer_multi", "purchaser_multi",
+    "equipment_details",
 })
 
 _RESET_MAP = {
@@ -364,6 +365,14 @@ def build_fields(
             fd["available_on_create"] = False
             fd["fill_stage"] = "approver"
             fd["required"] = False
+            if slug == "equipment_details":
+                fd["required"] = True
+                for col in fd.get("detail_table_columns") or []:
+                    if isinstance(col, dict):
+                        col["available_on_create"] = False
+                        col["fill_stage"] = "approver"
+                        if col.get("id") == "designer":
+                            col["required"] = True
         else:
             fd.setdefault("available_on_create", True)
             fd.setdefault("fill_stage", "initiator")
