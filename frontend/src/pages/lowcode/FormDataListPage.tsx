@@ -658,7 +658,10 @@ export default function FormDataListPage({
   const deepOpenedRef = useRef<string | null>(null)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const hasPermission = useAuthStore((s) => s.hasPermission)
-  const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
+  const isProdCardSupplement = templateCode === 'prod_card_supplement'
+  const canActivateFlow = isProdCardSupplement
+    || hasPermission('workflow:activate')
+    || hasPermission('workflow:manage')
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
 
@@ -711,6 +714,7 @@ export default function FormDataListPage({
   )
   const [wfCommenting, setWfCommenting] = useState(false)
   const [activateOpen, setActivateOpen] = useState(false)
+  const [listActivateInstanceId, setListActivateInstanceId] = useState<string | null>(null)
   const [nameMaps, setNameMaps] = useState<NameMaps>({
     users: {}, depts: {}, projects: {}, contracts: {}, customers: {},
   })
@@ -1561,11 +1565,28 @@ export default function FormDataListPage({
   ])
 
   // 列表操作列只保留「查看」；打印/编辑/删除放到详情工具栏（对齐简道云）
+  const listRowCanActivate = useCallback((r: FormInstance) => {
+    if (!canActivateFlow || !r.process_instance_id) return false
+    const okStatus = isProdCardSupplement
+      ? ['running', 'completed', 'rejected', 'withdrawn'].includes(r.status)
+      : ['completed', 'rejected', 'withdrawn'].includes(r.status)
+    return okStatus
+  }, [canActivateFlow, isProdCardSupplement])
+
   const renderOps = (r: FormInstance) => (
     <Space size={0}>
       <Button size="small" type="link" onClick={() => openView(r.id, true, { presentation: 'modal' })}>查看</Button>
       {canEditRecord(r.status) && (
         <Button size="small" type="link" onClick={() => openView(r.id, false, { presentation: 'modal' })}>编辑</Button>
+      )}
+      {listRowCanActivate(r) && (
+        <Button
+          size="small"
+          type="link"
+          onClick={() => setListActivateInstanceId(r.process_instance_id!)}
+        >
+          激活流程
+        </Button>
       )}
     </Space>
   )
@@ -2042,10 +2063,13 @@ export default function FormDataListPage({
         {recordDetailInner}
       </RecordDetailSideDrawer>
       <WfActivateFlowModal
-        open={activateOpen}
-        instanceId={wfDetail?.id}
-        nodes={wfDetail?.activate_nodes}
-        onClose={() => setActivateOpen(false)}
+        open={activateOpen || Boolean(listActivateInstanceId)}
+        instanceId={listActivateInstanceId || wfDetail?.id}
+        nodes={listActivateInstanceId ? undefined : wfDetail?.activate_nodes}
+        onClose={() => {
+          setActivateOpen(false)
+          setListActivateInstanceId(null)
+        }}
         onDone={() => {
           if (viewRec?.id) {
             void loadWorkflow(viewRec.id, wfDetail?.id)

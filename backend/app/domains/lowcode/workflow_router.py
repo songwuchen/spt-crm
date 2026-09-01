@@ -285,10 +285,13 @@ async def activate_nodes(
     instance_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    # manage 可设计流程，视为包含激活；兼容登录 JWT 尚未带上新权限码的情况
-    _u=Depends(require_any_permission("workflow:activate", "workflow:manage")),
+    user: dict = Depends(get_current_user),
 ):
     """可激活节点列表（开始 + 审批）。"""
+    if not await wsvc.user_can_activate_instance(db, tenant_id, user, instance_id):
+        from app.common.exceptions import BusinessException
+        from app.common.error_codes import FORBIDDEN
+        raise BusinessException(code=FORBIDDEN, message="缺少权限: workflow:activate")
     return ok(await wsvc.get_activate_nodes(db, tenant_id, instance_id))
 
 
@@ -298,9 +301,13 @@ async def activate_instance(
     body: ws.WfActivateRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(require_any_permission("workflow:activate", "workflow:manage")),
+    user: dict = Depends(get_current_user),
 ):
     """激活已结束流程：跳到指定开始/审批节点（同实例）。"""
+    if not await wsvc.user_can_activate_instance(db, tenant_id, user, instance_id):
+        from app.common.exceptions import BusinessException
+        from app.common.error_codes import FORBIDDEN
+        raise BusinessException(code=FORBIDDEN, message="缺少权限: workflow:activate")
     inst = await WorkflowEngine(db, tenant_id).activate(instance_id, user, body.to_node_id)
     return ok({"id": inst.id, "status": inst.status, "title": inst.title})
 

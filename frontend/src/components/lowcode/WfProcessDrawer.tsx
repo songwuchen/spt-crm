@@ -103,7 +103,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 }) {
   const navigate = useNavigate()
   const hasPermission = useAuthStore((s) => s.hasPermission)
-  const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
+  const canActivateFlow = hasPermission('workflow:activate')
+    || hasPermission('workflow:manage')
+    || detail?.form_code === 'prod_card_supplement'
   const [detail, setDetail] = useState<WfInstanceDetail | null>(null)
   const [fields, setFields] = useState<FieldDefinition[]>([])
   const [formData, setFormData] = useState<Record<string, unknown>>({})

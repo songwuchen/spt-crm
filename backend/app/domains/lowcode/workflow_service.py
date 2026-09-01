@@ -9225,6 +9225,25 @@ async def get_activate_nodes(db, tenant_id: str, instance_id: str) -> list[dict]
     return list_activate_nodes(pub or version)
 
 
+async def user_can_activate_instance(
+    db, tenant_id: str, user: dict, instance_id: str,
+) -> bool:
+    """生产卡补充：任意登录用户可激活；其它流程需 workflow:activate / workflow:manage。"""
+    from app.domains.lowcode.workflow_activate_policy import is_open_activate_process
+
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.id == instance_id,
+        WfProcessInstance.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not inst or not user.get("sub"):
+        return False
+    dfn = await db.get(WfProcessDefinition, inst.process_definition_id)
+    if is_open_activate_process(dfn.code if dfn else None):
+        return True
+    perms = set(user.get("permissions") or [])
+    return "workflow:activate" in perms or "workflow:manage" in perms
+
+
 _REVISE_NODE_DEF_ID = "__initiator_revise__"
 
 
@@ -9291,7 +9310,14 @@ async def get_instance_detail(
         ],
     ]
     activate_nodes = list_activate_nodes(version)
-    can_activate = inst.status in ("completed", "rejected", "withdrawn") and bool(activate_nodes)
+    proc_code = None
+    try:
+        dfn = await db.get(WfProcessDefinition, inst.process_definition_id)
+        proc_code = dfn.code if dfn else None
+    except Exception:
+        proc_code = None
+    from app.domains.lowcode.workflow_activate_policy import activatable_statuses
+    can_activate = (inst.status or "") in activatable_statuses(proc_code) and bool(activate_nodes)
     # 业务单据审批（线索/报价等）没有 form_instance：把业务关键字段塞进 biz_detail，
     # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
     biz_detail: dict = {}

@@ -2469,11 +2469,21 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         if not inst:
             raise BusinessException(code=NOT_FOUND, message="流程不存在")
-        if inst.status == "running":
-            raise BusinessException(
-                code=BUSINESS_ERROR, message="流程进行中，请使用退回；仅已结束流程可激活",
-            )
-        if inst.status not in self._ACTIVATABLE_STATUSES:
+
+        from app.domains.lowcode.workflow_activate_policy import (
+            PROD_CARD_SUPPLEMENT_PROCESS_CODE,
+            activatable_statuses,
+        )
+        from app.domains.lowcode.workflow_models import WfProcessDefinition
+
+        dfn = await self.db.get(WfProcessDefinition, inst.process_definition_id)
+        proc_code = dfn.code if dfn else None
+        allowed = activatable_statuses(proc_code)
+        if inst.status not in allowed:
+            if inst.status == "running" and proc_code != PROD_CARD_SUPPLEMENT_PROCESS_CODE:
+                raise BusinessException(
+                    code=BUSINESS_ERROR, message="流程进行中，请使用退回；仅已结束流程可激活",
+                )
             raise BusinessException(code=BUSINESS_ERROR, message="当前状态不可激活流程")
 
         version = (await self.db.execute(select(WfProcessDefinitionVersion).where(
