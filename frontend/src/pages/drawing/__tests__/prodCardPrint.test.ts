@@ -45,7 +45,8 @@ describe('supplementPrintPrefix', () => {
 })
 
 describe('approvalLines', () => {
-  const step = (node: string, at: string): WfFlowStep => ({
+  const step = (node: string, at: string, id = node): WfFlowStep => ({
+    node_instance_id: id,
     node_name: node,
     node_type: 'approve',
     status: 'completed',
