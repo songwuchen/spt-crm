@@ -143,3 +143,17 @@ def apply_contract_shipment_loan_fields(fields: list[dict]) -> None:
             fd["description"] = "选择合同信息后自动带出（按图纸编号展示）。"
         if fid == "field_7":
             fd["description"] = (fd.get("description") or "") or "选择合同后从合同登记明细自动带出，可增删改。"
+            for col in fd.get("detail_table_columns") or []:
+                if not isinstance(col, dict) or col.get("id") != "field_12":
+                    continue
+                props = dict(col.get("props") or {})
+                props["formula"] = "$field_10#*$n#"
+                col["props"] = props
+        if fid == "field_13":
+            # 对齐简道云：SUM(明细.总价*（元）)
+            fd["type"] = "formula"
+            fd["label"] = fd.get("label") or "借据总金额*"
+            fd["required"] = False
+            fd["form_editable"] = False
+            fd["description"] = "由明细「总价*（元）」自动汇总，不可编辑。"
+            fd["props"] = {"formula": "SUM($field_7.field_12#)"}

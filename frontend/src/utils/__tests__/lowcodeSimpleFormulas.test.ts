@@ -164,3 +164,51 @@ describe('字段加减公式', () => {
     expect(next.shipped_amount_incl).toBe(400)
   })
 })
+
+const loanDetailCols: FieldDefinition[] = [
+  { id: 'field_10', type: 'number', label: '数量' },
+  { id: 'n', type: 'number', label: '单价N（元）' },
+  {
+    id: 'field_12',
+    type: 'number',
+    label: '总价*（元）',
+    props: { formula: '$field_10#*$n#' },
+  },
+]
+
+const loanFields: FieldDefinition[] = [
+  {
+    id: 'field_7',
+    type: 'detail_table',
+    label: '明细',
+    detail_table_columns: loanDetailCols,
+  },
+  {
+    id: 'field_13',
+    type: 'formula',
+    label: '借据总金额*',
+    props: { formula: 'SUM($field_7.field_12#)' },
+  },
+]
+
+describe('合同及发货借据', () => {
+  it('改数量/单价时重算行总价', () => {
+    const row = recomputeDetailRowOnColChange(
+      { field_10: 4, n: 20, field_12: 50250 },
+      loanDetailCols,
+      'field_10',
+    )
+    expect(row.field_12).toBe(80)
+  })
+
+  it('明细变更后借据总金额自动汇总', () => {
+    const next = applySimpleFormulas(loanFields, {
+      field_7: [
+        { field_10: 4, n: 20, field_12: 80 },
+        { field_10: 2, n: 20, field_12: 40 },
+      ],
+      field_13: 3160,
+    }, { changedField: 'field_7' })
+    expect(next.field_13).toBe(120)
+  })
+})

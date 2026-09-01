@@ -17,9 +17,13 @@ def test_contract_shipment_loan_fields():
     from app.domains.lowcode._contract_shipment_loan_jdy_generated import (
         CONTRACT_SHIPMENT_LOAN_JDY,
     )
+    from app.domains.lowcode.contract_shipment_loan_fields import (
+        apply_contract_shipment_loan_fields,
+    )
 
     pack = CONTRACT_SHIPMENT_LOAN_JDY["contract_shipment_loan"]
     fields = pack["field_definitions"]
+    apply_contract_shipment_loan_fields(fields)
     assert len(fields) >= 20
     loan_type = next(f for f in fields if f["id"] == "field_3")
     assert loan_type["label"] == "借据类型"
@@ -28,6 +32,12 @@ def test_contract_shipment_loan_fields():
     contract_pick = next(f for f in fields if f.get("jdy_widget") == "_widget_1756342534747")
     assert contract_pick["type"] == "contract"
     assert (contract_pick.get("props") or {}).get("contract_fill") == "contract_shipment_loan"
+    detail = next(f for f in fields if f["id"] == "field_7")
+    line_total_col = next(c for c in detail["detail_table_columns"] if c["id"] == "field_12")
+    assert (line_total_col.get("props") or {}).get("formula") == "$field_10#*$n#"
+    total = next(f for f in fields if f["id"] == "field_13")
+    assert total["type"] == "formula"
+    assert (total.get("props") or {}).get("formula") == "SUM($field_7.field_12#)"
 
 
 def test_contract_shipment_loan_required_and_rules():
