@@ -10,6 +10,16 @@ from fastapi.responses import StreamingResponse
 # openpyxl rejects these chars in a sheet title (raises ValueError). Titles can be
 # user-controlled (e.g. a form/template name), so sanitize before assigning.
 _INVALID_SHEET_CHARS = re.compile(r"[\\/?*\[\]:]")
+# XML 1.0 非法控制字符会导致 openpyxl IllegalCharacterError
+_ILLEGAL_XML_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufeff\ufffe\uffff]")
+
+
+def _sanitize_excel_value(val):
+    if val is None:
+        return val
+    if isinstance(val, str):
+        return _ILLEGAL_XML_CHARS.sub("", val)
+    return val
 
 
 def _safe_sheet_title(title: str) -> str:
@@ -34,7 +44,7 @@ def build_excel(title: str, headers: list[str], rows: list[list]) -> io.BytesIO:
     )
 
     for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell = ws.cell(row=1, column=col_idx, value=_sanitize_excel_value(h))
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -42,7 +52,7 @@ def build_excel(title: str, headers: list[str], rows: list[list]) -> io.BytesIO:
 
     for row_idx, row_data in enumerate(rows, 2):
         for col_idx, val in enumerate(row_data, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell = ws.cell(row=row_idx, column=col_idx, value=_sanitize_excel_value(val))
             cell.border = thin_border
             if isinstance(val, str) and "\n" in val:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")
@@ -75,7 +85,7 @@ def _style_sheet(ws, headers: list[str], rows: list[list]) -> None:
     )
 
     for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell = ws.cell(row=1, column=col_idx, value=_sanitize_excel_value(h))
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -83,7 +93,7 @@ def _style_sheet(ws, headers: list[str], rows: list[list]) -> None:
 
     for row_idx, row_data in enumerate(rows, 2):
         for col_idx, val in enumerate(row_data, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell = ws.cell(row=row_idx, column=col_idx, value=_sanitize_excel_value(val))
             cell.border = thin_border
             if isinstance(val, str) and "\n" in val:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")

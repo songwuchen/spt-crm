@@ -6,6 +6,21 @@
   "content": {
     "items": [
       {
+        "description": "",
+        "label": "迁移提醒",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1787118519471",
+          "lineStyle": "thin",
+          "value": "已迁至CRM，有问题找宋武晨！-260819"
+        }
+      },
+      {
         "description": null,
         "label": "流水号",
         "labelHidden": false,
@@ -2981,6 +2996,7 @@
     "type": "form",
     "layout_fields": [],
     "field_layout": [
+      "_widget_1787118519471",
       "_widget_1597364772669",
       "_widget_1584323675993",
       "_widget_1723510927863",
@@ -3655,6 +3671,10 @@
     }
   ],
   "optAuthConfigPerm": {
+    "_widget_1787118519471": {
+      "visible": true,
+      "editable": false
+    },
     "_widget_1597364772669": {
       "visible": true,
       "editable": false

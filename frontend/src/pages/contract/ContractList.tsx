@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { Tag, Select, Input, Button, Modal, Form, message, Space } from 'antd'
+import { Tag, Select, Input, Button, Modal, Form, message, Space, Dropdown } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
-import { SearchOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
+import { SearchOutlined, PlusOutlined, DownloadOutlined, DownOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import type { ColumnsType } from 'antd/es/table'
+import type { MenuProps } from 'antd'
 import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
@@ -23,9 +23,10 @@ import ContractRegistrationFields from '@/components/ContractRegistrationFields'
 import ContractAttachmentSlots, { flushPendingAttachments, type PendingAttachments } from '@/components/ContractAttachmentSlots'
 import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
 import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID, FALLBACK_LINE_COLUMNS, validateContractLineRows } from '@/constants/contractDetailTables'
+import { downloadFile } from '@/utils/download'
 import dayjs from 'dayjs'
 import { formatFormDate, isValidFormDate } from '@/utils/formDate'
-import { downloadFile } from '@/utils/download'
+import type { ColumnsType } from 'antd/es/table'
 
 /** 登记 JSON 字段（列表纯文本展示） */
 function regText(r: ContractItem, key: string): string {
@@ -433,6 +434,42 @@ export default function ContractList() {
 
   const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 
+  const buildExportUrl = useCallback((mode: 'filtered' | 'all') => {
+    const qs = new URLSearchParams()
+    if (mode === 'filtered') {
+      if (keyword) qs.set('keyword', keyword)
+      if (filterCustomerName) qs.set('customer_name', filterCustomerName)
+      if (filterStatus) qs.set('status', filterStatus)
+      const extra = view.buildParams()
+      if (extra.filter) qs.set('filter', String(extra.filter))
+      if (extra.sort_by) qs.set('sort_by', String(extra.sort_by))
+      if (extra.sort_order) qs.set('sort_order', String(extra.sort_order))
+    }
+    const q = qs.toString()
+    return `/api/v1/contracts/export/excel${q ? `?${q}` : ''}`
+  }, [keyword, filterCustomerName, filterStatus, view])
+
+  const runExport = useCallback((mode: 'filtered' | 'all') => {
+    const label = mode === 'filtered' ? '筛选后的数据' : '全部数据'
+    void downloadFile(buildExportUrl(mode), `合同登记_${label}.xlsx`).catch((e: Error) => {
+      message.error(e.message || '导出失败')
+    })
+  }, [buildExportUrl])
+
+  const exportMenuItems = useMemo<MenuProps['items']>(() => [
+    {
+      key: 'filtered',
+      label: '筛选后的数据',
+      disabled: total === 0,
+      onClick: () => runExport('filtered'),
+    },
+    {
+      key: 'all',
+      label: '全部数据',
+      onClick: () => runExport('all'),
+    },
+  ], [runExport, total])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 shrink-0">
@@ -456,20 +493,11 @@ export default function ContractList() {
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v, filterCustomerName) }}
             options={Object.entries(contractDisplayStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
-          <Button icon={<DownloadOutlined />} onClick={() => {
-            const qs = new URLSearchParams()
-            if (keyword) qs.set('keyword', keyword)
-            if (filterCustomerName) qs.set('customer_name', filterCustomerName)
-            if (filterStatus) qs.set('status', filterStatus)
-            const extra = view.buildParams()
-            if (extra.filter) qs.set('filter', String(extra.filter))
-            if (extra.sort_by) qs.set('sort_by', String(extra.sort_by))
-            if (extra.sort_order) qs.set('sort_order', String(extra.sort_order))
-            const q = qs.toString()
-            void downloadFile(`/api/v1/contracts/export/excel${q ? `?${q}` : ''}`, 'contracts.xlsx').catch((e: Error) => {
-              message.error(e.message || '导出失败')
-            })
-          }}>导出</Button>
+          <Dropdown menu={{ items: exportMenuItems }} trigger={['click']}>
+            <Button icon={<DownloadOutlined />}>
+              导出 <DownOutlined className="text-xs" />
+            </Button>
+          </Dropdown>
           <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>

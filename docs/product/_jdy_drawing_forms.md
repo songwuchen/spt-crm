@@ -32,37 +32,35 @@
 ## 合同图纸（资料）领用申请
 
 - **builtin key**: `drawing_requisition`
-- **字段数（去噪后）**: 25
+- **字段数（去噪后）**: 23
 - **必填字段**: 9
 - **规则**: 显隐 4 / 条件必填 3
 - **流程节点数（CRM）**: 21 / 连线 30
 
 | slug | 标签 | type | 必填 | jdy_widget |
 |------|------|------|------|------------|
-| apply_datetime | 日期时间 | datetime | 是 | `_widget_1584324747780` |
+| serial_no | 流水号 | auto_number |  | `` |
+| apply_datetime | 日期时间 | date | 是 | `_widget_1584324747780` |
 | department | 部门 | department | 是 | `_widget_1584324747793` |
 | applicant | 申请人 | person | 是 | `_widget_1584324747817` |
 | involve_std_drawing | 是否涉及企标图纸 | radio |  | `_widget_1712285733642` |
 | order_person | 订货人 | person | 是 | `_widget_1670208477895` |
-| order_person_text | 订货人（文本） | text |  | `_widget_1584324747971` |
-| contract_no | 合同号 | select |  | `_widget_1584324747987` |
+| contract_no | 合同号 | contract |  | `_widget_1584324747987` |
 | apply_reason | 申请事由 | text | 是 | `_widget_1584324748032` |
 | designer | 设计人 | person |  | `_widget_1625449621349` |
-| designer_text | 设计人(文本) | text |  | `_widget_1584324748048` |
 | product_model | 产品型号 | text |  | `_widget_1584324748064` |
 | transfer_channel | 图纸传递途径 | radio | 是 | `_widget_1726128540953` |
 | need_decrypt | 是否解密 | radio | 是 | `_widget_1584324748140` |
-| need_decrypt_note | 是否解密* | text |  | `_widget_1744187653651` |
 | paper_print_tip | 打印纸质图提醒 | text |  | `_widget_1750032665998` |
 | drawing_type | 图纸类型 | radio | 是 | `_widget_1584324748225` |
 | attachment_name | 附件/图片名称 | text | 是 | `_widget_1669617286395` |
 | attachments | 附件 | file |  | `_widget_1584324748414` |
 | images | 图片 | file |  | `_widget_1584324748427` |
 | design_dispatch | 设计单分派 | radio |  | `_widget_1669426933010` |
-| transfer_packaging_users | 转新乡、工艺包装 | person |  | `_widget_1669426933009` |
-| design_assignees | 设计指派 | person |  | `_widget_1669426933008` |
-| offices | 科室 | department |  | `_widget_1676005090837` |
-| order_date | 下单日期 | datetime |  | `_widget_1676005090838` |
+| transfer_packaging_users | 转新乡、工艺包装 | person_multi |  | `_widget_1669426933009` |
+| design_assignees | 设计指派 | person_multi |  | `_widget_1669426933008` |
+| offices | 科室 | department_multi |  | `_widget_1676005090837` |
+| order_date | 下单日期 | date |  | `_widget_1676005090838` |
 | need_gm_approval | 是否需要总经理审批 | radio |  | `_widget_1699839662506` |
 
 ### 显隐 / 条件必填规则
@@ -81,7 +79,6 @@
 
 - 审批「总工审批」具名用户 02364335378133，无匹配用户时 auto_approve
 - 审批「研究院安排」具名用户 013807685436426800，无匹配用户时 auto_approve
-- CC「抄送节点」绑定具名用户 ['02364335378133', '02336214315748']，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送李兴玉」绑定具名用户 02365312411349，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送王东明」绑定具名用户 02365310056917，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送周彦立」绑定具名用户 02365625057413，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
@@ -91,6 +88,13 @@
 - 审批「总经理审批」具名用户 02336214315748，无匹配用户时 auto_approve
 - 审批「企标委审批」具名用户 0236420233847，无匹配用户时 auto_approve
 - 审批「工艺包装」具名用户 02365223402283，无匹配用户时 auto_approve
+- 节点「n6」2 条出边已标互斥组 ex_n6
+- 节点「start」2 条出边已标互斥组 ex_start
+- 节点「n1」3 条出边已标互斥组 ex_n1
+- 节点「n2」3 条出边已标互斥组 ex_n2
+- 节点「n16」2 条出边已标互斥组 ex_n16
+- 节点「n3」2 条出边已标互斥组 ex_n3
+- 节点「n5」3 条出边已标互斥组 ex_n5（含工艺包装优先）
 - 节点「抄送订货人」无出边（抄送旁路，不接到结束）
 - 节点「抄送节点」无出边（抄送旁路，不接到结束）
 - 节点「抄送李兴玉」无出边（抄送旁路，不接到结束）
@@ -100,18 +104,19 @@
 - 节点「抄送樊磊」无出边（抄送旁路，不接到结束）
 - 节点「抄送组长」无出边（抄送旁路，不接到结束）
 - optAuth：6 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
+- optAuth：1 个字段发起仅可见（form_editable=false）
 
 ## 安装图设计通知
 
 - **builtin key**: `install_drawing_notice`
-- **字段数（去噪后）**: 51
-- **必填字段**: 20（含子表列 11）
+- **字段数（去噪后）**: 50
+- **必填字段**: 15（含子表列 11）
 - **规则**: 显隐 29 / 条件必填 16
 - **流程节点数（CRM）**: 21 / 连线 27
 
 | slug | 标签 | type | 必填 | jdy_widget |
 |------|------|------|------|------------|
-| apply_datetime | 日期时间 | datetime |  | `_widget_1584323675993` |
+| apply_datetime | 日期时间 | date |  | `_widget_1584323675993` |
 | is_new_project | 是否为新项目0816 | radio | 是 | `_widget_1723596746484` |
 | project_no | 项目号选择 | select | 是 | `_widget_1723598024203` |
 | sales_person | 业务员 | person |  | `_widget_1723703918992` |
@@ -132,11 +137,10 @@
 | apply_reason_star | *申请事由 | text | 是 | `_widget_1662702831365` |
 | biz_feedback | 业务反馈240416 | radio |  | `_widget_1713252188931` |
 | lose_bid_reason | 落标原因240416 | text |  | `_widget_1713252188933` |
-| card_date | 下卡日期 | datetime |  | `_widget_1624352039272` |
+| card_date | 下卡日期 | date |  | `_widget_1624352039272` |
 | pre_designers | 前期沟通设计人员 | person |  | `_widget_1624352911480` |
-| require_draw_date | 要求交图时间 | datetime |  | `_widget_1624352911499` |
+| require_draw_date | 要求交图时间 | date |  | `_widget_1624352911499` |
 | product_model | 产品型号 | text |  | `_widget_1584323676307` |
-| pre_designer_text | 前期沟通的设计员（文本） | text |  | `_widget_1584323676291` |
 | scheme_detail | 出方案图填写明细 | detail_table | 是 | `_widget_1624352909418` |
 | └ equipment_name | 设备名称 | text |  | `_widget_1624352909435` |
 | └ design_req | 设计要求 | text |  | `_widget_1624352909494` |
@@ -197,20 +201,20 @@
 | attention | 注意 | text |  | `_widget_1679722777387` |
 | attachment_names | 附件名称 | textarea | 是 | `_widget_1586759251628` |
 | design_dispatch | 设计单分派 | radio |  | `_widget_1668992972400` |
-| transfer_packaging_users | 转新乡、工艺包装 | person |  | `_widget_1668992972425` |
-| design_assignees | 设计指派 | person |  | `_widget_1584415118691` |
-| need_submit_drawing | 是否上交图纸 | radio | 是 | `_widget_1674957454888` |
-| offices_multi | 科室多选 | department |  | `_widget_1676007312737` |
-| order_date | 下单日期 | datetime |  | `_widget_1676007312736` |
-| transfer_sw_lwt | 转孙伟、刘万涛 | person |  | `_widget_1662703176057` |
+| transfer_packaging_users | 转新乡、工艺包装 | person_multi |  | `_widget_1668992972425` |
+| design_assignees | 设计指派 | person_multi |  | `_widget_1584415118691` |
+| need_submit_drawing | 是否上交图纸 | radio |  | `_widget_1674957454888` |
+| offices_multi | 科室多选 | department_multi |  | `_widget_1676007312737` |
+| order_date | 下单日期 | date |  | `_widget_1676007312736` |
+| transfer_sw_lwt | 转孙伟、刘万涛 | person_multi |  | `_widget_1662703176057` |
 | attachments_no_image | 附件（不能放图片） | file |  | `_widget_1584348631246` |
 | images | 图片 | file |  | `_widget_1584348816654` |
-| score_attitude | 态度分数 | number | 是 | `_widget_1676601972672` |
-| score_progress | 进度、准确性分数 | number | 是 | `_widget_1676601972673` |
-| score_skill | 专业技能分数 | number | 是 | `_widget_1676601972674` |
-| remark | 备注 | textarea | 是 | `_widget_1676601353553` |
+| score_attitude | 态度分数 | number |  | `_widget_1676601972672` |
+| score_progress | 进度、准确性分数 | number |  | `_widget_1676601972673` |
+| score_skill | 专业技能分数 | number |  | `_widget_1676601972674` |
+| remark | 备注 | textarea |  | `_widget_1676601353553` |
 | score_total | 总分 | number |  | `_widget_1676601972702` |
-| score_date | 打分日期 | datetime |  | `_widget_1677119447744` |
+| score_date | 打分日期 | date |  | `_widget_1677119447744` |
 
 ### 显隐 / 条件必填规则
 
@@ -248,15 +252,15 @@
 | `jdy_req_design_assignees` | required | `design_assignees` | design_dispatch in ['总部单', '共同'] |
 | `jdy_vis_lose_bid_reason` | visibility | `lose_bid_reason` | biz_feedback eq '落标' |
 | `jdy_req_lose_bid_reason` | required | `lose_bid_reason` | biz_feedback eq '落标' |
-| `jdy_vis_moisture` | visibility | `moisture` | need_screening_eff eq '是' |
-| `jdy_vis_screening_eff` | visibility | `screening_eff` | need_screening_eff eq '是' |
-| `jdy_vis_particle_dist` | visibility | `particle_dist` | need_screening_eff eq '是' |
-| `jdy_vis_particle_dist_star` | visibility | `particle_dist_star` | need_screening_eff eq '是' |
-| `jdy_req_particle_dist_star` | required | `particle_dist_star` | need_screening_eff eq '是' |
-| `jdy_vis_screening_eff_star` | visibility | `screening_eff_star` | need_screening_eff eq '是' |
-| `jdy_req_screening_eff_star` | required | `screening_eff_star` | need_screening_eff eq '是' |
-| `jdy_vis_moisture_star` | visibility | `moisture_star` | need_screening_eff eq '是' |
-| `jdy_req_moisture_star` | required | `moisture_star` | need_screening_eff eq '是' |
+| `jdy_vis_moisture` | visibility | `moisture` | need_screening_eff_star eq '是' |
+| `jdy_vis_screening_eff` | visibility | `screening_eff` | need_screening_eff_star eq '是' |
+| `jdy_vis_particle_dist` | visibility | `particle_dist` | need_screening_eff_star eq '是' |
+| `jdy_vis_particle_dist_star` | visibility | `particle_dist_star` | need_screening_eff_star eq '是' |
+| `jdy_req_particle_dist_star` | required | `particle_dist_star` | need_screening_eff_star eq '是' |
+| `jdy_vis_screening_eff_star` | visibility | `screening_eff_star` | need_screening_eff_star eq '是' |
+| `jdy_req_screening_eff_star` | required | `screening_eff_star` | need_screening_eff_star eq '是' |
+| `jdy_vis_moisture_star` | visibility | `moisture_star` | need_screening_eff_star eq '是' |
+| `jdy_req_moisture_star` | required | `moisture_star` | need_screening_eff_star eq '是' |
 | `jdy_vis_moisture_2` | visibility | `moisture_2` | need_screening_eff_2 eq '是' |
 | `jdy_vis_screening_eff_2` | visibility | `screening_eff_2` | need_screening_eff_2 eq '是' |
 | `jdy_vis_particle_composition_2` | visibility | `particle_composition_2` | need_screening_eff_2 eq '是' |
@@ -274,6 +278,9 @@
 - CC「抄送刘松潮」绑定具名用户 01142154504565，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送樊磊」绑定具名用户 0236562418583，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - 审批「工艺包装」具名用户 02365223402283，无匹配用户时 auto_approve
+- 节点「n7」2 条出边已标互斥组 ex_n7
+- 节点「n1」2 条出边已标互斥组 ex_n1
+- 节点「n5」3 条出边已标互斥组 ex_n5（含工艺包装优先）
 - 节点「抄送设计指派1」无出边（抄送旁路，不接到结束）
 - 节点「抄送订货人」无出边（抄送旁路，不接到结束）
 - 节点「抄送总经理」无出边（抄送旁路，不接到结束）
@@ -283,5 +290,6 @@
 - 节点「抄送李兴玉」无出边（抄送旁路，不接到结束）
 - 节点「抄送刘松潮」无出边（抄送旁路，不接到结束）
 - 节点「抄送樊磊」无出边（抄送旁路，不接到结束）
-- optAuth：8 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
+- optAuth：18 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
+- optAuth：5 个字段发起仅可见（form_editable=false）
 

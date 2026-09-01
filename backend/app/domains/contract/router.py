@@ -292,7 +292,7 @@ async def _fetch_contract_list_rows(
 
 
 _CONTRACT_EXPORT_HEADERS = [
-    "流水号", "提交人", "下卡日期", "客户编号", "单位名称", "部门", "业务人员",
+    "流水号", "提交人", "下卡日期", "客户编号", "单位名称", "关联商机", "部门", "业务人员",
     "合同状态", "变动原因", "合同获取信息方式", "合同号",
     "合同/项目评审流水号", "小萌合同评审流水号", "出厂编号", "订货日期", "合同类型",
     "图纸编号", "项目名称", "对方合同号", "是否含税", "设备是否出口", "是否需要安装",
@@ -314,6 +314,7 @@ def _contract_export_row(row: dict, export_cell_fn) -> list:
         row.get("card_date") or "",
         _reg_export_text(row, "customer_code"),
         c("customer_name", row.get("customer_name") or ""),
+        row.get("linked_project_name") or row.get("project_name") or "",
         c("department_name", row.get("department_name") or ""),
         c("assignee_name", row.get("assignee_name") or ""),
         _format_change_type(row.get("change_type")),
@@ -342,6 +343,89 @@ def _contract_export_row(row: dict, export_cell_fn) -> list:
         status_label,
         amt if amt is not None else "",
     ]
+
+
+def _export_subtable_rows(items: list | dict | None) -> list[dict]:
+    if isinstance(items, list):
+        return [x for x in items if isinstance(x, dict)]
+    if isinstance(items, dict):
+        return [items]
+    return []
+
+
+def _export_subtable_cell(val) -> str:
+    if val is None or val == "":
+        return ""
+    if isinstance(val, list):
+        return "、".join(str(x) for x in val if x is not None and x != "")
+    return str(val)
+
+
+async def _attach_current_version_clauses(
+    db: AsyncSession, tenant_id: str, contracts, rows: list[dict],
+) -> list[dict]:
+    if not contracts or not rows:
+        return rows
+    from app.domains.contract.models import ContractVersion
+
+    ids = [c.id for c in contracts]
+    ver_rows = (await db.execute(
+        select(
+            ContractVersion.contract_id,
+            ContractVersion.version_no,
+            ContractVersion.key_clauses_json,
+        ).where(
+            ContractVersion.tenant_id == tenant_id,
+            ContractVersion.contract_id.in_(ids),
+        )
+    )).all()
+    clause_map = {(cid, vno): clauses for cid, vno, clauses in ver_rows}
+    by_id = {c.id: c for c in contracts}
+    for d in rows:
+        c = by_id.get(d.get("id"))
+        if not c:
+            continue
+        d["key_clauses_json"] = clause_map.get((c.id, c.current_version_no))
+    return rows
+
+
+def _build_contract_export_sheets(rows: list[dict], export_cell_fn) -> list[tuple[str, list[str], list[list]]]:
+    from app.domains.lowcode.native_field_catalog import (
+        _CONTRACT_LINE_COLUMNS,
+        _CONTRACT_PAY_COLUMNS,
+    )
+
+    main_rows = [_contract_export_row(r, export_cell_fn) for r in rows]
+    sheets: list[tuple[str, list[str], list[list]]] = [
+        ("合同登记", _CONTRACT_EXPORT_HEADERS, main_rows),
+    ]
+
+    line_cols = [(c["id"], c.get("label") or c["id"]) for c in _CONTRACT_LINE_COLUMNS if c.get("id")]
+    line_headers = ["合同号", "图纸编号", "单位名称"] + [lbl for _, lbl in line_cols]
+    line_rows: list[list] = []
+    for row in rows:
+        for item in _export_subtable_rows(row.get("key_clauses_json")):
+            line_rows.append([
+                row.get("contract_no") or "",
+                row.get("drawing_no") or "",
+                row.get("customer_name") or "",
+                *[_export_subtable_cell(item.get(cid)) for cid, _ in line_cols],
+            ])
+    sheets.append(("合同明细", line_headers, line_rows))
+
+    pay_cols = [(c["id"], c.get("label") or c["id"]) for c in _CONTRACT_PAY_COLUMNS if c.get("id")]
+    pay_headers = ["合同号", "图纸编号", "单位名称"] + [lbl for _, lbl in pay_cols]
+    pay_rows: list[list] = []
+    for row in rows:
+        for item in _export_subtable_rows(row.get("payment_terms_json")):
+            pay_rows.append([
+                row.get("contract_no") or "",
+                row.get("drawing_no") or "",
+                row.get("customer_name") or "",
+                *[_export_subtable_cell(item.get(cid)) for cid, _ in pay_cols],
+            ])
+    sheets.append(("收款计划", pay_headers, pay_rows))
+    return sheets
 
 
 def _version_dict(v) -> dict:
@@ -391,7 +475,7 @@ async def export_contracts_excel(
     current_user: dict = Depends(require_permissions("contract:view")),
 ):
     from app.config import settings
-    from app.common.export import build_excel, excel_response
+    from app.common.export import excel_response
     from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
 
     rows, _ = await _fetch_contract_list_rows(
@@ -401,11 +485,25 @@ async def export_contracts_excel(
         filter=filter, sort_by=sort_by, sort_order=sort_order,
         count_total=False,
     )
+    from app.domains.contract.models import Contract
+
+    contract_ids = [r.get("id") for r in rows if r.get("id")]
+    contracts = []
+    if contract_ids:
+        contracts = list((await db.execute(
+            select(Contract).where(
+                Contract.tenant_id == tenant_id,
+                Contract.id.in_(contract_ids),
+            )
+        )).scalars().all())
+    rows = await _attach_current_version_clauses(db, tenant_id, contracts, rows)
     rst = await entity_field_restrictions(db, tenant_id, "contract", current_user.get("roles"))
     cell = lambda fid, v: export_cell(rst, fid, v)  # noqa: E731
-    excel_rows = [_contract_export_row(r, cell) for r in rows]
-    buf = build_excel("合同登记", _CONTRACT_EXPORT_HEADERS, excel_rows)
-    return excel_response(buf, "contracts.xlsx")
+    from app.common.export import build_excel_multi
+
+    sheets = _build_contract_export_sheets(rows, cell)
+    buf = build_excel_multi(sheets)
+    return excel_response(buf, "合同登记.xlsx")
 
 
 @router.get("/api/v1/contracts/dashboard/summary")

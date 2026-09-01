@@ -95,3 +95,15 @@ def test_contract_outsource_designer_node_can_edit_equipment_details():
     perms = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
     assert perms["equipment_details"] == "editable"
     assert not apply_contract_outsource_designer_equipment_perms(nodes)
+
+
+def test_contract_outsource_dept_head_node_can_edit_equipment_details():
+    nodes = [{
+        "id": "apvm1ye", "type": "approval", "name": "科室主任",
+        "field_perms": [{"field": "designer_multi", "access": "required"}],
+    }]
+    assert not _contract_outsource_designer_equipment_perms_aligned(nodes)
+    assert apply_contract_outsource_designer_equipment_perms(nodes)
+    perms = {p["field"]: p["access"] for p in nodes[0]["field_perms"]}
+    assert perms["equipment_details"] == "editable"
+    assert perms["designer_multi"] == "required"

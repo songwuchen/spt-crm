@@ -151,7 +151,9 @@
               "text": "公式",
               "formula": "TEXTUSER($_widget_1670208477895#,'name')"
             }
-          }
+          },
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -189,7 +191,9 @@
           "enable": true,
           "allowBlank": false,
           "type": "text",
-          "widgetName": "_widget_1584324748032"
+          "widgetName": "_widget_1584324748032",
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -238,7 +242,9 @@
               "text": "公式",
               "formula": "TEXTUSER($_widget_1625449621349#,'name')"
             }
-          }
+          },
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -251,7 +257,9 @@
           "enable": true,
           "allowBlank": true,
           "type": "text",
-          "widgetName": "_widget_1584324748064"
+          "widgetName": "_widget_1584324748064",
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -342,7 +350,9 @@
               "formula": "IF($_widget_1726128540953#=='图纸数据管理（查图机）','不解密',$_widget_1584324748140#)",
               "remark": ""
             }
-          }
+          },
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -442,12 +452,14 @@
           "enable": true,
           "allowBlank": false,
           "type": "text",
-          "widgetName": "_widget_1669617286395"
+          "widgetName": "_widget_1669617286395",
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
         "description": "",
-        "label": "附件",
+        "label": "附件（禁止上传）",
         "labelHidden": false,
         "lineWidth": 6,
         "widget": {
@@ -462,7 +474,7 @@
       },
       {
         "description": null,
-        "label": "图片",
+        "label": "图片（禁止上传）",
         "labelHidden": false,
         "lineWidth": 6,
         "widget": {
@@ -786,7 +798,9 @@
           "precision": 1,
           "thousandsSeparator": false,
           "maxNumber": 20,
-          "minNumber": 0
+          "minNumber": 0,
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -820,7 +834,9 @@
           "precision": 1,
           "thousandsSeparator": false,
           "maxNumber": 40,
-          "minNumber": 0
+          "minNumber": 0,
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -854,7 +870,9 @@
           "precision": 1,
           "thousandsSeparator": false,
           "maxNumber": 40,
-          "minNumber": 0
+          "minNumber": 0,
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {
@@ -929,7 +947,9 @@
               "text": "公式",
               "formula": "$_widget_1676609978377#+$_widget_1676609978376#+$_widget_1676609978375#"
             }
-          }
+          },
+          "mask": false,
+          "supportUnmaskedView": false
         }
       },
       {

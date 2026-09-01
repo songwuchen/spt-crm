@@ -3511,55 +3511,62 @@ def apply_contract_outsource_biz_dept_head(nodes: list | None) -> bool:
     return changed
 
 
-def _contract_outsource_designer_equipment_perms(nodes: list | None) -> list[dict] | None:
+_OUTSOURCE_EQUIPMENT_NODE_NAMES = frozenset({"设计员", "科室主任"})
+
+
+def _contract_outsource_designer_equipment_perms(nodes: list | None) -> dict[str, list[dict]] | None:
+    """各审批节点应有的 field_perms（设计员/科室主任可填设备明细）。"""
+    out: dict[str, list[dict]] = {}
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("type") != "approval":
             continue
-        if str(n.get("name") or "") != "设计员":
+        name = str(n.get("name") or "")
+        if name not in _OUTSOURCE_EQUIPMENT_NODE_NAMES:
             continue
         perms = [p for p in (n.get("field_perms") or []) if isinstance(p, dict)]
         by_field = {p.get("field"): p for p in perms if p.get("field")}
-        want = {
-            "designer_single": by_field.get("designer_single") or {
-                "field": "designer_single", "access": "editable",
-            },
-            "equipment_details": {"field": "equipment_details", "access": "editable"},
-        }
-        merged = list(want.values())
-        if merged != perms:
-            return merged
-        return None
-    return None
+        merged = dict(by_field)
+        merged["equipment_details"] = {"field": "equipment_details", "access": "editable"}
+        want = list(merged.values())
+        if want != perms:
+            out[str(n.get("id") or name)] = want
+    return out or None
 
 
 def _contract_outsource_designer_equipment_perms_aligned(nodes: list | None) -> bool:
-    want = _contract_outsource_designer_equipment_perms(nodes)
-    if want is None:
-        return False
-    for n in nodes or []:
-        if not isinstance(n, dict) or n.get("type") != "approval":
-            continue
-        if str(n.get("name") or "") != "设计员":
-            continue
-        return _field_perms_equal(n.get("field_perms"), want)
-    return False
+    want_by_id = _contract_outsource_designer_equipment_perms(nodes)
+    if want_by_id is None:
+        return True
+    by_id = {
+        str(n.get("id")): n
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    for nid, want in want_by_id.items():
+        node = by_id.get(nid)
+        if node is None or not _field_perms_equal(node.get("field_perms"), want):
+            return False
+    return True
 
 
 def apply_contract_outsource_designer_equipment_perms(nodes: list | None) -> bool:
-    """设计员节点可填设备明细（含子表设计员）。"""
-    want = _contract_outsource_designer_equipment_perms(nodes)
-    if want is None:
+    """设计员/科室主任节点可填设备明细（含子表设计员）。"""
+    want_by_id = _contract_outsource_designer_equipment_perms(nodes)
+    if want_by_id is None:
         return False
+    changed = False
     for n in nodes or []:
-        if not isinstance(n, dict) or n.get("type") != "approval":
+        if not isinstance(n, dict):
             continue
-        if str(n.get("name") or "") != "设计员":
+        nid = str(n.get("id") or "")
+        want = want_by_id.get(nid)
+        if want is None:
             continue
         if _field_perms_equal(n.get("field_perms"), want):
-            return False
+            continue
         n["field_perms"] = want
-        return True
-    return False
+        changed = True
+    return changed
 
 
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:

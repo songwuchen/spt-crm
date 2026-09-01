@@ -250,31 +250,10 @@ function isPrintableApprovalStep(s: WfFlowStep): boolean {
   )
 }
 
-const PROD_CARD_APPROVAL_ORDER = [
-  '财务核价',
-  '法务审核',
-  '部门审批',
-  '业务员确认',
-  '区域经理',
-  '研管办',
-  '安排设计',
-  '设计指派',
-] as const
-
-function approvalNodePrintRank(nodeName: string): number {
-  const n = (nodeName || '').trim()
-  const idx = PROD_CARD_APPROVAL_ORDER.findIndex(
-    (key) => n.includes(key) || key.includes(n),
-  )
-  return idx >= 0 ? idx : 100
-}
-
-function approvalLines(steps?: WfFlowStep[] | null): string[] {
+/** 打印审批意见：按完成时间倒序（最新在上，对齐简道云打印） */
+export function approvalLines(steps?: WfFlowStep[] | null): string[] {
   const list = (steps || []).filter(isPrintableApprovalStep)
   const sorted = [...list].sort((a, b) => {
-    const ra = approvalNodePrintRank(a.node_name || '')
-    const rb = approvalNodePrintRank(b.node_name || '')
-    if (ra !== rb) return ra - rb
     const ta = a.completed_at || a.started_at || ''
     const tb = b.completed_at || b.started_at || ''
     return String(tb).localeCompare(String(ta))
