@@ -558,6 +558,13 @@ export default function ApprovalCenter() {
       render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
     },
     {
+      title: '图纸编号', dataIndex: 'drawingNo', width: 140, ellipsis: true,
+      render: (v: string) => (
+        v ? <span className="text-sm font-medium text-slate-700">{v}</span>
+          : <span className="text-sm text-slate-300">—</span>
+      ),
+    },
+    {
       title: '引擎', dataIndex: 'engine', width: 90,
       render: (v: string) => v === 'wf' ? <Tag color="purple">流程</Tag> : <Tag>经典</Tag>,
     },
@@ -671,6 +678,13 @@ export default function ApprovalCenter() {
     {
       title: '类型', dataIndex: 'bizType', width: 120,
       render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
+    },
+    {
+      title: '图纸编号', dataIndex: 'drawingNo', width: 140, ellipsis: true,
+      render: (v: string) => (
+        v ? <span className="text-sm font-medium text-slate-700">{v}</span>
+          : <span className="text-sm text-slate-300">—</span>
+      ),
     },
     {
       title: '状态', dataIndex: 'status', width: 110,

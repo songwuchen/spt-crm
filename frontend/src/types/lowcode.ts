@@ -359,6 +359,8 @@ export interface WfTodoItem {
   on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理
   delegator_id?: string | null
   delegator_name?: string | null
+  /** 图纸编号（合同登记 / 生产卡等） */
+  drawing_no?: string | null
 }
 
 export interface WfTimelineItem {

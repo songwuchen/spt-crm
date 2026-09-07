@@ -73,6 +73,10 @@ import {
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
 import {
+  isContractOutsourceEarlyForm,
+  printContractOutsourceEarlyInstance,
+} from '@/pages/drawing/contractOutsourceEarlyPrint'
+import {
   BIZ_BONUS_PRINT_MODE_LABELS,
   defaultBizBonusPrintMode,
   isBizBonusForm,
@@ -1303,6 +1307,7 @@ export default function FormDataListPage({
   const canPrintProdCard = templateCode === 'prod_card_supplement'
   const canPrintQuote = isQuoteManagementForm(templateCode)
   const canPrintBonus = isBizBonusForm(templateCode)
+  const canPrintOutsource = templateCode === 'contract_outsource_early'
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
     || templateCode === 'cs_drawing_request'
@@ -1332,12 +1337,15 @@ export default function FormDataListPage({
     try {
       const res = await lowcodeApi.getInstance(recId)
       let flowSteps: WfInstanceDetail['flow_steps'] | undefined
+      let wfDetail: WfInstanceDetail | null = null
       try {
         if (res.data.process_instance_id) {
           const wf = await workflowApi.instance(res.data.process_instance_id)
+          wfDetail = wf.data
           flowSteps = wf.data?.flow_steps
         } else {
           const wf = await workflowApi.byFormInstance({ form_instance_id: recId })
+          wfDetail = wf.data
           flowSteps = wf.data?.flow_steps
         }
       } catch { /* 无流程也可打印 */ }
@@ -1357,6 +1365,18 @@ export default function FormDataListPage({
           businessNo: res.data.business_no,
           flowSteps,
           mode: bonusMode || defaultBizBonusPrintMode(),
+        })
+        return
+      }
+      if (canPrintOutsource) {
+        await printContractOutsourceEarlyInstance({
+          formData,
+          fieldDefinitions: res.data.field_definitions || [],
+          businessNo: res.data.business_no,
+          formInstanceId: recId,
+          flowSteps,
+          initiatorName: wfDetail?.initiator_name,
+          startedAt: wfDetail?.started_at || wfDetail?.created_at,
         })
         return
       }
@@ -1433,7 +1453,7 @@ export default function FormDataListPage({
     if (!viewRec) return []
     const actions: RecordToolbarAction[] = []
 
-    if (canPrintQuote || canPrintScheme) {
+    if (canPrintQuote || canPrintScheme || canPrintOutsource) {
       actions.push({
         key: 'print',
         label: '打印',
@@ -1560,7 +1580,7 @@ export default function FormDataListPage({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- handlePrint 等稳定引用省略
   }, [
     viewRec, isReviseFlow, canOpenReviseDrawer, wfDetail, effectiveReviseTaskId,
-    canActivateFlow, canPrintQuote, canPrintScheme, canPrintProdCard, canPrintBonus,
+    canActivateFlow, canPrintQuote, canPrintScheme, canPrintProdCard, canPrintBonus, canPrintOutsource,
     canEndProcess,
   ])
 

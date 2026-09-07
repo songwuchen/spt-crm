@@ -2489,6 +2489,8 @@ async def _resolve_form_list_owner_ids(
         if template_code.startswith("cs_"):
             if await resolve_module_scope(db, user, tenant_id, biz_type="form_data") == "all":
                 return None
+            if await resolve_module_scope(db, user, tenant_id, biz_type=template_code) == "all":
+                return None
         elif await resolve_module_scope(
             db, user, tenant_id, biz_type=template_code,
         ) == "all":

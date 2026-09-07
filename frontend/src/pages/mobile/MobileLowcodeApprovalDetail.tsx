@@ -28,6 +28,10 @@ import {
   printProdCardInstance,
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
+import {
+  isContractOutsourceEarlyForm,
+  printContractOutsourceEarlyInstance,
+} from '@/pages/drawing/contractOutsourceEarlyPrint'
 import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 import {
   isReviseWorkflowTask,
@@ -292,6 +296,7 @@ export default function MobileLowcodeApprovalDetail() {
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail.process_name)
   const canPrintProdCard = isProdCardSupplementForm(fields, formData, detail.process_name)
+  const canPrintOutsource = isContractOutsourceEarlyForm(detail.form_code, detail.process_name)
   const nodeActs = resolveNodeActions(detail.current_task?.node_actions, detail.biz_type)
   const approveAndPrint = canAct && nodeActs.submit_print && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail.current_task?.node_name) || nodeActs.submit_print))
@@ -302,6 +307,18 @@ export default function MobileLowcodeApprovalDetail() {
     try {
       const ct = detail.current_task
       const mergedForm = { ...formData, ...fieldUpdates }
+      if (canPrintOutsource) {
+        await printContractOutsourceEarlyInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail.business_no,
+          formInstanceId: detail.form_instance_id,
+          flowSteps: detail.flow_steps,
+          initiatorName: detail.initiator_name,
+          startedAt: detail.started_at || detail.created_at,
+        })
+        return
+      }
       if (canPrintProdCard) {
         const inject = ct && isProdCardApproveAndPrintNode(ct.node_name) && opinion.trim()
           ? {
@@ -358,8 +375,17 @@ export default function MobileLowcodeApprovalDetail() {
             {isReviseTask ? '请修改后重新提交' : `当前节点：${detail.current_task.node_name}`}
           </div>
         )}
-        {(canPrintScheme || canPrintProdCard || docPath) && (
+        {(canPrintScheme || canPrintProdCard || canPrintOutsource || docPath) && (
           <div className="mt-3 flex gap-2 flex-wrap">
+            {canPrintOutsource && (
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700"
+                onClick={() => { void handlePrintScheme() }}
+              >
+                打印外购件
+              </button>
+            )}
             {canPrintScheme && (
               <button
                 type="button"

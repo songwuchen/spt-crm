@@ -1634,6 +1634,62 @@ async def _load_export_label_maps(
     }
 
 
+def _is_address_export_field(field_type: str | None) -> bool:
+    return (field_type or "") in ("address", "location")
+
+
+_ADDRESS_EXPORT_PARTS: tuple[tuple[str, str], ...] = (
+    ("province", "(省/自治区/直辖市)"),
+    ("city", "(市)"),
+    ("district", "(县/区)"),
+    ("detail", "(详细地址)"),
+)
+
+
+def _address_export_values(value) -> list[str]:
+    """地址/定位字段导出四列：省、市、区、详细地址（对齐简道云）。"""
+    if not isinstance(value, dict):
+        return ["", "", "", ""]
+    from app.domains.lowcode.formula_engine import _text_location
+
+    if any(isinstance(value.get(k), str) for k in ("province", "city", "district")):
+        prov = value.get("province") if isinstance(value.get("province"), str) else ""
+        city = value.get("city") if isinstance(value.get("city"), str) else ""
+        dist = value.get("district") if isinstance(value.get("district"), str) else ""
+        detail_raw = value.get("detail") if isinstance(value.get("detail"), str) else ""
+    else:
+        prov = _text_location(value, "province")
+        city = _text_location(value, "city")
+        dist = _text_location(value, "district")
+        detail_raw = _text_location(value, "detail")
+    full_detail = detail_raw if detail_raw else f"{prov}{city}{dist}"
+    return [prov, city, dist, full_detail]
+
+
+def _export_column_specs(field: dict) -> list[tuple[dict, str | None, str]]:
+    """单字段 → 导出列（地址拆成四列）。"""
+    ft = field.get("type") or ""
+    base_label = str(field.get("label") or field.get("id") or "")
+    if _is_address_export_field(ft):
+        return [
+            (field, part, f"{base_label}{suffix}")
+            for part, suffix in _ADDRESS_EXPORT_PARTS
+        ]
+    return [(field, None, base_label)]
+
+
+def _export_cell_for_column(
+    field: dict,
+    part: str | None,
+    value,
+    labels: dict[str, dict[str, str]] | None = None,
+) -> str:
+    if part and _is_address_export_field(field.get("type")):
+        idx = {"province": 0, "city": 1, "district": 2, "detail": 3}[part]
+        return _address_export_values(value)[idx]
+    return _fmt_export_cell(field.get("type"), value, labels)
+
+
 def _export_detail_columns(detail_fd: dict, roles: set[str]) -> list[dict]:
     """明细表导出列：有 id 且对当前角色可见。"""
     from app.domains.lowcode.field_permission import field_visible
@@ -1652,17 +1708,18 @@ def _export_detail_columns(detail_fd: dict, roles: set[str]) -> list[dict]:
 def _export_detail_col_specs(
     detail_fields: list,
     roles: set[str],
-) -> tuple[list[tuple[dict, dict]], list[str]]:
-    """明细列定义与表头；仅当不同子表存在同名列时才加子表前缀。"""
-    specs: list[tuple[dict, dict]] = []
+) -> tuple[list[tuple[dict, dict, str | None]], list[str]]:
+    """明细列定义与表头；地址字段拆四列；同名列加子表前缀。"""
+    specs: list[tuple[dict, dict, str | None]] = []
     clabels: list[str] = []
     for dfd in detail_fields:
         for col in _export_detail_columns(dfd, roles):
-            specs.append((dfd, col))
-            clabels.append(str(col.get("label") or col.get("id") or ""))
+            for fd, part, hdr in _export_column_specs(col):
+                specs.append((dfd, fd, part))
+                clabels.append(hdr)
     dup = {lb for lb in clabels if lb and clabels.count(lb) > 1}
     headers: list[str] = []
-    for (dfd, col), clabel in zip(specs, clabels):
+    for (dfd, _fd, _part), clabel in zip(specs, clabels):
         if clabel in dup:
             dlabel = str(dfd.get("label") or dfd.get("id") or "明细")
             headers.append(f"{dlabel}·{clabel}")
@@ -1706,10 +1763,13 @@ def _build_form_export_sheets(
             fd for fd in data_fields
             if (fd.get("type") or "") in ("detail_table", "sub_table_data")
         ]
+        scalar_specs: list[tuple[dict, str | None, str]] = []
+        for fd in scalar_fields:
+            scalar_specs.extend(_export_column_specs(fd))
         detail_col_specs, detail_headers = _export_detail_col_specs(detail_fields, roles)
 
         main_headers = list(meta_headers)
-        main_headers += [str(fd.get("label") or fd.get("id") or "") for fd in scalar_fields]
+        main_headers += [hdr for _fd, _part, hdr in scalar_specs]
         main_headers += detail_headers
 
         main_rows: list[list] = []
@@ -1722,20 +1782,20 @@ def _build_form_export_sheets(
                 inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
             ]
             base += [
-                _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
-                for fd in scalar_fields
+                _export_cell_for_column(fd, part, fd_data.get(fd.get("id")), label_maps)
+                for fd, part, _hdr in scalar_specs
             ]
             detail_counts = [_detail_row_count(fd_data, dfd) for dfd in detail_fields]
             row_count = max(detail_counts + [1])
             for idx in range(row_count):
                 line = list(base)
-                for dfd, col in detail_col_specs:
+                for dfd, col, part in detail_col_specs:
                     fid = dfd.get("id")
                     raw = fd_data.get(fid) if fid else None
                     cell = ""
                     if isinstance(raw, list) and idx < len(raw) and isinstance(raw[idx], dict):
-                        cell = _fmt_export_cell(
-                            col.get("type"), raw[idx].get(col.get("id")), label_maps,
+                        cell = _export_cell_for_column(
+                            col, part, raw[idx].get(col.get("id")), label_maps,
                         )
                     line.append(cell)
                 main_rows.append(line)
@@ -1746,7 +1806,10 @@ def _build_form_export_sheets(
             main_rows.append(note + [""] * (len(main_headers) - 1))
         return [(sheet_title or "表单数据", main_headers, main_rows)]
 
-    main_headers = meta_headers + [fd.get("label") or fd.get("id") for fd in data_fields]
+    scalar_specs: list[tuple[dict, str | None, str]] = []
+    for fd in data_fields:
+        scalar_specs.extend(_export_column_specs(fd))
+    main_headers = meta_headers + [hdr for _fd, _part, hdr in scalar_specs]
     main_rows = []
     for inst, fd_data in filtered_rows:
         initiator_id = getattr(inst, "initiator_id", None) or ""
@@ -1757,8 +1820,8 @@ def _build_form_export_sheets(
             inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
         ]
         line += [
-            _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
-            for fd in data_fields
+            _export_cell_for_column(fd, part, fd_data.get(fd.get("id")), label_maps)
+            for fd, part, _hdr in scalar_specs
         ]
         main_rows.append(line)
     if truncated:
@@ -1777,9 +1840,12 @@ def _build_form_export_sheets(
     ]
     for dfd in detail_fields:
         cols = _export_detail_columns(dfd, roles)
+        col_specs: list[tuple[dict, str | None, str]] = []
+        for col in cols:
+            col_specs.extend(_export_column_specs(col))
         d_headers = (
             ["业务编号", "标题", "状态"]
-            + [c.get("label") or c.get("id") for c in cols]
+            + [hdr for _fd, _part, hdr in col_specs]
         )
         d_rows: list[list] = []
         fid = dfd.get("id")
@@ -1797,8 +1863,10 @@ def _build_form_export_sheets(
                     continue
                 d_rows.append(
                     base + [
-                        _fmt_export_cell(c.get("type"), row.get(c.get("id")), label_maps)
-                        for c in cols
+                        _export_cell_for_column(
+                            col, part, row.get(col.get("id")), label_maps,
+                        )
+                        for col, part, _hdr in col_specs
                     ]
                 )
         sheets.append((str(dfd.get("label") or dfd.get("id") or "明细"), d_headers, d_rows))
@@ -1824,6 +1892,9 @@ def _fmt_export_cell(
         m = labels.get("users") or {}
         names = [m.get(i) or i for i in _collect_ref_ids(value)]
         return "、".join(n for n in names if n)
+    if _is_address_export_field(field_type):
+        return _address_export_values(value)[3]
+
     if field_type in ("department", "department_multi"):
         m = labels.get("depts") or {}
         names = [m.get(i) or i for i in _collect_ref_ids(value)]

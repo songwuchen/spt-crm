@@ -458,6 +458,7 @@ export default function MobileApprovals() {
                         </div>
                         <div className="text-sm text-slate-500 mt-1 truncate">
                           {bizLabel(item.bizType)}
+                          {item.drawingNo ? ` · ${item.drawingNo}` : ''}
                           {item.subtitle ? ` · ${item.subtitle}` : ''}
                           {item.engine === 'wf' ? ' · 流程' : ' · 经典'}
                         </div>

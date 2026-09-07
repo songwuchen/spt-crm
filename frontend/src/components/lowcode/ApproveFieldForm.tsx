@@ -20,6 +20,8 @@ import TechAgreementReviewField, {
 import { useAuthStore } from '@/stores/useAuthStore'
 import { contractPickDepartments } from '@/utils/contractPickDepartments'
 import FormRenderer from '@/components/lowcode/FormRenderer'
+import FormInstanceLookupField from '@/components/lowcode/fields/FormInstanceLookupField'
+import { linkFillClearKeys } from '@/constants/prodCardInstallLinks'
 import { computeFieldStates, validateApproverDetailRows } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
 import {
@@ -447,6 +449,63 @@ export default function ApproveFieldForm({
                     value={val}
                     onChange={(v) => setField(p.field, v)}
                     placeholder={`请选择${label}`}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+
+          if (t === 'select_data') {
+            const selectProps = fieldProps as {
+              source_form_code?: string
+              link_fill?: string
+              link_field?: string
+            }
+            const formCode = String(selectProps.source_form_code || '').trim()
+            const fillMode = selectProps.link_fill
+            const apiLinkField = String(selectProps.link_field || '').trim() || p.field
+            if (!formCode) {
+              return (
+                <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                  <FieldLabel label={label} required={required} error={err} />
+                  <Input
+                    size="small"
+                    status={status}
+                    value={(val as string) ?? ''}
+                    onChange={(e) => setField(p.field, e.target.value)}
+                    style={{ marginTop: 4 }}
+                    placeholder={required ? `请填写${label}` : undefined}
+                  />
+                  {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
+                </div>
+              )
+            }
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <FormInstanceLookupField
+                    formCode={formCode}
+                    linkField={apiLinkField}
+                    value={val}
+                    placeholder={`请选择${label}`}
+                    onChange={(v) => {
+                      if (!fillMode) setField(p.field, v)
+                    }}
+                    onFill={(id, fill) => {
+                      if (!fillMode) {
+                        setField(p.field, id)
+                        return
+                      }
+                      if (!id) {
+                        const cleared: Record<string, unknown> = { [p.field]: undefined }
+                        for (const k of linkFillClearKeys(p.field, fillMode)) cleared[k] = undefined
+                        patchFields(cleared)
+                        return
+                      }
+                      patchFields({ [p.field]: id, ...fill })
+                    }}
                   />
                 </div>
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}

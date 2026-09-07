@@ -83,6 +83,7 @@ export function matchesClientFilters(
     nodeName?: string | null
     initiatorId?: string | null
     businessNo?: string | null
+    drawingNo?: string | null
     createdAt?: string
     bizType?: string | null
     engine?: ApprovalEngine
@@ -100,7 +101,7 @@ export function matchesClientFilters(
   if (filters.keyword?.trim()) {
     const kw = filters.keyword.trim().toLowerCase()
     const hay = [
-      item.title, item.subtitle, item.processName, item.businessNo, item.bizType,
+      item.title, item.subtitle, item.processName, item.businessNo, item.bizType, item.drawingNo,
     ].filter(Boolean).join(' ').toLowerCase()
     if (!hay.includes(kw)) return false
   }
@@ -142,6 +143,8 @@ export interface UnifiedPendingItem {
   initiatorId?: string | null
   initiatorName?: string | null
   businessNo?: string | null
+  /** 图纸编号（合同登记 / 生产卡等） */
+  drawingNo?: string | null
 }
 
 export interface UnifiedPendingResult {
@@ -232,6 +235,7 @@ export async function fetchUnifiedPending(
         initiatorId: it.initiator_id || null,
         initiatorName: it.initiator_name || null,
         businessNo: it.business_no || null,
+        drawingNo: it.drawing_no || null,
       })
     }
   }
@@ -277,6 +281,7 @@ export interface UnifiedMineItem {
   nodeName?: string | null
   initiatorId?: string | null
   businessNo?: string | null
+  drawingNo?: string | null
 }
 
 /** 我发起的：旧引擎按发起人过滤 + 新工作流 mine。 */
@@ -336,6 +341,7 @@ export async function fetchUnifiedMine(
         processName: it.process_name || null,
         nodeName: it.current_node_name || null,
         businessNo: it.business_no || null,
+        drawingNo: it.drawing_no || null,
       })
     }
   }

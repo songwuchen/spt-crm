@@ -7,6 +7,9 @@ from datetime import datetime
 from app.domains.lowcode.router import (
     _collect_ref_ids,
     _fmt_export_cell,
+    _address_export_values,
+    _export_column_specs,
+    _export_cell_for_column,
     _scan_export_ref_ids_from_defs,
     _build_form_export_sheets,
     _export_detail_columns,
@@ -35,6 +38,76 @@ def test_fmt_export_person_multi():
 def test_fmt_export_detail_table_summary():
     assert _fmt_export_cell("detail_table", [{"amount": 1}, {"amount": 2}]) == "2 行"
     assert _fmt_export_cell("detail_table", []) == "0 行"
+
+
+def test_address_export_splits_four_columns():
+    addr = {
+        "province": "河北省",
+        "city": "唐山市",
+        "district": "迁安市",
+        "detail": "迁安市九江线材有限责任公司1号门",
+        "regionCode": "130283",
+    }
+    assert _address_export_values(addr) == [
+        "河北省", "唐山市", "迁安市", "迁安市九江线材有限责任公司1号门",
+    ]
+    specs = _export_column_specs({"id": "address", "type": "address", "label": "地址"})
+    assert [h for _f, _p, h in specs] == [
+        "地址(省/自治区/直辖市)",
+        "地址(市)",
+        "地址(县/区)",
+        "地址(详细地址)",
+    ]
+    assert _export_cell_for_column(specs[0][0], "province", addr, {}) == "河北省"
+    assert _export_cell_for_column(specs[3][0], "detail", addr, {}) == (
+        "迁安市九江线材有限责任公司1号门"
+    )
+    assert _fmt_export_cell("address", addr, {}) == "迁安市九江线材有限责任公司1号门"
+
+
+def test_build_form_export_sheets_address_flat_columns():
+    data_fields = [
+        {"id": "address", "type": "address", "label": "地址"},
+        {"id": "customer_name", "type": "text", "label": "单位名称"},
+    ]
+    inst = SimpleNamespace(
+        business_no="24.1-001",
+        title="发货测试",
+        status="completed",
+        initiator_id=None,
+        created_at=datetime(2026, 8, 20, 10, 30),
+    )
+    fd_data = {
+        "address": {
+            "province": "贵州省",
+            "city": "六盘水市",
+            "district": "盘州市",
+            "detail": "贵州省六盘水市盘州市鸡场坪镇，松河区松河煤业有限责任公司松河选煤厂",
+        },
+        "customer_name": "测试客户",
+    }
+    sheets = _build_form_export_sheets(
+        sheet_title="发货通知",
+        data_fields=data_fields,
+        filtered_rows=[(inst, fd_data)],
+        label_maps={},
+        roles=set(),
+        truncated=False,
+    )
+    headers, rows = sheets[0][1], sheets[0][2]
+    assert headers[5:9] == [
+        "地址(省/自治区/直辖市)",
+        "地址(市)",
+        "地址(县/区)",
+        "地址(详细地址)",
+    ]
+    assert rows[0][5:10] == [
+        "贵州省",
+        "六盘水市",
+        "盘州市",
+        "贵州省六盘水市盘州市鸡场坪镇，松河区松河煤业有限责任公司松河选煤厂",
+        "测试客户",
+    ]
 
 
 def test_scan_export_ref_ids_from_detail_columns():

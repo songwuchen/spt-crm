@@ -8462,6 +8462,95 @@ async def _running_node_names_by_process_ids(
     return out
 
 
+def _scalar_form_field_text(value) -> str:
+    """form_data 单字段 → 列表展示用纯文本。"""
+    if value is None or value == "" or value == [] or value == {}:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("label") or value.get("id") or "").strip()
+    if isinstance(value, list):
+        parts = [_scalar_form_field_text(v) for v in value]
+        return "、".join(p for p in parts if p)
+    return str(value).strip()
+
+
+def _drawing_no_from_form_data(form_data: dict | None, form_code: str | None = None) -> str:
+    """审批/待办列表：从表单快照解析图纸编号。"""
+    if not form_data:
+        return ""
+    if form_code == "prod_card_supplement":
+        keys = ("yes_contract_no", "drawing_no_query", "drawing_no", "no_drawing_no")
+    elif form_code in ("prod_card_notice", "prod_card_install"):
+        keys = ("no_drawing_no", "drawing_no_query", "drawing_no")
+    else:
+        keys = ("drawing_no", "no_drawing_no", "drawing_no_query", "yes_contract_no")
+    for k in keys:
+        v = _scalar_form_field_text(form_data.get(k))
+        if v:
+            return v
+    return ""
+
+
+async def _drawing_no_map_for_instances(
+    db,
+    insts: dict[str, WfProcessInstance] | list[WfProcessInstance],
+    form_code_map: dict[str, str],
+) -> dict[str, str]:
+    """process_instance_id → 图纸编号（表单字段或合同登记 drawing_no）。"""
+    inst_iter = insts.values() if isinstance(insts, dict) else insts
+    inst_list = [i for i in inst_iter if i]
+    if not inst_list:
+        return {}
+
+    from app.domains.lowcode.models import FormInstance
+
+    fi_ids = {i.form_instance_id for i in inst_list if i.form_instance_id}
+    fi_map: dict[str, FormInstance] = {}
+    if fi_ids:
+        fi_map = {
+            f.id: f for f in (await db.execute(
+                select(FormInstance).where(FormInstance.id.in_(fi_ids))
+            )).scalars().all()
+        }
+
+    cv_ids = {i.biz_id for i in inst_list if i.biz_type == "contract_version" and i.biz_id}
+    cv_to_contract: dict[str, str] = {}
+    contract_drawing: dict[str, str] = {}
+    if cv_ids:
+        from app.domains.contract.models import Contract, ContractVersion
+        cv_rows = (await db.execute(
+            select(ContractVersion.id, ContractVersion.contract_id).where(
+                ContractVersion.id.in_(cv_ids)
+            )
+        )).all()
+        cv_to_contract = {r[0]: r[1] for r in cv_rows if r[1]}
+        cids = set(cv_to_contract.values())
+        if cids:
+            contract_drawing = {
+                r[0]: (r[1] or "").strip()
+                for r in (await db.execute(
+                    select(Contract.id, Contract.drawing_no).where(Contract.id.in_(cids))
+                )).all()
+                if r[1]
+            }
+
+    out: dict[str, str] = {}
+    for inst in inst_list:
+        dn = ""
+        if inst.form_instance_id:
+            fi = fi_map.get(inst.form_instance_id)
+            if fi:
+                fc = form_code_map.get(inst.form_instance_id or "")
+                dn = _drawing_no_from_form_data(fi.form_data or {}, fc)
+        if not dn and inst.biz_type == "contract_version" and inst.biz_id:
+            cid = cv_to_contract.get(inst.biz_id)
+            if cid:
+                dn = contract_drawing.get(cid, "")
+        if dn:
+            out[inst.id] = dn
+    return out
+
+
 async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
     """列表补充：合同 biz_ref_id、进行中当前节点名、流程定义名（表单流无 biz_type 时作类型兜底）。"""
     if not rows:
@@ -8492,6 +8581,7 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
     await _heal_weak_form_titles(db, rows, def_name_map)
     fi_ids = {i.form_instance_id for i in rows if i.form_instance_id}
     form_code_map = await _form_codes_by_instance_ids(db, fi_ids)
+    drawing_no_map = await _drawing_no_map_for_instances(db, rows, form_code_map)
     out = []
     for i in rows:
         d = _inst_dict(i, form_code=form_code_map.get(i.form_instance_id or ""))
@@ -8505,6 +8595,7 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
             d["biz_ref_id"] = None
         d["current_node_name"] = current_node.get(i.id)
         d["process_name"] = def_name_map.get(i.process_definition_id)
+        d["drawing_no"] = drawing_no_map.get(i.id)
         out.append(d)
     return out
 
@@ -8568,6 +8659,7 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
     await _heal_weak_form_titles(db, insts, def_name_map)
     fi_ids = {i.form_instance_id for i in insts.values() if i and i.form_instance_id}
     form_code_map = await _form_codes_by_instance_ids(db, fi_ids)
+    drawing_no_map = await _drawing_no_map_for_instances(db, insts, form_code_map)
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
@@ -8608,6 +8700,7 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             "biz_ref_id": biz_ref_id,
             "form_instance_id": inst.form_instance_id if inst else None,
             "form_code": form_code_map.get(inst.form_instance_id or "") if inst else None,
+            "drawing_no": drawing_no_map.get(t.process_instance_id) if t.process_instance_id else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
             # 代理审批：非本人被指派的待办 = 代办，标注委托人

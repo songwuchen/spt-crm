@@ -40,6 +40,7 @@ export const workflowApi = {
       biz_ref_id?: string
       process_name?: string | null
       current_node_name?: string
+      drawing_no?: string | null
       created_at?: string
       started_at?: string
       completed_at?: string

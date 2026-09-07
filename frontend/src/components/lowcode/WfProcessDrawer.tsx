@@ -48,6 +48,10 @@ import {
   printProdCardInstance,
   type ProdCardPrintMode,
 } from '@/pages/drawing/prodCardPrint'
+import {
+  isContractOutsourceEarlyForm,
+  printContractOutsourceEarlyInstance,
+} from '@/pages/drawing/contractOutsourceEarlyPrint'
 import { isTechAgreementReviewBiz, printTechAgreementReview } from '@/pages/techAgreementReview/techAgreementReviewPrint'
 import { isContractReviewBiz, printContractReview } from '@/pages/contractReview/contractReviewPrint'
 import { techAgreementReviewApi } from '@/api/techAgreementReview'
@@ -284,6 +288,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const canPrintBonus = isBizBonusForm(detail?.form_code, undefined, detail?.process_name)
   const canPrintTar = isTechAgreementReviewBiz(detail?.biz_type)
   const canPrintContractReview = isContractReviewBiz(detail?.biz_type)
+  const canPrintOutsource = isContractOutsourceEarlyForm(detail?.form_code, detail?.process_name)
   const approveAndPrint = canAct && nodeActs.submit && (
     (canPrintScheme && (isDrawingApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
     || (canPrintProdCard && (isProdCardApproveAndPrintNode(detail?.current_task?.node_name) || nodeActs.submit_print))
@@ -318,6 +323,18 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           businessNo: detail?.business_no,
           flowSteps: detail?.flow_steps,
           mode: bonusMode || defaultBizBonusPrintMode(),
+        })
+        return
+      }
+      if (canPrintOutsource) {
+        await printContractOutsourceEarlyInstance({
+          formData: mergedForm,
+          fieldDefinitions: fields,
+          businessNo: detail?.business_no,
+          formInstanceId: detail?.form_instance_id,
+          flowSteps: detail?.flow_steps,
+          initiatorName: detail?.initiator_name,
+          startedAt: detail?.started_at || detail?.created_at,
         })
         return
       }
@@ -808,6 +825,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     </Button>
                   )}
                   {canPrintScheme && (
+                    <Button
+                      size="small"
+                      icon={<PrinterOutlined />}
+                      onClick={() => { void handlePrintScheme() }}
+                    >
+                      打印
+                    </Button>
+                  )}
+                  {canPrintOutsource && (
                     <Button
                       size="small"
                       icon={<PrinterOutlined />}
