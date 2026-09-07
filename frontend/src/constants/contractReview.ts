@@ -457,6 +457,9 @@ function isEmptyReviewValue(v: unknown, widget?: ReviewWidget): boolean {
 export function findFirstMissingReviewRequired(
   row: Record<string, unknown>,
 ): { name: (string | number)[]; label: string } | null {
+  if (!row.customer_id) {
+    return { name: ['customer_id'], label: '关联客户' }
+  }
   for (const sec of CONTRACT_REVIEW_SECTIONS) {
     for (const f of reviewSectionAllFields(sec)) {
       if (f.fillStage === 'approver' || f.fillStage === 'display') continue

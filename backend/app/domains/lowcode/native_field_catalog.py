@@ -603,6 +603,7 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("region_manager_id", "区域经理/组长", "person",
            companions=("region_manager_name",)),
         _f("department_id", "业务部门", "department", companions=("department_name",)),
+        _f("customer_id", "关联客户", "customer", default_required=True),
         _f("company_name", "公司名称", default_required=True),
         _f("elec_ctrl", "电控装置", "select", default_required=True,
            options=[{"value": v, "label": v} for v in (

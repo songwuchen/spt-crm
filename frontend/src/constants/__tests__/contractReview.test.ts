@@ -2,9 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { findFirstMissingReviewRequired } from '@/constants/contractReview'
 
 describe('findFirstMissingReviewRequired', () => {
+  it('requires customer_id for contract review', () => {
+    const missing = findFirstMissingReviewRequired({
+      review_type: '合同评审',
+      owner_id: 'u1',
+      company_name: '测试公司',
+    })
+    expect(missing).toEqual({ name: ['customer_id'], label: '关联客户' })
+  })
+
   it('requires department_id for contract review', () => {
     const missing = findFirstMissingReviewRequired({
       review_type: '合同评审',
+      customer_id: 'c1',
       owner_id: 'u1',
       company_name: '测试公司',
       is_export: '否',
@@ -26,6 +36,7 @@ describe('findFirstMissingReviewRequired', () => {
   it('passes when department_id is set', () => {
     const missing = findFirstMissingReviewRequired({
       review_type: '合同评审',
+      customer_id: 'c1',
       owner_id: 'u1',
       department_id: 'd1',
       company_name: '测试公司',

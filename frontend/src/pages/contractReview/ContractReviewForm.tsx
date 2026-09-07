@@ -361,7 +361,11 @@ export default function ContractReviewForm() {
               <Form.Item name="status" label="状态">
                 <Select options={[...CONTRACT_REVIEW_STATUS]} />
               </Form.Item>
-              <Form.Item name="customer_id" label="关联客户">
+              <Form.Item
+                name="customer_id"
+                label="关联客户"
+                rules={[{ required: true, message: '请选择关联客户' }]}
+              >
                 <Select
                   allowClear showSearch filterOption={false}
                   placeholder="搜索客户（选中后回填公司名称、客户信息等）"
