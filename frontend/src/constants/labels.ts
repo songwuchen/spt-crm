@@ -251,6 +251,20 @@ export function isContractDraftDeletable(
   return resolveContractDisplayStatus(contractStatus, versionStatus) === 'draft'
 }
 
+/** 合同登记是否可编辑（审批中锁定；草稿/驳回/已通过可改；已终止不可改） */
+export function isContractEditable(
+  contractStatus: string,
+  versionStatus?: string | null,
+  wfStatus?: string | null,
+  approvalFlowStatus?: string | null,
+): boolean {
+  if (contractStatus === 'terminated') return false
+  if (wfStatus === 'running') return false
+  if (approvalFlowStatus === 'pending' && !wfStatus) return false
+  const display = resolveContractDisplayStatus(contractStatus, versionStatus, wfStatus)
+  return display !== 'approving'
+}
+
 // --- Solution ---
 export const solutionStatusLabels: Record<string, string> = {
   draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃',

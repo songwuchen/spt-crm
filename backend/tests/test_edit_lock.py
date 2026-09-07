@@ -20,7 +20,8 @@ def test_is_status_editable_matrix():
     assert is_status_editable("contract_version", "draft")
     assert is_status_editable("contract_version", "rejected")
     assert not is_status_editable("contract_version", "submitted")
-    assert not is_status_editable("contract_version", "approved")
+    assert is_status_editable("contract_version", "approved")
+    assert is_status_editable("contract_version", "signed")
     assert is_status_editable("form_instance", "draft")
     assert is_status_editable("form_instance", "completed")
     assert is_status_editable("form_instance", "running")
@@ -112,12 +113,25 @@ async def test_assert_content_update_allowed_submit_from_draft():
 
 
 @pytest.mark.asyncio
-async def test_assert_contract_signed_locked():
+async def test_assert_contract_terminated_locked():
     db = MagicMock()
-    contract = MagicMock(status="signed", id="c1", current_version_no=1)
+    contract = MagicMock(status="terminated", id="c1", current_version_no=1)
     with pytest.raises(BusinessException) as ei:
         await assert_contract_record_editable(db, "t1", contract)
-    assert "签署" in ei.value.message or "终止" in ei.value.message
+    assert "终止" in ei.value.message
+
+
+@pytest.mark.asyncio
+async def test_assert_contract_signed_editable_when_flow_done():
+    db = MagicMock()
+    contract = MagicMock(status="signed", id="c1", current_version_no=1)
+    version = MagicMock(id="v1", status="approved")
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        await assert_contract_record_editable(db, "t1", contract, version=version)
 
 
 @pytest.mark.asyncio

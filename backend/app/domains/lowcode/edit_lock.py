@@ -12,7 +12,8 @@ from app.common.exceptions import BusinessException
 
 # 可整单编辑的业务状态（对齐 wf_biz_writeback 写回值）
 EDITABLE_STATUSES: dict[str, frozenset[str]] = {
-    "contract_version": frozenset({"draft", "rejected"}),
+    # 合同登记：审批中 submitted 锁定；已通过 approved/signed 可维护（对齐财务登记编辑）
+    "contract_version": frozenset({"draft", "rejected", "approved", "signed"}),
     "contract_review": frozenset({"draft", "rejected"}),
     "tech_agreement_review": frozenset({"draft", "rejected"}),
     "quote_version": frozenset({"draft", "rejected"}),
@@ -129,12 +130,12 @@ async def assert_customer_editable(
 async def assert_contract_record_editable(
     db: AsyncSession, tenant_id: str, contract, *, version=None,
 ) -> None:
-    """合同主表编辑：签署/终止不可改；否则看当前版本 status + contract_version 流程。"""
+    """合同主表编辑：已终止不可改；已通过(signed)可维护登记信息；审批中仍由 running 流程锁定。"""
     st = getattr(contract, "status", None) or "draft"
-    if st in ("signed", "terminated"):
+    if st == "terminated":
         raise BusinessException(
             code=VALIDATION_ERROR,
-            message="已签署或已终止的合同不可编辑",
+            message="已终止的合同不可编辑",
         )
     ver = version
     if ver is None:

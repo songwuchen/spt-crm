@@ -8,7 +8,7 @@ import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { ContractItem } from '@/api/types'
-import { contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus, isContractDraftDeletable } from '@/constants/labels'
+import { contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus, isContractDraftDeletable, isContractEditable } from '@/constants/labels'
 import { formatChangeType } from '@/constants/contractRegistration'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
@@ -51,6 +51,7 @@ export default function ContractList() {
 
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('contract:create')
+  const canEdit = hasPermission('contract:edit')
   const canDelete = hasPermission('contract:delete')
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -413,16 +414,24 @@ export default function ContractList() {
       { title: '金额', dataIndex: 'amount_total', width: 110, align: 'right',
         render: (v: number | string) => fmtMoney(v) },
     ]
-    if (canDelete) {
+    if (canEdit || canDelete) {
       cols.push({
         title: '操作',
         key: 'actions',
-        width: 100,
+        width: canEdit && canDelete ? 140 : 100,
         fixed: 'right',
         render: (_: unknown, r: ContractItem) => (
           <Space size={0}>
             <a className="text-primary text-sm px-2" onClick={() => openDetail(r.id)}>详情</a>
-            {isContractDraftDeletable(r.status, r.current_version_status) && (
+            {canEdit && isContractEditable(r.status, r.current_version_status) && (
+              <a
+                className="text-primary text-sm px-2"
+                onClick={() => navigate(`/contracts/${r.id}?edit=1`)}
+              >
+                编辑
+              </a>
+            )}
+            {canDelete && isContractDraftDeletable(r.status, r.current_version_status) && (
               <a className="text-rose-500 text-sm px-2" onClick={() => handleDelete(r)}>删除</a>
             )}
           </Space>
@@ -430,7 +439,7 @@ export default function ContractList() {
       })
     }
     return cols
-  }, [canDelete, handleDelete, openDetail, navigate])
+  }, [canDelete, canEdit, handleDelete, openDetail, navigate])
 
   const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 

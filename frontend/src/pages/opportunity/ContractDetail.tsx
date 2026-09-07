@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Form, message } from 'antd'
 import { CopyOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
 import { paymentApi } from '@/api/payment'
 import { deliveryApi } from '@/api/delivery'
@@ -32,7 +32,7 @@ function linkedOpportunityLabel(c: ContractItem): string {
 }
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
-import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, isContractDraftDeletable, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
+import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, isContractDraftDeletable, isContractEditable, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
 import type { WfInstanceDetail } from '@/types/lowcode'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
@@ -72,8 +72,11 @@ export default function ContractDetail() {
   usePageTitle('合同详情')
   const { id: projectIdParam, cid } = useParams<{ id?: string; cid: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { hasPermission } = usePermission()
+  const canEditPermission = hasPermission('contract:edit')
   const canDeleteContract = hasPermission('contract:delete')
+  const editAutoOpened = useRef(false)
   const siblingNav = useSiblingRecordNav('contracts', cid, {
     pathForId: (rid) => `/contracts/${rid}`,
     fetchPage: async (pageNo, snap) => {
@@ -562,6 +565,23 @@ export default function ContractDetail() {
 
   useEffect(() => { fetchContract() }, [cid])
 
+  useEffect(() => {
+    editAutoOpened.current = false
+  }, [cid])
+
+  useEffect(() => {
+    if (editAutoOpened.current || searchParams.get('edit') !== '1' || !contract) return
+    const verStatus = currentVersion?.status || 'draft'
+    const editable = canEditPermission
+      && isContractEditable(contract.status, verStatus, wfInstance?.status, approvalFlow?.status)
+    if (!editable) return
+    editAutoOpened.current = true
+    const next = new URLSearchParams(searchParams)
+    next.delete('edit')
+    setSearchParams(next, { replace: true })
+    void openEditModal()
+  }, [contract, currentVersion, wfInstance, approvalFlow, canEditPermission, searchParams, setSearchParams])
+
   const handleNewVersion = async () => {
     await contractApi.newVersion(cid!)
     message.success('新版本已创建')
@@ -646,9 +666,8 @@ export default function ContractDetail() {
     && (verStatus === 'draft' || verStatus === 'rejected')
     && wfInstance?.status !== 'running'
     && approvalFlow?.status !== 'pending'
-  const canEdit = canSubmitApproval
-    && contract.status !== 'signed'
-    && contract.status !== 'terminated'
+  const canEdit = canEditPermission
+    && isContractEditable(contract.status, verStatus, wfInstance?.status, approvalFlow?.status)
   const canDelete = canDeleteContract
     && isContractDraftDeletable(contract.status, verStatus)
   const canGenerate = toCanonicalRows(contract.payment_terms_json, resolvePayColumns()).length > 0
@@ -752,7 +771,9 @@ export default function ContractDetail() {
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         footer={[
           <Button key="cancel" htmlType="button" onClick={() => setEditModal(false)}>取消</Button>,
-          <Button key="draft" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(false)}>存草稿</Button>,
+          ...(canSubmitApproval ? [
+            <Button key="draft" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(false)}>存草稿</Button>,
+          ] : []),
           <Button key="save" type="primary" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(true)}>保存</Button>,
         ]}
       >
