@@ -212,7 +212,7 @@ STANDARD_ROLES = [
         "perms": [
             "customer:view", "customer:create",
             "contact:view", "contact:create",
-            "lead:view", "lead:qualify",
+            "lead:view", "lead:qualify", "lead:discard",
             "project:view", "project:create",
             # CORE 已含 form_data:view/create；显式写出便于对照方案三表菜单
             "form_data:view", "form_data:create",

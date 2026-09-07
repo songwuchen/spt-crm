@@ -50,6 +50,7 @@ export default function MobileLeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const canEditLead = useAuthStore((s) => s.hasPermission('lead:edit'))
+  const canDiscardLead = useAuthStore((s) => s.hasPermission('lead:discard'))
   const [lead, setLead] = useState<LeadItem | null>(null)
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [wfRunning, setWfRunning] = useState(false)
@@ -167,6 +168,24 @@ export default function MobileLeadDetail() {
         await leadApi.update(id, { status: newStatus })
         message.success('状态已更新')
         loadLead()
+      },
+    })
+  }
+
+  const handleDiscard = () => {
+    if (!id) return
+    Modal.confirm({
+      title: '确认废弃',
+      content: '确定要废弃此线索？',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await leadApi.discard(id)
+          message.success('线索已废弃')
+          loadLead()
+        } catch {
+          message.error('操作失败')
+        }
       },
     })
   }
@@ -435,8 +454,8 @@ export default function MobileLeadDetail() {
             转商机
           </button>
         )}
-        {canOperate && (
-        <button onClick={() => handleStatusChange('discarded')}
+        {canOperate && canDiscardLead && (
+        <button onClick={handleDiscard}
           className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-sm font-bold">
           废弃
         </button>
