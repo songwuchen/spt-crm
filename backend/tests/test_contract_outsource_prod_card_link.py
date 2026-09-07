@@ -155,6 +155,35 @@ def test_build_contract_outsource_prod_card_fill_resolves_serial_ref_to_uuid():
     assert fill["contract_no"] == cid
 
 
+def test_build_contract_outsource_prod_card_fill_old_jdy_serial_ref():
+    """生产卡 link 存简道云旧流水号，CRM 合同 serial_no 已变，仍应带出图纸号 UUID。"""
+    cid = "821c5e80-b627-43e0-b521-fffe4dbb0842"
+    old_serial = "1.2.3-2026081901480"
+    current_serial = "1.2.3-2026082516923"
+    names: dict[str, str] = {}
+    id_by_ref: dict[str, str] = {old_serial: cid}
+    apply_contract_row_to_lookup_maps(
+        names, id_by_ref,
+        contract_id=cid,
+        serial_no=current_serial,
+        contract_no="YJ26518",
+        drawing_no="WMGF202608120",
+    )
+    fill = build_contract_outsource_prod_card_fill(
+        business_no="1.2.817721",
+        form_data={"serial_no": "1.2.817721", "drawing_no_query": old_serial},
+        contract_names=names,
+        contract_id_by_ref=id_by_ref,
+    )
+    assert fill["contract_no"] == cid
+    _, label = _resolve_prod_card_contract_for_outsource(
+        {"drawing_no_query": old_serial},
+        contract_names=names,
+        contract_id_by_ref=id_by_ref,
+    )
+    assert label == "WMGF202608120"
+
+
 def test_split_prod_card_office_tokens_comma_text():
     assert split_prod_card_office_tokens("设计二室, 电气组") == ["设计二室", "电气组"]
 

@@ -777,6 +777,7 @@ def _pick_cell(
     user_names: dict[str, str],
     dept_names: dict[str, str],
     contract_names: dict[str, str] | None = None,
+    contract_id_by_ref: dict[str, str] | None = None,
 ) -> str:
     data = form_data
     if key == "serial_no":
@@ -807,7 +808,9 @@ def _pick_cell(
         return _as_text(data.get("design_card_no"))
     if key == "drawing_no":
         _cid, label = _resolve_prod_card_contract_for_outsource(
-            data, contract_names=contract_names,
+            data,
+            contract_names=contract_names,
+            contract_id_by_ref=contract_id_by_ref,
         )
         if label:
             return label
@@ -974,10 +977,15 @@ async def list_pickable_form_instances(
     if form_code == "prod_card_supplement" and prod_card_contract_refs:
         from app.domains.lowcode.prod_card_contract_fill import resolve_contract_id_for_fill
         for ref in prod_card_contract_refs:
-            if ref and not _is_uuid(ref):
+            if not ref:
+                continue
+            if _is_uuid(ref):
+                contract_id_by_ref[ref] = ref
+            else:
                 resolved = await resolve_contract_id_for_fill(db, tenant_id, ref)
                 if resolved:
                     contract_ids.append(resolved)
+                    contract_id_by_ref[ref] = resolved
     if contract_ids:
         from app.domains.contract.models import Contract
         crows = (await db.execute(
@@ -1021,6 +1029,7 @@ async def list_pickable_form_instances(
                 k, business_no=inst.business_no, form_data=data,
                 user_names=user_names, dept_names=dept_names,
                 contract_names=contract_names,
+                contract_id_by_ref=contract_id_by_ref,
             )
             for k in col_keys
         }
