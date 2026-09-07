@@ -12,8 +12,8 @@ from app.common.exceptions import BusinessException
 
 # 可整单编辑的业务状态（对齐 wf_biz_writeback 写回值）
 EDITABLE_STATUSES: dict[str, frozenset[str]] = {
-    # 合同登记：审批中 submitted 锁定；已通过 approved/signed 可维护（对齐财务登记编辑）
-    "contract_version": frozenset({"draft", "rejected", "approved", "signed"}),
+    # 合同登记：草稿/驳回/审批中/已通过均可整单编辑（审批中不锁 running 流程）
+    "contract_version": frozenset({"draft", "rejected", "submitted", "approved", "signed"}),
     "contract_review": frozenset({"draft", "rejected"}),
     "tech_agreement_review": frozenset({"draft", "rejected"}),
     "quote_version": frozenset({"draft", "rejected"}),
@@ -89,9 +89,13 @@ async def assert_biz_editable(
     message: str | None = None,
     template_code: str | None = None,
 ) -> None:
-    """有 running 流程或 status 不在可编辑集合 → 拒绝。"""
-    if await has_running_process(db, tenant_id, biz_type, biz_id):
-        raise BusinessException(code=VALIDATION_ERROR, message=message or _LOCK_MSG)
+    """有 running 流程或 status 不在可编辑集合 → 拒绝。
+
+    合同登记(contract_version)对齐低代码表单：审批中也可改内容，不因 running 流程锁定。
+    """
+    if biz_type != "contract_version":
+        if await has_running_process(db, tenant_id, biz_type, biz_id):
+            raise BusinessException(code=VALIDATION_ERROR, message=message or _LOCK_MSG)
     if not is_status_editable(biz_type, status, template_code=template_code):
         raise BusinessException(code=VALIDATION_ERROR, message=message or _LOCK_MSG)
 

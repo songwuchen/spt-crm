@@ -19,7 +19,7 @@ from app.domains.lowcode.edit_lock import (
 def test_is_status_editable_matrix():
     assert is_status_editable("contract_version", "draft")
     assert is_status_editable("contract_version", "rejected")
-    assert not is_status_editable("contract_version", "submitted")
+    assert is_status_editable("contract_version", "submitted")
     assert is_status_editable("contract_version", "approved")
     assert is_status_editable("contract_version", "signed")
     assert is_status_editable("form_instance", "draft")
@@ -71,7 +71,18 @@ async def test_assert_biz_editable_allows_draft():
 
 
 @pytest.mark.asyncio
-async def test_assert_biz_editable_rejects_submitted():
+async def test_assert_biz_editable_allows_submitted_contract():
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        await assert_biz_editable(db, "t1", "contract_version", "v1", "submitted")
+
+
+@pytest.mark.asyncio
+async def test_assert_biz_editable_rejects_submitted_quote():
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
@@ -79,7 +90,7 @@ async def test_assert_biz_editable_rejects_submitted():
         return_value=False,
     ):
         with pytest.raises(BusinessException) as ei:
-            await assert_biz_editable(db, "t1", "contract_version", "v1", "submitted")
+            await assert_biz_editable(db, "t1", "quote_version", "v1", "submitted")
         assert "不可编辑" in ei.value.message
 
 
@@ -92,7 +103,18 @@ async def test_assert_biz_editable_rejects_running():
         return_value=True,
     ):
         with pytest.raises(BusinessException):
-            await assert_biz_editable(db, "t1", "contract_version", "v1", "draft")
+            await assert_biz_editable(db, "t1", "quote_version", "v1", "draft")
+
+
+@pytest.mark.asyncio
+async def test_assert_contract_version_editable_while_wf_running():
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await assert_biz_editable(db, "t1", "contract_version", "v1", "submitted")
 
 
 @pytest.mark.asyncio
@@ -105,9 +127,13 @@ async def test_assert_content_update_allowed_submit_from_draft():
     ):
         await assert_content_update_allowed(
             db, "t1", "contract_version", "v1", "draft", {"status": "submitted"})
+        await assert_content_update_allowed(
+            db, "t1", "contract_version", "v1", "submitted",
+            {"key_clauses_json": []},
+        )
         with pytest.raises(BusinessException):
             await assert_content_update_allowed(
-                db, "t1", "contract_version", "v1", "submitted",
+                db, "t1", "quote_version", "v1", "submitted",
                 {"key_clauses_json": []},
             )
 
