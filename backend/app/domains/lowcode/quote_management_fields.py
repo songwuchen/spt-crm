@@ -23,6 +23,7 @@ QUOTE_COST_VISIBLE_ROLES = [
     "mkt_support",      # 市场技术支持中心
     "sales_manager",    # 销售经理
     "admin",            # 系统管理员
+    "quote_cost_viewer",  # 仅查看报价管理成本价（按需授予个人）
 ]
 
 
