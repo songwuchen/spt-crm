@@ -42,6 +42,7 @@ import {
   isMetaOnlyAttachmentId,
   normalizeFileFieldValue,
 } from '@/utils/fileFieldValue'
+import { useAttachmentPreview } from '@/hooks/useAttachmentPreview'
 import type { FieldDefinition, FormRule, FormInstance, FormInstanceDetail, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
@@ -439,6 +440,7 @@ function joinLinks(parts: string[]): ReactNode {
 
 function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
   const atts = normalizeFileFieldValue(value)
+  const { openGallery, previewModal } = useAttachmentPreview()
   const [urls, setUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -446,7 +448,7 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
     let alive = true
     ;(async () => {
       const next: Record<string, string> = {}
-      for (const a of atts.slice(0, 3)) {
+      for (const a of atts.slice(0, 12)) {
         if (a.metaOnly || isMetaOnlyAttachmentId(a.id)) continue
         try { next[a.id] = await attachmentApi.getUrl(a.id, false) } catch { /* ignore */ }
       }
@@ -457,9 +459,17 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
 
   if (!atts.length) return <span>—</span>
 
+  const rows = atts.map((a) => ({ id: a.id, name: a.name, metaOnly: a.metaOnly }))
+
   const open = async (id: string) => {
     if (isMetaOnlyAttachmentId(id)) {
       message.info('暂无文件实体，仅同步了简道云文件名')
+      return
+    }
+    const previewable = rows.filter((r) => !r.metaOnly && !isMetaOnlyAttachmentId(r.id))
+    const idx = previewable.findIndex((r) => r.id === id)
+    if (image && idx >= 0 && previewable.length > 1) {
+      openGallery(previewable, idx)
       return
     }
     try {
@@ -471,34 +481,37 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
 
   if (image) {
     return (
-      <Space size={4} wrap>
-        {atts.slice(0, 3).map((a) => (
-          urls[a.id]
-            ? (
-              <img
-                key={a.id}
-                src={urls[a.id]}
-                alt={a.name}
-                title={a.name}
-                onClick={() => open(a.id)}
-                style={{
-                  width: 36, height: 36, objectFit: 'cover', borderRadius: 4,
-                  cursor: 'pointer', border: '1px solid #e2e8f0',
-                }}
-              />
-            )
-            : (
-              <span
-                key={a.id}
-                className="inline-flex items-center justify-center text-slate-400 text-xs"
-                style={{ width: 36, height: 36, border: '1px solid #e2e8f0', borderRadius: 4 }}
-              >
-                图
-              </span>
-            )
-        ))}
-        {atts.length > 3 ? <span className="text-slate-400 text-xs">+{atts.length - 3}</span> : null}
-      </Space>
+      <>
+        <Space size={4} wrap>
+          {atts.slice(0, 6).map((a) => (
+            urls[a.id]
+              ? (
+                <img
+                  key={a.id}
+                  src={urls[a.id]}
+                  alt={a.name}
+                  title={a.name}
+                  onClick={() => open(a.id)}
+                  style={{
+                    width: 36, height: 36, objectFit: 'cover', borderRadius: 4,
+                    cursor: 'pointer', border: '1px solid #e2e8f0',
+                  }}
+                />
+              )
+              : (
+                <span
+                  key={a.id}
+                  className="inline-flex items-center justify-center text-slate-400 text-xs"
+                  style={{ width: 36, height: 36, border: '1px solid #e2e8f0', borderRadius: 4 }}
+                >
+                  图
+                </span>
+              )
+          ))}
+          {atts.length > 6 ? <span className="text-slate-400 text-xs">+{atts.length - 6}</span> : null}
+        </Space>
+        {previewModal}
+      </>
     )
   }
 

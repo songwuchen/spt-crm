@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Modal, Button, Space } from 'antd'
-import { DownloadOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons'
+import { DownloadOutlined, FullscreenOutlined, FullscreenExitOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons'
 import OfficeFilePreview from '@/components/OfficeFilePreview'
 import WebOfficeView from '@/components/WebOfficeView'
 import type { PreviewableKind } from '@/utils/attachmentPreview'
@@ -22,6 +22,10 @@ type Props = {
   loading?: boolean
   onClose: () => void
   onDownload?: () => void
+  galleryIndex?: number
+  galleryTotal?: number
+  onGalleryPrev?: () => void
+  onGalleryNext?: () => void
 }
 
 function pdfViewerSrc(url: string): string {
@@ -60,6 +64,7 @@ function unsupportedHint(fileName?: string): { title: string; detail: string } {
 export default function AttachmentPreviewModal({
   open, title, url, kind, fileBlob, textContent, fileName, attachmentId,
   loading, onClose, onDownload,
+  galleryIndex, galleryTotal, onGalleryPrev, onGalleryNext,
 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
 
@@ -79,7 +84,20 @@ export default function AttachmentPreviewModal({
     : (WEBOFFICE_PPTX_FALLBACK.has(ext) ? 'pptx' as const : null)
 
   const footer = (
-    <Space>
+    <Space wrap>
+      {galleryTotal != null && galleryTotal > 1 && onGalleryPrev && onGalleryNext && (
+        <Space>
+          <Button icon={<LeftOutlined />} onClick={onGalleryPrev} disabled={loading}>
+            上一张
+          </Button>
+          <span className="text-sm text-slate-500 px-1">
+            {galleryIndex != null ? galleryIndex + 1 : 1} / {galleryTotal}
+          </span>
+          <Button icon={<RightOutlined />} onClick={onGalleryNext} disabled={loading}>
+            下一张
+          </Button>
+        </Space>
+      )}
       {kind && kind !== 'unsupported' && (
         <Button
           icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
@@ -139,13 +157,35 @@ export default function AttachmentPreviewModal({
         </div>
       )}
       {!loading && kind === 'image' && url && (
-        <div className="flex h-full items-center justify-center overflow-auto bg-slate-50/80">
+        <div className="relative flex h-full items-center justify-center overflow-auto bg-slate-50/80">
+          {galleryTotal != null && galleryTotal > 1 && onGalleryPrev && (
+            <Button
+              type="text"
+              shape="circle"
+              size="large"
+              icon={<LeftOutlined />}
+              className="!absolute left-2 top-1/2 z-10 -translate-y-1/2 bg-white/90 shadow"
+              onClick={onGalleryPrev}
+              aria-label="上一张"
+            />
+          )}
           <img
             src={url}
             alt={title || '预览'}
             className="max-h-full max-w-full object-contain"
             style={{ maxHeight: contentHeight }}
           />
+          {galleryTotal != null && galleryTotal > 1 && onGalleryNext && (
+            <Button
+              type="text"
+              shape="circle"
+              size="large"
+              icon={<RightOutlined />}
+              className="!absolute right-2 top-1/2 z-10 -translate-y-1/2 bg-white/90 shadow"
+              onClick={onGalleryNext}
+              aria-label="下一张"
+            />
+          )}
         </div>
       )}
       {!loading && kind === 'video' && url && (

@@ -1223,9 +1223,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
         fieldIds: ['images'],
       },
       {
-        // 简道云：附件 + 是否小萌 + 图片0418（lineWidth 3+3+6）
-        title: '',
-        fieldIds: ['f_0418', 'field_24', 'f_0418_5'],
+        title: '附件与图片',
+        fieldIds: ['f_0418_5', 'f_0418', 'field_24'],
       },
       {
         title: '审批填写',
@@ -1248,7 +1247,9 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       field_5: 8, field_6: 8,
       field_12: 24,
       images: 24,
-      f_0418: 6, field_24: 6, f_0418_5: 12,
+      f_0418_5: 24,
+      f_0418: 24,
+      field_24: 6,
       field_7: 8, field_8: 8, field_9: 8, field_10: 8, field_11: 8, field_20: 12,
       f_0418_2: 6, f_0418_3: 6, f_0418_4: 6, field_22: 6,
       field_23: 6, field_25: 6, field_26: 12,

@@ -17,33 +17,61 @@ import {
   resolveAttachmentUrl,
   type AttachmentFileRow,
 } from '@/utils/attachmentDisplay'
+import { shortAttachmentDisplayName } from '@/utils/attachmentDisplayName'
 import { isMetaOnlyAttachmentId } from '@/utils/fileFieldValue'
 
-/** 通用附件预览弹层 + 下载（对齐简道云 阅览/下载 节奏） */
+type GalleryState = {
+  items: AttachmentFileRow[]
+  index: number
+} | null
+
+/** 通用附件预览弹层 + 下载；支持多图上一张/下一张 */
 export function useAttachmentPreview() {
-  const [preview, setPreview] = useState<AttachmentFileRow | null>(null)
+  const [gallery, setGallery] = useState<GalleryState>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [fileBlob, setFileBlob] = useState<Blob | null>(null)
   const [textContent, setTextContent] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const preview = gallery?.items[gallery.index] ?? null
+
   const closePreview = useCallback(() => {
-    setPreview(null)
+    setGallery(null)
     setPreviewUrl('')
     setFileBlob(null)
     setTextContent('')
   }, [])
 
-  const openPreview = useCallback(async (item: AttachmentFileRow) => {
+  const openItem = useCallback((item: AttachmentFileRow, items?: AttachmentFileRow[], index?: number) => {
     if (item.metaOnly || isMetaOnlyAttachmentId(item.id)) {
       message.info('暂无文件实体，仅同步了简道云文件名（缺少 OSS 对象 key）')
       return
     }
     if (!canOpenAttachmentPreview(item.name, item.content_type)) {
-      await downloadAttachmentFile(item.id, item.name)
+      void downloadAttachmentFile(item.id, item.name)
       return
     }
-    setPreview(item)
+    const list = items?.length ? items : [item]
+    const idx = index ?? list.findIndex((x) => x.id === item.id)
+    setGallery({ items: list, index: idx >= 0 ? idx : 0 })
+  }, [])
+
+  const openPreview = useCallback((item: AttachmentFileRow) => {
+    openItem(item)
+  }, [openItem])
+
+  const openGallery = useCallback((items: AttachmentFileRow[], index: number) => {
+    const row = items[index]
+    if (!row) return
+    openItem(row, items, index)
+  }, [openItem])
+
+  const stepGallery = useCallback((delta: number) => {
+    setGallery((g) => {
+      if (!g || g.items.length <= 1) return g
+      const next = (g.index + delta + g.items.length) % g.items.length
+      return { ...g, index: next }
+    })
   }, [])
 
   useEffect(() => {
@@ -66,7 +94,6 @@ export function useAttachmentPreview() {
       return
     }
 
-    // IMM WebOffice：组件内部自行取凭证；若可能回退本地 Office，先拉 blob
     if (kind === 'weboffice') {
       const ext = attachmentFileExt(preview.name)
       const needFallbackBlob = WEBOFFICE_EXCEL_FALLBACK.has(ext) || WEBOFFICE_PPTX_FALLBACK.has(ext)
@@ -81,9 +108,8 @@ export function useAttachmentPreview() {
             const blob = await fetchAttachmentBlob(preview.id)
             if (alive) setFileBlob(blob)
           }
-        } catch {
-          // 回退 blob 失败不致命，WebOffice 仍可试；最终失败由 WebOfficeView 提示下载
-        } finally {
+        } catch { /* ignore */ }
+        finally {
           if (alive) setLoading(false)
         }
       })()
@@ -113,14 +139,24 @@ export function useAttachmentPreview() {
         if (alive) setPreviewUrl(resolveAttachmentUrl(u))
       } catch (e) {
         if (alive) message.error((e as Error)?.message || '无法加载预览')
-        if (alive) setPreview(null)
+        if (alive) setGallery(null)
       } finally {
         if (alive) setLoading(false)
       }
     })()
 
     return () => { alive = false }
-  }, [preview])
+  }, [preview?.id, preview?.name, preview?.content_type])
+
+  useEffect(() => {
+    if (!gallery || gallery.items.length <= 1) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') stepGallery(-1)
+      if (e.key === 'ArrowRight') stepGallery(1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [gallery, stepGallery])
 
   const download = useCallback(async (item: AttachmentFileRow) => {
     await downloadAttachmentFile(item.id, item.name)
@@ -132,10 +168,13 @@ export function useAttachmentPreview() {
       : (isPreviewable(preview.content_type, preview.name) || false))
     : false
 
+  const galleryTotal = gallery?.items.length ?? 0
+  const galleryIndex = gallery?.index ?? 0
+
   const previewModal = (
     <AttachmentPreviewModal
       open={!!preview}
-      title={preview?.name}
+      title={preview ? shortAttachmentDisplayName(preview.name, galleryIndex) : undefined}
       url={previewUrl}
       kind={previewKind}
       fileBlob={fileBlob}
@@ -145,8 +184,12 @@ export function useAttachmentPreview() {
       loading={!!preview && loading}
       onClose={closePreview}
       onDownload={preview ? () => downloadAttachmentFile(preview.id, preview.name) : undefined}
+      galleryIndex={galleryTotal > 1 ? galleryIndex : undefined}
+      galleryTotal={galleryTotal > 1 ? galleryTotal : undefined}
+      onGalleryPrev={galleryTotal > 1 ? () => stepGallery(-1) : undefined}
+      onGalleryNext={galleryTotal > 1 ? () => stepGallery(1) : undefined}
     />
   )
 
-  return { openPreview, download, closePreview, previewModal }
+  return { openPreview, openGallery, download, closePreview, previewModal }
 }

@@ -5,7 +5,7 @@ import {
   CloseCircleFilled, PaperClipOutlined, PictureOutlined, QrcodeOutlined,
 } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
-import AttachmentFileTable from '@/components/AttachmentFileTable'
+import AttachmentGalleryReadonly from '@/components/AttachmentGalleryReadonly'
 import AttachmentFileActions from '@/components/AttachmentFileActions'
 import { useAttachmentPreview } from '@/hooks/useAttachmentPreview'
 import {
@@ -153,36 +153,14 @@ export default function FileField({
     return <div className="pt-1 text-slate-400 text-sm">无权限查看附件</div>
   }
 
-  if (readonly && inCellPopover) {
-    if (!atts.length) return <TextPlaceholder />
-    return (
-      <>
-        <Popover
-          open={popoverOpen}
-          onOpenChange={setPopoverOpen}
-          content={(
-            <div className="w-[min(420px,calc(100vw-32px))]">
-              <AttachmentFileTable items={tableItems} fetchMeta compact />
-            </div>
-          )}
-          trigger="click"
-          placement="bottomLeft"
-          destroyOnHidden
-        >
-          {cellTriggerShell(renderCellThumbs())}
-        </Popover>
-        {previewModal}
-      </>
-    )
-  }
-
   if (readonly) {
     if (!atts.length) return <div className="pt-1 text-slate-400">—</div>
     return (
-      <>
-        <AttachmentFileTable items={tableItems} fetchMeta compact={compact} />
-        {previewModal}
-      </>
+      <AttachmentGalleryReadonly
+        value={value}
+        layout={inCellPopover || compact ? 'row' : 'grid'}
+        thumbSize={inCellPopover ? 48 : (compact ? 56 : 80)}
+      />
     )
   }
 
