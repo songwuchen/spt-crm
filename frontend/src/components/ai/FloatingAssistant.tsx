@@ -14,7 +14,7 @@ export default function FloatingAssistant() {
       <button
         onClick={() => setOpen((v) => !v)}
         title="AI 助手"
-        className="fixed z-[1000] bottom-6 right-6 w-14 h-14 rounded-full bg-white ring-1 ring-slate-200 shadow-xl shadow-slate-400/30 flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition-transform"
+        className="fixed z-[1000] bottom-20 right-6 w-14 h-14 rounded-full bg-white ring-1 ring-slate-200 shadow-xl shadow-slate-400/30 flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition-transform"
         style={{ display: open ? 'none' : 'flex' }}
       >
         <img src="/logo.png" alt="AI 助手" className="w-9 h-9 object-contain" />
@@ -22,8 +22,8 @@ export default function FloatingAssistant() {
 
       {/* 对话面板 */}
       {open && (
-        <div className="fixed z-[1000] bottom-6 right-6 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-          style={{ height: 600, maxHeight: 'calc(100vh - 3rem)' }}>
+        <div className="fixed z-[1000] bottom-20 right-6 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+          style={{ height: 600, maxHeight: 'calc(100vh - 6rem)' }}>
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-500 to-violet-600 text-white">
             <div className="flex items-center gap-2">
               <RobotOutlined style={{ fontSize: 18 }} />
