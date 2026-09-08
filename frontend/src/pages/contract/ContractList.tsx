@@ -460,7 +460,7 @@ export default function ContractList() {
 
   const runExport = useCallback((mode: 'filtered' | 'all') => {
     const label = mode === 'filtered' ? '筛选后的数据' : '全部数据'
-    void downloadFile(buildExportUrl(mode), `合同登记_${label}.xlsx`).catch((e: Error) => {
+    void downloadFile(buildExportUrl(mode), `合同登记_单表全览_${label}.xlsx`).catch((e: Error) => {
       message.error(e.message || '导出失败')
     })
   }, [buildExportUrl])
