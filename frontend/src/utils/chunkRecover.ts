@@ -6,6 +6,19 @@
  * Safe to call multiple times; only one reload within 15s.
  */
 const RECOVER_AT_KEY = 'spt_chunk_recover_at'
+/** 详情弹窗打开时禁止自动整页刷新（避免搜索后点「查看」被 recover 打断） */
+export const DETAIL_VIEW_OPEN_KEY = 'spt_detail_view_open'
+
+export function setDetailViewOpen(open: boolean): void {
+  try {
+    if (open) sessionStorage.setItem(DETAIL_VIEW_OPEN_KEY, '1')
+    else sessionStorage.removeItem(DETAIL_VIEW_OPEN_KEY)
+  } catch { /* ignore */ }
+}
+
+function isDetailViewOpen(): boolean {
+  try { return sessionStorage.getItem(DETAIL_VIEW_OPEN_KEY) === '1' } catch { return false }
+}
 
 export function isChunkLoadError(err: unknown): boolean {
   const msg = String(
@@ -39,6 +52,7 @@ export async function clearClientCaches(): Promise<void> {
 
 /** @returns true if a recovery reload was scheduled */
 export function recoverFromStaleChunks(err?: unknown): boolean {
+  if (isDetailViewOpen()) return false
   if (err !== undefined && !isChunkLoadError(err)) return false
   const last = Number(sessionStorage.getItem(RECOVER_AT_KEY) || 0)
   if (Date.now() - last < 15_000) return false
