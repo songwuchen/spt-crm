@@ -244,6 +244,17 @@ async def sum_prior_ship_amount_for_contract(
     return round(total, 2)
 
 
+def normalize_shipment_route_form_data(form_data: dict | None) -> dict:
+    """流程选路用：未填「是否为销售出库」时按简道云默认视为「否」。
+
+    公司内发常见漏填该字段，导致「仓库判定→发货完毕」条件不命中、发起人收不到待办。
+    """
+    data = dict(form_data or {})
+    if not str(data.get("is_sales_outbound") or "").strip():
+        data["is_sales_outbound"] = "否"
+    return data
+
+
 def apply_shipment_notice_fields(fields: list[dict]) -> None:
     """业务日期只选到日；合同号选择走合同控件并带出关联字段；加固单据编号流水规则。"""
     has_prior = False

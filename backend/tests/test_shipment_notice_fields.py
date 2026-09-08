@@ -12,6 +12,22 @@ from app.domains.lowcode.workflow_service import (
 )
 
 
+def test_shipment_route_form_data_defaults_sales_outbound_no():
+    from app.domains.lowcode.shipment_notice_fields import normalize_shipment_route_form_data
+    from app.domains.lowcode.workflow_engine import evaluate_condition
+
+    fd = normalize_shipment_route_form_data({"ship_status": "全部发完", "is_sales_outbound": None})
+    cond = {
+        "rel": "and",
+        "cond": [
+            {"field": "ship_status", "operator": "eq", "value": "全部发完"},
+            {"field": "is_sales_outbound", "operator": "eq", "value": "否"},
+        ],
+    }
+    assert fd["is_sales_outbound"] == "否"
+    assert evaluate_condition(cond, fd) is True
+
+
 def test_shipment_notice_contract_fill():
     fill = build_shipment_fill_from_contract(
         contract_no="HT001",

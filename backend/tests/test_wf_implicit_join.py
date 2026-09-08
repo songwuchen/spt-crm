@@ -154,3 +154,49 @@ async def test_activate_approval_single_incoming_no_defer():
 
     await eng._activate_approval(inst, version, node, SimpleNamespace(form_data={}))
     assert not any(c[0][4] == "defer_convergence" for c in eng._log.call_args_list)
+
+
+def test_should_not_invent_end_when_pending_convergence_marked():
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    assert eng._should_invent_end(
+        {}, [], {},
+        has_live_work=False,
+        skipped_reactivate=False,
+        deferred_convergence=False,
+        pending_convergence=True,
+    ) is False
+
+
+@pytest.mark.asyncio
+async def test_try_activate_pending_convergence_after_branches_done():
+    from app.domains.lowcode.approver_resolver import ApprovalContext
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    nodes = [{"id": "join", "type": "approval", "name": "发货完毕", "approver_rule": {"type": "creator"}}]
+    version = SimpleNamespace(
+        route_definitions=[{"source": "a", "target": "join"}],
+        node_definitions=nodes,
+        approver_rules=[],
+    )
+    inst = SimpleNamespace(
+        id="pi1",
+        biz_type="form_instance",
+        biz_id=None,
+        status="running",
+        pending_joins=[{"pending_convergence": "join"}],
+        initiator_id="u-init",
+        form_instance_id=None,
+        nominated_approvers={},
+    )
+    ctx = ApprovalContext(initiator_id="u-init", form_data={}, nominated={})
+
+    eng = WorkflowEngine(db=MagicMock(), tenant_id="t")
+    eng._has_live_work = AsyncMock(return_value=False)
+    eng._activate_node = AsyncMock()
+    eng._clear_pending_convergence = MagicMock()
+
+    await eng._try_activate_pending_convergence(inst, version, ctx)
+    eng._clear_pending_convergence.assert_called_once_with(inst, "join")
+    eng._activate_node.assert_awaited_once()

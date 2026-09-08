@@ -782,6 +782,7 @@ class WorkflowEngine:
     def _should_invent_end(
         self, from_node: dict, ordered: list[str], nodes: dict[str, dict],
         *, has_live_work: bool, skipped_reactivate: bool, deferred_convergence: bool = False,
+        pending_convergence: bool = False,
     ) -> bool:
         """无在途待办时要不要发明 end。
 
@@ -791,8 +792,9 @@ class WorkflowEngine:
           并行时，先到结束会被挡住；设计支路后走完只剩抄送，必须在此补收尾）
         - 主链目标被 skip_reactivate：可收尾；主链仍会激活则不发明 end
         - 主链目标被 defer_convergence 延后：不收尾
+        - pending_joins 仍标记待汇聚节点：不收尾（等分支齐后补激活）
         """
-        if has_live_work or deferred_convergence:
+        if has_live_work or deferred_convergence or pending_convergence:
             return False
         if (from_node or {}).get("type") == "cc":
             return False
@@ -899,6 +901,41 @@ class WorkflowEngine:
         except Exception:
             pass
 
+    def _pending_convergence_node_ids(self, inst: WfProcessInstance) -> list[str]:
+        raw = getattr(inst, "pending_joins", None)
+        if not isinstance(raw, list):
+            return []
+        out: list[str] = []
+        for x in raw:
+            if isinstance(x, dict) and x.get("pending_convergence"):
+                out.append(str(x["pending_convergence"]))
+        return out
+
+    async def _try_activate_pending_convergence(
+        self,
+        inst: WfProcessInstance,
+        version: WfProcessDefinitionVersion,
+        ctx: ApprovalContext,
+    ) -> None:
+        """并行支路都结束后，补激活曾被 defer_convergence 延后的多入边节点。"""
+        if self.db is None or inst.status != "running":
+            return
+        pending_ids = self._pending_convergence_node_ids(inst)
+        if not pending_ids:
+            return
+        if await self._has_live_work(inst):
+            return
+        nodes = self._nodes_by_id(version)
+        for nid in pending_ids:
+            node = nodes.get(nid)
+            if not node:
+                self._clear_pending_convergence(inst, nid)
+                continue
+            self._clear_pending_convergence(inst, nid)
+            await self._activate_node(inst, version, node, ctx)
+            if inst.status != "running":
+                return
+
     async def _try_finish_await_end(
         self, inst: WfProcessInstance, version: WfProcessDefinitionVersion, ctx: ApprovalContext,
     ) -> None:
@@ -968,6 +1005,7 @@ class WorkflowEngine:
                 has_live_work=live,
                 skipped_reactivate=self._skipped_reactivate_this_batch,
                 deferred_convergence=self._deferred_convergence_this_batch,
+                pending_convergence=self._has_pending_convergence(inst),
             )
         ):
             end = next(
@@ -977,6 +1015,7 @@ class WorkflowEngine:
             if end:
                 await self._activate_node(inst, version, end, ctx)
         await self._try_finish_await_end(inst, version, ctx)
+        await self._try_activate_pending_convergence(inst, version, ctx)
         await self._flush_deferred_complete(inst)
 
     async def _activate_node(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
@@ -2376,6 +2415,11 @@ class WorkflowEngine:
                         data = await overlay_prod_card_contract_live(
                             self.db, self.tenant_id, data,
                         )
+                    if tpl and tpl.code == "shipment_notice":
+                        from app.domains.lowcode.shipment_notice_fields import (
+                            normalize_shipment_route_form_data,
+                        )
+                        data = normalize_shipment_route_form_data(data)
                 except Exception:
                     pass
                 # 人员多选路由：表单存 user_id，条件常写 username —— 补别名便于 in 命中
