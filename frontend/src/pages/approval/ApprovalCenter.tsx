@@ -58,7 +58,8 @@ export default function ApprovalCenter() {
   const [agents, setAgents] = useState<WfAgent[]>([])
   const [tabLoading, setTabLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('pending')
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [pendingLoading, setPendingLoading] = useState(false)
   // 撤回：兼容两套引擎
   const [withdrawEngine, setWithdrawEngine] = useState<'legacy' | 'wf'>('legacy')
   // 代理设置
@@ -100,12 +101,13 @@ export default function ApprovalCenter() {
   const [statsLoading, setStatsLoading] = useState(false)
 
   const fetchData = useCallback(async (filters: ApprovalListFilters = listFilters) => {
-    setLoading(true)
+    setPendingLoading(true)
     try {
       const uRes = await fetchUnifiedPending(filters, processNameById)
       setPending(uRes.items || [])
     } finally {
-      setLoading(false)
+      setPendingLoading(false)
+      setInitialLoading(false)
     }
   }, [listFilters, processNameById])
 
@@ -804,16 +806,18 @@ export default function ApprovalCenter() {
     },
   ]
 
-  if (loading) return <DetailSkeleton />
-
-
   return (
+    <>
+      {/* 审批抽屉须始终挂载：列表刷新时不可卸载，否则 destroyOnClose 会误触发 onClose */}
+      {wfDrawerNode}
+      {initialLoading ? (
+        <DetailSkeleton />
+      ) : (
     <div>
       <div className="mb-6 shrink-0">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">审批中心</h1>
         <p className="text-sm text-slate-500 mt-1">统一处理合同、线索等业务待办（含可视化流程）</p>
       </div>
-      {wfDrawerNode}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Tabs activeKey={activeTab} className="px-4 pt-2 pb-4"
@@ -843,6 +847,7 @@ export default function ApprovalCenter() {
                     <div className="mb-2 text-xs text-slate-400">已应用筛选，共 {pending.length} 条</div>
                   )}
                   <FillHeightTable rowKey="key" columns={pendingColumns} dataSource={pending}
+                    loading={pendingLoading}
                     rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as string[]) }}
                     pagination={false} size="small" scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <div className="py-8 text-slate-400">暂无待审批任务</div> }} />
@@ -1274,5 +1279,7 @@ export default function ApprovalCenter() {
         </div>
       </Modal>
     </div>
+      )}
+    </>
   )
 }

@@ -57,6 +57,7 @@ import { isContractReviewBiz, printContractReview } from '@/pages/contractReview
 import { techAgreementReviewApi } from '@/api/techAgreementReview'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath, LEAD_INTEL_FIELD_PERMS } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
+import { setDetailViewOpen } from '@/utils/chunkRecover'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Text, Title } = Typography
@@ -764,6 +765,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       width={fullscreen ? '100vw' : 'min(1100px, 96vw)'}
       open={open}
       onClose={onClose}
+      maskClosable={false}
+      keyboard={false}
       destroyOnClose
       styles={{
         body: { padding: 0, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
@@ -925,7 +928,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
               {isLeadReactivation ? (
                 <Tabs
                   activeKey={mainTab}
@@ -1205,6 +1208,10 @@ export function useWfProcessDrawer(reload: () => void) {
     setTaskId(tid || null)
     setOpen(true)
   }
+  useEffect(() => {
+    setDetailViewOpen(open)
+    return () => { setDetailViewOpen(false) }
+  }, [open])
   const node = (
     <WfProcessDrawer
       open={open}
