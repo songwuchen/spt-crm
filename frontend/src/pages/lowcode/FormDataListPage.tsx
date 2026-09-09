@@ -697,6 +697,7 @@ export default function FormDataListPage({
   const loadSeqRef = useRef(0)
   const loadAbortRef = useRef<AbortController | null>(null)
   const keywordDebounceRef = useRef<number | null>(null)
+  const keywordRef = useRef('')
   const viewRecRef = useRef<ViewRec | null>(null)
   const viewOpeningRef = useRef(false)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
@@ -725,6 +726,7 @@ export default function FormDataListPage({
   const initialListKw = searchParams.get('list_kw') || ''
   const [keywordInput, setKeywordInput] = useState(initialListKw)
   const [keyword, setKeyword] = useState(initialListKw)
+  keywordRef.current = keyword
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const colStorageKey = COL_STORAGE_PREFIX + listFilterMemoryKey(templateCode, id)
   const filterMemoryKey = listFilterMemoryKey(templateCode, id)
@@ -874,6 +876,7 @@ export default function FormDataListPage({
       if ((viewRecRef.current || viewOpeningRef.current) && !opts?.force) return
       setItems(res.data.items)
       setTotal(res.data.total)
+      syncListKwToUrl(keyword)
     } catch (err) {
       if (isAbortError(err)) return
       if (seq !== loadSeqRef.current) return
@@ -881,7 +884,31 @@ export default function FormDataListPage({
     } finally {
       if (seq === loadSeqRef.current) setLoading(false)
     }
-  }, [id, buildQueryParams])
+  }, [id, buildQueryParams, keyword])
+
+  const applyKeywordSearch = useCallback((raw: string) => {
+    if (keywordDebounceRef.current) {
+      window.clearTimeout(keywordDebounceRef.current)
+      keywordDebounceRef.current = null
+    }
+    const next = raw.trim()
+    if (next === keywordRef.current) return
+    setPageNo(1)
+    setKeyword(next)
+  }, [])
+
+  /** 输入框、防抖、列表请求均就绪后才允许点「查看」，避免搜索竞态触发整页刷新 */
+  const searchSettled = !loading && keywordInput.trim() === keyword
+
+  const prepareDetailOpen = useCallback(() => {
+    loadAbortRef.current?.abort()
+    ++loadSeqRef.current
+    setLoading(false)
+    if (keywordDebounceRef.current) {
+      window.clearTimeout(keywordDebounceRef.current)
+      keywordDebounceRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     if (!id) return
@@ -914,26 +941,21 @@ export default function FormDataListPage({
 
   // 搜索框防抖 → 同步 keyword；与 pageNo 重置合并，避免一次搜索触发两次列表请求
   useEffect(() => {
+    const trimmed = keywordInput.trim()
+    if (trimmed === keywordRef.current) return
     if (keywordDebounceRef.current) window.clearTimeout(keywordDebounceRef.current)
     keywordDebounceRef.current = window.setTimeout(() => {
       keywordDebounceRef.current = null
-      const next = keywordInput.trim()
-      setPageNo(1)
-      setKeyword(next)
+      applyKeywordSearch(keywordInput)
     }, 350)
     return () => {
       if (keywordDebounceRef.current) window.clearTimeout(keywordDebounceRef.current)
     }
-  }, [keywordInput])
-
-  // 搜索词写入 URL，避免详情弹窗/慢请求竞态后列表条件丢失
-  useEffect(() => {
-    syncListKwToUrl(keyword)
-  }, [keyword])
+  }, [keywordInput, applyKeywordSearch])
 
   useEffect(() => {
-    setDetailViewOpen(!!viewRec)
-  }, [viewRec])
+    setDetailViewOpen(!!viewRec || viewOpening)
+  }, [viewRec, viewOpening])
 
   useEffect(() => {
     if (viewRecRef.current || viewOpeningRef.current) return
@@ -946,7 +968,7 @@ export default function FormDataListPage({
     if (deepOpenedRef.current === deepInstanceId) return
     deepOpenedRef.current = deepInstanceId
     const editMode = searchParams.get('edit') === '1' || !!reviseTaskId
-    void openView(deepInstanceId, !editMode)
+    void openView(deepInstanceId, !editMode, { skipSearchGuard: true })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, deepInstanceId, reviseTaskId])
 
@@ -1079,16 +1101,11 @@ export default function FormDataListPage({
   const openView = async (
     recId: string,
     readonly: boolean,
-    opts?: { presentation?: 'modal' | 'drawer' },
+    opts?: { presentation?: 'modal' | 'drawer'; skipSearchGuard?: boolean },
   ) => {
     if (viewOpening) return
-    if (keywordDebounceRef.current) {
-      window.clearTimeout(keywordDebounceRef.current)
-      keywordDebounceRef.current = null
-    }
-    // 取消在途列表请求，防止慢响应覆盖当前搜索结果；不再发起新的列表请求
-    loadAbortRef.current?.abort()
-    ++loadSeqRef.current
+    if (!opts?.skipSearchGuard && !searchSettled) return
+    prepareDetailOpen()
     viewOpeningRef.current = true
     setViewOpening(true)
     setDetailViewOpen(true)
@@ -1117,7 +1134,6 @@ export default function FormDataListPage({
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
         || (err as Error)?.message
       message.error(msg || '加载详情失败，请稍后重试')
-      if (!viewRecRef.current) setDetailViewOpen(false)
     } finally {
       viewOpeningRef.current = false
       setViewOpening(false)
@@ -1530,7 +1546,7 @@ export default function FormDataListPage({
         as_draft: true,
       })
       message.success('已复制为新草稿')
-      await openView(created.data.id, false)
+      await openView(created.data.id, false, { skipSearchGuard: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       message.error(msg || '复制失败')
@@ -1695,11 +1711,29 @@ export default function FormDataListPage({
     return okStatus
   }, [canActivateFlow, isProdCardSupplement])
 
+  const listRowActionDisabled = viewOpening || !searchSettled
+
   const renderOps = (r: FormInstance) => (
     <Space size={0}>
-      <Button size="small" type="link" disabled={viewOpening} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, true, { presentation: 'modal' }) }}>查看</Button>
+      <Button
+        size="small"
+        type="link"
+        disabled={listRowActionDisabled}
+        onPointerDown={prepareDetailOpen}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, true, { presentation: 'modal' }) }}
+      >
+        查看
+      </Button>
       {canEditRecord(r.status) && (
-        <Button size="small" type="link" disabled={viewOpening} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, false, { presentation: 'modal' }) }}>编辑</Button>
+        <Button
+          size="small"
+          type="link"
+          disabled={listRowActionDisabled}
+          onPointerDown={prepareDetailOpen}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, false, { presentation: 'modal' }) }}
+        >
+          编辑
+        </Button>
       )}
       {listRowCanActivate(r) && (
         <Button
@@ -1762,9 +1796,16 @@ export default function FormDataListPage({
           className="font-mono text-primary"
           title={no}
           href="#"
+          aria-disabled={listRowActionDisabled}
+          style={listRowActionDisabled ? { pointerEvents: 'none', opacity: 0.45 } : undefined}
+          onPointerDown={(e) => {
+            if (listRowActionDisabled) return
+            prepareDetailOpen()
+          }}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            if (listRowActionDisabled) return
             void openView(rec.id, true, { presentation: 'modal' })
           }}
         >
@@ -2106,15 +2147,7 @@ export default function FormDataListPage({
             value={keywordInput}
             style={{ width: 240 }}
             onChange={(e) => setKeywordInput(e.target.value)}
-            onPressEnter={() => {
-              if (keywordDebounceRef.current) {
-                window.clearTimeout(keywordDebounceRef.current)
-                keywordDebounceRef.current = null
-              }
-              const next = keywordInput.trim()
-              setPageNo(1)
-              setKeyword(next)
-            }}
+            onPressEnter={() => applyKeywordSearch(keywordInput)}
           />
           <Select
             allowClear
