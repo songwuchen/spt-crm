@@ -700,6 +700,8 @@ export default function FormDataListPage({
   const keywordRef = useRef('')
   const viewRecRef = useRef<ViewRec | null>(null)
   const viewOpeningRef = useRef(false)
+  /** 打开详情期间禁止列表 reload / URL 同步（搜索后点查看会与 load 竞态导致整页刷新） */
+  const detailBlocksListRef = useRef(false)
   const detailRetainRef = useRef<(() => void) | null>(null)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const hasPermission = useAuthStore((s) => s.hasPermission)
@@ -865,6 +867,7 @@ export default function FormDataListPage({
   const load = useCallback(async (opts?: { force?: boolean }) => {
     if (!id) return
     // 详情已打开/正在打开时不再请求列表（查看只应调 getInstance，不应重复查列表）
+    if (detailBlocksListRef.current && !opts?.force) return
     if ((viewRecRef.current || viewOpeningRef.current) && !opts?.force) return
     loadAbortRef.current?.abort()
     const ac = new AbortController()
@@ -877,7 +880,7 @@ export default function FormDataListPage({
       if ((viewRecRef.current || viewOpeningRef.current) && !opts?.force) return
       setItems(res.data.items)
       setTotal(res.data.total)
-      syncListKwToUrl(keyword)
+      if (!detailBlocksListRef.current) syncListKwToUrl(keyword)
     } catch (err) {
       if (isAbortError(err)) return
       if (seq !== loadSeqRef.current) return
@@ -885,9 +888,10 @@ export default function FormDataListPage({
     } finally {
       if (seq === loadSeqRef.current) setLoading(false)
     }
-  }, [id, buildQueryParams, keyword])
+  }, [id, buildQueryParams])
 
   const applyKeywordSearch = useCallback((raw: string) => {
+    if (detailBlocksListRef.current) return
     if (keywordDebounceRef.current) {
       window.clearTimeout(keywordDebounceRef.current)
       keywordDebounceRef.current = null
@@ -911,6 +915,7 @@ export default function FormDataListPage({
   }, [])
 
   const prepareDetailOpen = useCallback(() => {
+    detailBlocksListRef.current = true
     ensureDetailRetain()
     loadAbortRef.current?.abort()
     ++loadSeqRef.current
@@ -970,7 +975,7 @@ export default function FormDataListPage({
   }, [viewRec, viewOpening, ensureDetailRetain, releaseDetailRetain])
 
   useEffect(() => {
-    if (viewRecRef.current || viewOpeningRef.current) return
+    if (detailBlocksListRef.current || viewRecRef.current || viewOpeningRef.current) return
     void load()
   }, [load])
 
@@ -1117,6 +1122,7 @@ export default function FormDataListPage({
   ) => {
     if (viewOpening) return
     if (!opts?.skipSearchGuard && !searchSettled) return
+    detailBlocksListRef.current = true
     prepareDetailOpen()
     viewOpeningRef.current = true
     setViewOpening(true)
@@ -1149,11 +1155,14 @@ export default function FormDataListPage({
     } finally {
       viewOpeningRef.current = false
       setViewOpening(false)
+      if (!viewRecRef.current) detailBlocksListRef.current = false
     }
   }
 
   const closeView = () => {
+    detailBlocksListRef.current = false
     releaseDetailRetain()
+    syncListKwToUrl(keyword)
     setViewRec(null)
     setViewPresentation('modal')
     setWfDetail(null)
