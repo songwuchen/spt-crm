@@ -99,8 +99,11 @@ export const lowcodeApi = {
     client.get<unknown, ApiResponse<EntityFormSchema>>(`/api/v1/lc/entity-form-schema/${entityType}`),
 
   // ---- 数据(实例) ----
-  listInstances: (params: Record<string, unknown>) =>
-    client.get<unknown, ApiResponse<PageData<FormInstance>>>('/api/v1/lc/form-instances', { params }),
+  listInstances: (params: Record<string, unknown>, config?: { signal?: AbortSignal }) =>
+    client.get<unknown, ApiResponse<PageData<FormInstance>>>('/api/v1/lc/form-instances', {
+      params,
+      signal: config?.signal,
+    }),
 
   /** 收款登记仪表盘汇总（与列表同口径的数据范围 + 筛选） */
   paymentRegistrationDashboardSummary: (params: { template_id: string; filters?: string; keyword?: string; status?: string }) =>
