@@ -53,6 +53,7 @@ import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { setDetailViewOpen } from '@/utils/chunkRecover'
 import {
   DRAWING_FORM_LAYOUT, applyDrawingFormLayout,
   resolveListExpandDetails, resolveListColumnIds,
@@ -317,6 +318,25 @@ function flattenInstancesByDetails(
 
 /** 列表 API 每页主记录数（明细展开时表格 pageSize 可能临时抬高以展示全部 flat 行） */
 const LIST_PAGE_SIZE = 20
+
+function isAbortError(err: unknown): boolean {
+  const e = err as { code?: string; name?: string }
+  return e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError' || e?.name === 'AbortError'
+}
+
+/** 同步搜索词到地址栏，不走 React Router，避免 setSearchParams 触发整页级副作用 */
+function syncListKwToUrl(keyword: string) {
+  const url = new URL(window.location.href)
+  const trimmed = keyword.trim()
+  if (trimmed) url.searchParams.set('list_kw', trimmed)
+  else url.searchParams.delete('list_kw')
+  const qs = url.searchParams.toString()
+  const next = url.pathname + (qs ? `?${qs}` : '') + url.hash
+  const cur = window.location.pathname + window.location.search + window.location.hash
+  if (next !== cur) {
+    window.history.replaceState(window.history.state, '', next)
+  }
+}
 
 type NameMaps = {
   users: Record<string, string>
@@ -673,6 +693,12 @@ export default function FormDataListPage({
   const deepInstanceId = searchParams.get('instance')
   const reviseTaskId = searchParams.get('reviseTask')
   const deepOpenedRef = useRef<string | null>(null)
+  /** 丢弃过期的 list 响应；AbortController 取消在途慢请求（避免搜索后被默认列表覆盖） */
+  const loadSeqRef = useRef(0)
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const keywordDebounceRef = useRef<number | null>(null)
+  const viewRecRef = useRef<ViewRec | null>(null)
+  const viewOpeningRef = useRef(false)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const isProdCardSupplement = templateCode === 'prod_card_supplement'
@@ -696,8 +722,9 @@ export default function FormDataListPage({
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [keywordInput, setKeywordInput] = useState('')
-  const [keyword, setKeyword] = useState('')
+  const initialListKw = searchParams.get('list_kw') || ''
+  const [keywordInput, setKeywordInput] = useState(initialListKw)
+  const [keyword, setKeyword] = useState(initialListKw)
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const colStorageKey = COL_STORAGE_PREFIX + listFilterMemoryKey(templateCode, id)
   const filterMemoryKey = listFilterMemoryKey(templateCode, id)
@@ -706,13 +733,16 @@ export default function FormDataListPage({
   )
   const [colState, setColStateRaw] = useState<ColumnState>(() => loadColState(colStorageKey))
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
+  const [viewOpening, setViewOpening] = useState(false)
+  viewRecRef.current = viewRec
+  viewOpeningRef.current = viewOpening
   const [viewPresentation, setViewPresentation] = useState<'modal' | 'drawer'>('modal')
   const [modalFullscreen, setModalFullscreen] = useState(false)
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const userId = useAuthStore((s) => s.user?.id)
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const { openWith: openWfDrawer, node: wfDrawerNode } = useWfProcessDrawer(() => {
-    load()
+    void load({ force: true })
     if (viewRec?.id) void loadWorkflow(viewRec.id)
   })
   const effectiveReviseTaskId = useMemo(
@@ -829,14 +859,28 @@ export default function FormDataListPage({
     return params
   }, [id, pageNo, keyword, statusFilter, fieldFilters])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
     if (!id) return
+    // 详情已打开/正在打开时不再请求列表（查看只应调 getInstance，不应重复查列表）
+    if ((viewRecRef.current || viewOpeningRef.current) && !opts?.force) return
+    loadAbortRef.current?.abort()
+    const ac = new AbortController()
+    loadAbortRef.current = ac
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
-      const res = await lowcodeApi.listInstances(buildQueryParams())
+      const res = await lowcodeApi.listInstances(buildQueryParams(), { signal: ac.signal })
+      if (seq !== loadSeqRef.current) return
+      if ((viewRecRef.current || viewOpeningRef.current) && !opts?.force) return
       setItems(res.data.items)
       setTotal(res.data.total)
-    } finally { setLoading(false) }
+    } catch (err) {
+      if (isAbortError(err)) return
+      if (seq !== loadSeqRef.current) return
+      message.error('加载列表失败，请稍后重试')
+    } finally {
+      if (seq === loadSeqRef.current) setLoading(false)
+    }
   }, [id, buildQueryParams])
 
   useEffect(() => {
@@ -868,15 +912,33 @@ export default function FormDataListPage({
     })()
   }, [id, templateCode])
 
-  // 搜索框防抖 → 同步 keyword；keyword 变化时回到第 1 页
+  // 搜索框防抖 → 同步 keyword；与 pageNo 重置合并，避免一次搜索触发两次列表请求
   useEffect(() => {
-    const t = window.setTimeout(() => setKeyword(keywordInput.trim()), 350)
-    return () => window.clearTimeout(t)
+    if (keywordDebounceRef.current) window.clearTimeout(keywordDebounceRef.current)
+    keywordDebounceRef.current = window.setTimeout(() => {
+      keywordDebounceRef.current = null
+      const next = keywordInput.trim()
+      setPageNo(1)
+      setKeyword(next)
+    }, 350)
+    return () => {
+      if (keywordDebounceRef.current) window.clearTimeout(keywordDebounceRef.current)
+    }
   }, [keywordInput])
 
-  useEffect(() => { setPageNo(1) }, [keyword])
+  // 搜索词写入 URL，避免详情弹窗/慢请求竞态后列表条件丢失
+  useEffect(() => {
+    syncListKwToUrl(keyword)
+  }, [keyword])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    setDetailViewOpen(!!viewRec)
+  }, [viewRec])
+
+  useEffect(() => {
+    if (viewRecRef.current || viewOpeningRef.current) return
+    void load()
+  }, [load])
 
   // 审批修订待办深链：/shipment-notices?instance=...&reviseTask=...&edit=1
   useEffect(() => {
@@ -1019,29 +1081,51 @@ export default function FormDataListPage({
     readonly: boolean,
     opts?: { presentation?: 'modal' | 'drawer' },
   ) => {
-    const res = await lowcodeApi.getInstance(recId)
-    const detailRules = (res.data.rule_definitions as FormRule[] | undefined)
-    setViewRec({
-      fields: res.data.field_definitions,
-      value: res.data.form_data,
-      readonly,
-      id: recId,
-      business_no: res.data.business_no,
-      process_instance_id: res.data.process_instance_id,
-      rules: detailRules?.length ? detailRules : rules,
-      status: res.data.status,
-      initiator_id: res.data.initiator_id,
-      initiator_name: res.data.initiator_name,
-      created_at: res.data.created_at,
-      updated_at: res.data.updated_at,
-      retroactive_field_perms: (res.data as FormInstanceDetail).retroactive_field_perms,
-    })
-    if (opts?.presentation) setViewPresentation(opts.presentation)
-    setWfDetail(null)
-    await loadWorkflow(recId, res.data.process_instance_id)
+    if (viewOpening) return
+    if (keywordDebounceRef.current) {
+      window.clearTimeout(keywordDebounceRef.current)
+      keywordDebounceRef.current = null
+    }
+    // 取消在途列表请求，防止慢响应覆盖当前搜索结果；不再发起新的列表请求
+    loadAbortRef.current?.abort()
+    ++loadSeqRef.current
+    viewOpeningRef.current = true
+    setViewOpening(true)
+    setDetailViewOpen(true)
+    try {
+      const res = await lowcodeApi.getInstance(recId)
+      const detailRules = (res.data.rule_definitions as FormRule[] | undefined)
+      setViewRec({
+        fields: res.data.field_definitions,
+        value: res.data.form_data,
+        readonly,
+        id: recId,
+        business_no: res.data.business_no,
+        process_instance_id: res.data.process_instance_id,
+        rules: detailRules?.length ? detailRules : rules,
+        status: res.data.status,
+        initiator_id: res.data.initiator_id,
+        initiator_name: res.data.initiator_name,
+        created_at: res.data.created_at,
+        updated_at: res.data.updated_at,
+        retroactive_field_perms: (res.data as FormInstanceDetail).retroactive_field_perms,
+      })
+      if (opts?.presentation) setViewPresentation(opts.presentation)
+      setWfDetail(null)
+      await loadWorkflow(recId, res.data.process_instance_id)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+        || (err as Error)?.message
+      message.error(msg || '加载详情失败，请稍后重试')
+      if (!viewRecRef.current) setDetailViewOpen(false)
+    } finally {
+      viewOpeningRef.current = false
+      setViewOpening(false)
+    }
   }
 
   const closeView = () => {
+    setDetailViewOpen(false)
     setViewRec(null)
     setViewPresentation('modal')
     setWfDetail(null)
@@ -1088,11 +1172,16 @@ export default function FormDataListPage({
     if (targetPage < 1 || targetPage > maxPage) return
     setNavBusy(true)
     try {
-      const res = await lowcodeApi.listInstances(buildQueryParams(targetPage))
+      loadAbortRef.current?.abort()
+      const ac = new AbortController()
+      loadAbortRef.current = ac
+      const seq = ++loadSeqRef.current
+      const res = await lowcodeApi.listInstances(buildQueryParams(targetPage), { signal: ac.signal })
+      if (seq !== loadSeqRef.current) return
       const nextItems = res.data.items || []
       setPageNo(targetPage)
       setItems(nextItems)
-      setTotal(res.data.total)
+      setTotal(res.data.total ?? total)
       const pick = delta > 0 ? nextItems[0] : nextItems[nextItems.length - 1]
       if (pick) await openView(pick.id, true)
     } finally {
@@ -1608,9 +1697,9 @@ export default function FormDataListPage({
 
   const renderOps = (r: FormInstance) => (
     <Space size={0}>
-      <Button size="small" type="link" onClick={() => openView(r.id, true, { presentation: 'modal' })}>查看</Button>
+      <Button size="small" type="link" disabled={viewOpening} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, true, { presentation: 'modal' }) }}>查看</Button>
       {canEditRecord(r.status) && (
-        <Button size="small" type="link" onClick={() => openView(r.id, false, { presentation: 'modal' })}>编辑</Button>
+        <Button size="small" type="link" disabled={viewOpening} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openView(r.id, false, { presentation: 'modal' }) }}>编辑</Button>
       )}
       {listRowCanActivate(r) && (
         <Button
@@ -1669,7 +1758,16 @@ export default function FormDataListPage({
       const rec = expandDetails.length ? (row as DetailFlatRow).record : (row as FormInstance)
       const no = recordListNo(rec, schemaFields)
       return (
-        <a className="font-mono text-primary" title={no} onClick={() => openView(rec.id, true, { presentation: 'modal' })}>
+        <a
+          className="font-mono text-primary"
+          title={no}
+          href="#"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            void openView(rec.id, true, { presentation: 'modal' })
+          }}
+        >
           {no}
         </a>
       )
@@ -2009,9 +2107,13 @@ export default function FormDataListPage({
             style={{ width: 240 }}
             onChange={(e) => setKeywordInput(e.target.value)}
             onPressEnter={() => {
+              if (keywordDebounceRef.current) {
+                window.clearTimeout(keywordDebounceRef.current)
+                keywordDebounceRef.current = null
+              }
               const next = keywordInput.trim()
-              setKeyword(next)
               setPageNo(1)
+              setKeyword(next)
             }}
           />
           <Select
