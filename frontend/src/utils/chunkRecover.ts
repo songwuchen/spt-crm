@@ -6,18 +6,44 @@
  * Safe to call multiple times; only one reload within 15s.
  */
 const RECOVER_AT_KEY = 'spt_chunk_recover_at'
-/** 详情弹窗打开时禁止自动整页刷新（避免搜索后点「查看」被 recover 打断） */
+/** 详情弹窗/抽屉打开时禁止自动整页刷新（避免点「查看」被 recover 打断） */
 export const DETAIL_VIEW_OPEN_KEY = 'spt_detail_view_open'
 
-export function setDetailViewOpen(open: boolean): void {
+let detailViewRetainCount = 0
+
+function syncDetailViewOpenStorage(): void {
   try {
-    if (open) sessionStorage.setItem(DETAIL_VIEW_OPEN_KEY, '1')
+    if (detailViewRetainCount > 0) sessionStorage.setItem(DETAIL_VIEW_OPEN_KEY, '1')
     else sessionStorage.removeItem(DETAIL_VIEW_OPEN_KEY)
   } catch { /* ignore */ }
 }
 
-function isDetailViewOpen(): boolean {
+/** 详情视图占用一次保护计数；返回 release，必须在关闭时调用 */
+export function retainDetailViewOpen(): () => void {
+  detailViewRetainCount += 1
+  syncDetailViewOpenStorage()
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    detailViewRetainCount = Math.max(0, detailViewRetainCount - 1)
+    syncDetailViewOpenStorage()
+  }
+}
+
+export function isDetailViewOpen(): boolean {
+  if (detailViewRetainCount > 0) return true
   try { return sessionStorage.getItem(DETAIL_VIEW_OPEN_KEY) === '1' } catch { return false }
+}
+
+/** @deprecated 优先使用 retainDetailViewOpen；false 会清零所有占用 */
+export function setDetailViewOpen(open: boolean): void {
+  if (open) {
+    retainDetailViewOpen()
+    return
+  }
+  detailViewRetainCount = 0
+  syncDetailViewOpenStorage()
 }
 
 export function isChunkLoadError(err: unknown): boolean {
@@ -58,6 +84,7 @@ export function recoverFromStaleChunks(err?: unknown): boolean {
   if (Date.now() - last < 15_000) return false
   sessionStorage.setItem(RECOVER_AT_KEY, String(Date.now()))
   void clearClientCaches().finally(() => {
+    if (isDetailViewOpen()) return
     const u = new URL(window.location.href)
     u.searchParams.set('_nocache', String(Date.now()))
     window.location.replace(u.toString())

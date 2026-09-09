@@ -53,7 +53,7 @@ import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { setDetailViewOpen } from '@/utils/chunkRecover'
+import { retainDetailViewOpen } from '@/utils/chunkRecover'
 import {
   DRAWING_FORM_LAYOUT, applyDrawingFormLayout,
   resolveListExpandDetails, resolveListColumnIds,
@@ -700,6 +700,7 @@ export default function FormDataListPage({
   const keywordRef = useRef('')
   const viewRecRef = useRef<ViewRec | null>(null)
   const viewOpeningRef = useRef(false)
+  const detailRetainRef = useRef<(() => void) | null>(null)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const isProdCardSupplement = templateCode === 'prod_card_supplement'
@@ -900,7 +901,17 @@ export default function FormDataListPage({
   /** 输入框、防抖、列表请求均就绪后才允许点「查看」，避免搜索竞态触发整页刷新 */
   const searchSettled = !loading && keywordInput.trim() === keyword
 
+  const ensureDetailRetain = useCallback(() => {
+    if (!detailRetainRef.current) detailRetainRef.current = retainDetailViewOpen()
+  }, [])
+
+  const releaseDetailRetain = useCallback(() => {
+    detailRetainRef.current?.()
+    detailRetainRef.current = null
+  }, [])
+
   const prepareDetailOpen = useCallback(() => {
+    ensureDetailRetain()
     loadAbortRef.current?.abort()
     ++loadSeqRef.current
     setLoading(false)
@@ -908,7 +919,7 @@ export default function FormDataListPage({
       window.clearTimeout(keywordDebounceRef.current)
       keywordDebounceRef.current = null
     }
-  }, [])
+  }, [ensureDetailRetain])
 
   useEffect(() => {
     if (!id) return
@@ -954,8 +965,9 @@ export default function FormDataListPage({
   }, [keywordInput, applyKeywordSearch])
 
   useEffect(() => {
-    setDetailViewOpen(!!viewRec || viewOpening)
-  }, [viewRec, viewOpening])
+    if (viewRec || viewOpening) ensureDetailRetain()
+    else releaseDetailRetain()
+  }, [viewRec, viewOpening, ensureDetailRetain, releaseDetailRetain])
 
   useEffect(() => {
     if (viewRecRef.current || viewOpeningRef.current) return
@@ -1108,7 +1120,7 @@ export default function FormDataListPage({
     prepareDetailOpen()
     viewOpeningRef.current = true
     setViewOpening(true)
-    setDetailViewOpen(true)
+    ensureDetailRetain()
     try {
       const res = await lowcodeApi.getInstance(recId)
       const detailRules = (res.data.rule_definitions as FormRule[] | undefined)
@@ -1141,7 +1153,7 @@ export default function FormDataListPage({
   }
 
   const closeView = () => {
-    setDetailViewOpen(false)
+    releaseDetailRetain()
     setViewRec(null)
     setViewPresentation('modal')
     setWfDetail(null)

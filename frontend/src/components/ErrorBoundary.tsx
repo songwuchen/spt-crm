@@ -1,7 +1,7 @@
 import { Component } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { Button, Result } from 'antd'
-import { isChunkLoadError, recoverFromStaleChunks } from '@/utils/chunkRecover'
+import { isChunkLoadError, isDetailViewOpen, recoverFromStaleChunks } from '@/utils/chunkRecover'
 
 interface Props {
   children: ReactNode
@@ -94,6 +94,10 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReload = () => {
+    if (isDetailViewOpen()) {
+      this.handleReset()
+      return
+    }
     // 强制再走一轮恢复（忽略 15s 节流），避免卡在「请稍候」无按钮
     if (this.state.error && isChunkLoadError(this.state.error)) {
       try { sessionStorage.removeItem('spt_chunk_recover_at') } catch { /* ignore */ }

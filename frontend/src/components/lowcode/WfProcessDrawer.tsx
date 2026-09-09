@@ -57,7 +57,7 @@ import { isContractReviewBiz, printContractReview } from '@/pages/contractReview
 import { techAgreementReviewApi } from '@/api/techAgreementReview'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath, LEAD_INTEL_FIELD_PERMS } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
-import { setDetailViewOpen } from '@/utils/chunkRecover'
+import { retainDetailViewOpen } from '@/utils/chunkRecover'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Text, Title } = Typography
@@ -1209,8 +1209,8 @@ export function useWfProcessDrawer(reload: () => void) {
     setOpen(true)
   }
   useEffect(() => {
-    setDetailViewOpen(open)
-    return () => { setDetailViewOpen(false) }
+    if (!open) return undefined
+    return retainDetailViewOpen()
   }, [open])
   const node = (
     <WfProcessDrawer
